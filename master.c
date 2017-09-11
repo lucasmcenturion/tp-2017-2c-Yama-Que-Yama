@@ -1,0 +1,19 @@
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <commons/config.h>
+#include <commons/txt.h>
+#include <sys/select.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <linux/limits.h>
+#include <signal.h> 
+#include <semaphore.h>
+
