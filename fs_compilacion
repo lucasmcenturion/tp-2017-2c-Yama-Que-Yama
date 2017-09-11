@@ -1,3 +1,0 @@
-filesystem.c:74:1: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ at end of input
- }l
- ^

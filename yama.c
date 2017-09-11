@@ -42,7 +42,7 @@ int main(){
 	int addrlen= sizeof(addr);
 	struct addrinfo hints;
 	struct addrinfo *server_info;
-	int listenning_socket, rv, rv_fs,socket_fs;
+	int listenning_socket, rv, rv_fs,socket_fs,socket_nueva_conexion;
   
 	memset(&hints, 0, sizeof(hints));  // Relleno con ceros el resto de la estructura. 
 	hints.ai_family = AF_INET;         // Seteo la familia de direcciones en inet. 
@@ -71,10 +71,10 @@ int main(){
 	}
 
 	socket_fs=socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-	printf("%s%i\n","El valor del socket memoria es: " , socket_fs);
+	printf("%s%i\n","El valor del socket fs es: " , socket_fs);
 
-	char * mensaje= calloc (1, sizeof(char)*21);
-	mensaje="Yama te está yamando";
+	char *mensaje= calloc (sizeof(char),20);
+	strcpy(mensaje,"Hola soy yama");
 
 
 	if ((rv_fs=connect(socket_fs, server_info->ai_addr, server_info->ai_addrlen)) ==-1)
@@ -82,8 +82,16 @@ int main(){
 	 	perror("No se pudo conectar con fs");
 	 }else{
 	 	printf("Conexión establecida con FileSystem\n");
-	 	send(socket_fs,mensaje,strlen(mensaje),0);
-	 } 
 
-	 // Tendria que hacer free de mensaje, pero rompe  ¯\_(ツ)_/¯
-}
+	 	send(socket_fs,mensaje,strlen(mensaje),0);
+	 }
+
+	char *un_buffer=calloc(sizeof(char),20);
+
+	if ((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
+			perror("Error con conexion entrante");
+	}else{
+		 recv(socket_nueva_conexion,un_buffer,sizeof(char)*20,0);
+	}
+	printf("%s\n",un_buffer);
+} 

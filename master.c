@@ -27,49 +27,45 @@
 #define BACKLOG 5  // Número de conexiones permitidas en la cola de entrada.
 
 int main(){
-	char* PUERTO;
+	char *YAMA_IP,*YAMA_PUERTO;
 	t_config *CFG;
 	CFG = config_create("masterCFG.txt");   // Defino de dónde voy a leer la config.
-	PUERTO= config_get_string_value(CFG ,"PUERTO");  // Obtengo el valor de puerto.
+	YAMA_IP= config_get_string_value(CFG ,"PUERTO");  // Obtengo el valor de puerto.
+	YAMA_PUERTO=config_get_string_value(CFG,"YAMA_PUERTO");
 
-	printf("Configuración: PUERTO = %s\n",PUERTO);
+	printf("Configuración: YAMA_PUERTO = %s\n,YAMA_IP=%s\n",YAMA_PUERTO,YAMA_IP);
 
 	struct sockaddr_in addr;  //  usamos sockaddr_in para manipular los elementos de la dirección del socket.
 	int addrlen= sizeof(addr);
 	struct addrinfo hints;
 	struct addrinfo *server_info;
-	int listenning_socket, rv, socket_nueva_conexion;
+	int rv,rv_yama,socket_yama;
   
 	memset(&hints, 0, sizeof(hints));  // Relleno con ceros el resto de la estructura. 
 	hints.ai_family = AF_INET;         // Seteo la familia de direcciones en inet. 
 	hints.ai_flags = AI_PASSIVE;
 	hints.ai_socktype = SOCK_STREAM;  // Usamos sockets de flujo, bidireccionales. 
 
-	if ((rv =getaddrinfo(NULL, PUERTO, &hints, &server_info)) != 0) {
+	if ((rv =getaddrinfo(YAMA_IP, YAMA_PUERTO, &hints, &server_info)) != 0) {
 		printf("%i\n",rv );
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
-	listenning_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);  // Obtengo el descriptor de fichero.
-	printf("%s%i\n","El valor del Listenning Socket es: ",listenning_socket );
+	socket_yama=socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
+	printf("%s%i\n","El valor del Socket Yama es: ",socket_yama);
 	printf("%s \n", "Socket OK");
 
-	if(bind(listenning_socket,server_info->ai_addr, server_info->ai_addrlen)==-1) {  
-		perror("Error en el bind."); exit(1);
-	}
-	
-	printf("%s \n", "Bind OK\n");
-	freeaddrinfo(server_info);
+	char *buffer=calloc(sizeof(char),20);
+	strcpy(buffer,"Hola soy master");
 
-	if( rv = listen( listenning_socket , BACKLOG )== -1) perror("Error en el listen");  // listen(descriptor de fichero, n conexiones permitidas).
-	printf("%s \n", "El Servidor se encuentra OK para escuchar conexiones.");
+	if ((rv_yama=connect(socket_yama, server_info->ai_addr, server_info->ai_addrlen)) ==-1)
+	 {
+	 	perror("No se pudo conectar con yama");
+	 }else{
+	 	printf("Conexión establecida con Yama\n");
+
+	 	send(socket_yama,buffer,20*sizeof(char),0);
+	 } 
+
 
 	
-	char un_buffer[21];
-	if ((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
-			perror("Error con conexion entrante");
-		
-	}else{
-		 recv(socket_nueva_conexion,un_buffer,sizeof(un_buffer),0);
-	}
-	printf("%s\n",un_buffer);
 }

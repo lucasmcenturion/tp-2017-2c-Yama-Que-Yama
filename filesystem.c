@@ -64,12 +64,19 @@ int main(){
 	printf("%s \n", "El Servidor se encuentra OK para escuchar conexiones.");
 
 	
-	char un_buffer[21];
-	if ((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
+	char *un_buffer=calloc(sizeof(char),20);
+	if((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
 			perror("Error con conexion entrante");
-		
 	}else{
-		 recv(socket_nueva_conexion,un_buffer,sizeof(un_buffer),0);
+		 recv(socket_nueva_conexion,un_buffer,20*sizeof(char),0);
 	}
 	printf("%s\n",un_buffer);
+
+	char *otro_buffer=calloc(sizeof(char),18);
+	if ((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
+			perror("Error con conexion entrante");
+	}else{
+		 recv(socket_nueva_conexion,otro_buffer,18*sizeof(char),0);
+	}
+	printf("%s\n",otro_buffer);
 }
