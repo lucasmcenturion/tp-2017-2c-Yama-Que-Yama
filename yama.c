@@ -36,9 +36,7 @@ int main(){
 	FS_IP= config_get_string_value(CFG ,"FS_IP");  // Obtengo el valor de puerto.
 	ALGORITMO_BALANCEO= config_get_string_value(CFG ,"ALGORITMO_BALANCEO");  // Obtengo el valor de puerto.
 
-
-
-	printf("Configuración:\nPUERTO = %s\nPUERTO_FS= %s\nRETARDO_PLANIFICACION= %s\nFS_IP= %s\nALGORITMO_BALANCEO= %s\n",PUERTO,FS_PUERTO,RETARDO_PLANIFICACION,FS_IP,ALGORITMO_BALANCEO);
+	printf("Configuración:\nPUERTO = %s\nPUERTO_FS= %s\nRETARDO_PLANIFICACION= %s\nFS_IP= %s\nALGORITMO_BALANCEO= %s\n\n",PUERTO,FS_PUERTO,RETARDO_PLANIFICACION,FS_IP,ALGORITMO_BALANCEO);
 
 	struct sockaddr_in addr;  //  usamos sockaddr_in para manipular los elementos de la dirección del socket.
 	int addrlen= sizeof(addr);
@@ -68,18 +66,24 @@ int main(){
 	printf("%s \n", "El Servidor se encuentra OK para escuchar conexiones.");
 
 	if ((rv_fs =getaddrinfo(FS_IP, FS_PUERTO, &hints, &server_info)) != 0) {
-		printf("%i\n",rv );
+		printf("%i\n",rv_fs);
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
 
 	socket_fs=socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
 	printf("%s%i\n","El valor del socket memoria es: " , socket_fs);
 
+	char * mensaje= calloc (1, sizeof(char)*21);
+	mensaje="Yama te está yamando";
+
+
 	if ((rv_fs=connect(socket_fs, server_info->ai_addr, server_info->ai_addrlen)) ==-1)
 	 {
 	 	perror("No se pudo conectar con fs");
 	 }else{
-	 	send(socket_fs,"1",sizeof(char),0);
+	 	printf("Conexión establecida con FileSystem\n");
+	 	send(socket_fs,mensaje,strlen(mensaje),0);
 	 } 
 
+	 // Tendria que hacer free de mensaje, pero rompe  ¯\_(ツ)_/¯
 }

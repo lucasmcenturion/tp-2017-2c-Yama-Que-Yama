@@ -56,14 +56,15 @@ int main(){
 	if(bind(listenning_socket,server_info->ai_addr, server_info->ai_addrlen)==-1) {  
 		perror("Error en el bind."); exit(1);
 	}
-	int yes=1;
+	
 	printf("%s \n", "Bind OK\n");
 	freeaddrinfo(server_info);
 
 	if( rv = listen( listenning_socket , BACKLOG )== -1) perror("Error en el listen");  // listen(descriptor de fichero, n conexiones permitidas).
 	printf("%s \n", "El Servidor se encuentra OK para escuchar conexiones.");
 
-	char *un_buffer=malloc(sizeof(char));
+	
+	char un_buffer[21];
 	if ((socket_nueva_conexion = accept(listenning_socket,(struct sockaddr *)&addr,&addrlen)) == -1){
 			perror("Error con conexion entrante");
 		
