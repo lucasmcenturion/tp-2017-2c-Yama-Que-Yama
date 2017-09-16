@@ -24,6 +24,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <linux/limits.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #define BACKLOG 5  // Número de conexiones permitidas en la cola de entrada.
 
 int main(){
@@ -79,4 +81,55 @@ int main(){
 		 recv(socket_nueva_conexion,otro_buffer,18*sizeof(char),0);
 	}
 	printf("%s\n",otro_buffer);
+
+
+	char * linea;
+	while(1) {
+		linea = readline(">>");
+		if(linea)
+		  add_history(linea);
+		if(!strcmp(linea, "format"))
+			printf("logica de format\n");
+		else if(!strncmp(linea, "rm", 2))
+		{
+			linea += 2;
+			if(!strncmp(linea, " -d", 3))
+				printf("remover directorio\n");
+			else if(!strncmp(linea, " -b", 3))
+				printf("remover bloque\n");
+			else
+				printf("no existe ese comando\n");
+			linea -= 2;
+		}
+		else if(!strncmp(linea, "rename", 6))
+			printf("renombar\n");
+		else if(!strncmp(linea, "mv", 2))
+			printf("mover\n");
+		else if(!strncmp(linea, "cat", 3))
+			printf("muestra archivo\n");
+		else if(!strncmp(linea, "mkdir", 5))
+			printf("crea directorio\n");
+		else if(!strncmp(linea, "cpfrom", 6))
+			printf("copiando desde\n");
+		else if(!strncmp(linea, "cpto", 4))
+			printf("copiando a\n");
+		else if(!strncmp(linea, "cpblock", 7))
+			printf("copia de bloque\n");
+		else if(!strncmp(linea, "md5", 3))
+			printf("MD5\n");
+		else if(!strncmp(linea, "ls", 2))
+			printf("lista de archivos\n");
+		else if(!strncmp(linea, "info", 4))
+			printf("info archivo\n");
+		else if(!strcmp(linea, "exit"))
+		{
+			   printf("salio\n");
+			   free(linea);
+			   break;
+		}
+		else
+			printf("no se conoce el comando");
+		free(linea);
+	  }
+
 }
