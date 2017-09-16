@@ -41,11 +41,11 @@ int main(){
 	struct addrinfo hints;
 	struct addrinfo *server_info;
 	int listenning_socket, rv,socket_master,socket_nueva_conexion;
-  
-	memset(&hints, 0, sizeof(hints));  // Relleno con ceros el resto de la estructura. 
-	hints.ai_family = AF_INET;         // Seteo la familia de direcciones en inet. 
+
+	memset(&hints, 0, sizeof(hints));  // Relleno con ceros el resto de la estructura.
+	hints.ai_family = AF_INET;         // Seteo la familia de direcciones en inet.
 	hints.ai_flags = AI_PASSIVE;
-	hints.ai_socktype = SOCK_STREAM;  // Usamos sockets de flujo, bidireccionales. 
+	hints.ai_socktype = SOCK_STREAM;  // Usamos sockets de flujo, bidireccionales.
 
 	if ((rv =getaddrinfo(NULL, PUERTO_WORKER, &hints, &server_info)) != 0) {
 		printf("%i\n",rv );
@@ -55,14 +55,14 @@ int main(){
 	printf("%s%i\n","El valor del Listenning Socket es: ",listenning_socket );
 	printf("%s \n", "Socket OK");
 
-	if(bind(listenning_socket,server_info->ai_addr, server_info->ai_addrlen)==-1) {  
+	if(bind(listenning_socket,server_info->ai_addr, server_info->ai_addrlen)==-1) {
 		perror("Error en el bind."); exit(1);
 	}
 	printf("%s \n", "Bind OK\n");
 
 	if( rv = listen( listenning_socket , BACKLOG )== -1){
 		perror("Error en el listen");  // listen(descriptor de fichero, n conexiones permitidas).
-	} 
+	}
 	printf("%s \n", "El Servidor se encuentra OK para escuchar conexiones.");
 
 	char *un_buffer=calloc(sizeof(char),20);
@@ -73,6 +73,6 @@ int main(){
 	}
 	printf("%s\n",un_buffer);
 
-	
+
 
 }

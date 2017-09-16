@@ -1,1 +1,0 @@
-# tp-2017-2c-Yama-Que-Yama
