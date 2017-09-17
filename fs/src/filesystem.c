@@ -47,7 +47,7 @@ int main(){
 	hints.ai_flags = AI_PASSIVE;
 	hints.ai_socktype = SOCK_STREAM;  // Usamos sockets de flujo, bidireccionales. 
 
-	if ((rv =getaddrinfo(NULL, PUERTO, &hints, &server_info)) != 0) {
+	/*if ((rv =getaddrinfo(NULL, PUERTO, &hints, &server_info)) != 0) {
 		printf("%i\n",rv );
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
@@ -81,11 +81,11 @@ int main(){
 		 recv(socket_nueva_conexion,otro_buffer,18*sizeof(char),0);
 	}
 	printf("%s\n",otro_buffer);
-
+	*/
 
 	char * linea;
 	while(1) {
-		linea = readline(">>");
+		linea = readline(">> ");
 		if(linea)
 		  add_history(linea);
 		if(!strcmp(linea, "format"))
@@ -128,7 +128,7 @@ int main(){
 			   break;
 		}
 		else
-			printf("no se conoce el comando");
+			printf("no se conoce el comando\n");
 		free(linea);
 	  }
 

@@ -29,7 +29,7 @@
 int main(){
 	char *NOMBRE_NODO,*PUERTO_WORKER,*RUTA_DATABIN;
 	t_config *CFG;
-	CFG = config_create("nodoCFG.txt");   // Defino de dónde voy a leer la config.
+	CFG = config_create("../nodoCFG.txt");   // Defino de dónde voy a leer la config.
 	PUERTO_WORKER= config_get_string_value(CFG ,"PUERTO_WORKER");  // Obtengo el valor de puerto.
 	NOMBRE_NODO= config_get_string_value(CFG ,"NOMBRE_NODO");  // Obtengo el valor de puerto.
 	RUTA_DATABIN= config_get_string_value(CFG ,"RUTA_DATABIN");  // Obtengo el valor de puerto.

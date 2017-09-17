@@ -29,7 +29,7 @@
 int main(){
 	char *IP_FILESYSTEM,*PUERTO_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
 	t_config *CFG;
-	CFG = config_create("nodoCFG.txt");   // Defino de dónde voy a leer la config.
+	CFG = config_create("../nodoCFG.txt");   // Defino de dónde voy a leer la config.
 	IP_FILESYSTEM= config_get_string_value(CFG ,"IP_FILESYSTEM");  // Obtengo el valor de puerto.
 	PUERTO_FILESYSTEM=config_get_string_value(CFG,"PUERTO_FILESYSTEM");
 	NOMBRE_NODO=config_get_string_value(CFG,"NOMBRE_NODO");
