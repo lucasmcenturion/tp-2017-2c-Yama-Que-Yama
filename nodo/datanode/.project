@@ -23,4 +23,26 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>src/helper.c</name>
+			<type>1</type>
+			<locationURI>WORKSPACE_LOC/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.c</locationURI>
+		</link>
+		<link>
+			<name>src/helper.h</name>
+			<type>1</type>
+			<locationURI>WORKSPACE_LOC/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.h</locationURI>
+		</link>
+		<link>
+			<name>src/sockets.c</name>
+			<type>1</type>
+			<locationURI>WORKSPACE_LOC/tp-2017-2c-Yama-Que-Yama/Bibliotecas/sockets.c</locationURI>
+		</link>
+		<link>
+			<name>src/sockets.h</name>
+			<type>1</type>
+			<locationURI>WORKSPACE_LOC/tp-2017-2c-Yama-Que-Yama/Bibliotecas/sockets.h</locationURI>
+		</link>
+	</linkedResources>
 </projectDescription>
