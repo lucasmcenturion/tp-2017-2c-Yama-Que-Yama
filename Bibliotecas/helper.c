@@ -8,8 +8,10 @@ char* integer_to_string(int x) {
 	return buffer; // caller is expected to invoke free() on this buffer to release memory
 }
 
-int GetTamanioArchivo(FILE * f) {
-	fseek(f, 0L, SEEK_END);
-	int size = ftell(f);
-	return size;
+size_t getFileSize(const char* filename) {
+    struct stat st;
+    if(stat(filename, &st) != 0) {
+        return 0;
+    }
+    return st.st_size;
 }

@@ -15,8 +15,7 @@ void obtenerValoresArchivoConfiguracion() {
 	config_destroy(arch);
 }
 
-void accion(){
-
+void accion(void* paquete, int socket){
 }
 
 void imprimirArchivoConfiguracion(){
@@ -37,11 +36,26 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
+//TRUE SI NO ES WORKER, FALSE SI ES WORKER
+bool RecibirPaqueteFilesystem(Paquete* paquete){
+	RecibirPaqueteCliente(socketFS,YAMA,paquete);
+	if(paquete->header.tipoMensaje == NUEVOWORKER){
+		//TODO: GUARDAR Y ENVIAR A MASTER
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-	Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteCliente);
 	socketFS = ConectarAServidor(FS_PUERTO, FS_IP, FILESYSTEM, YAMA, RecibirHandshake);
+	//pthread_t conexionFilesystem;
+	//pthread_create(&conexionFilesystem, NULL, (void*)RecibirPaqueteFilesystem,NULL);
+	Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteServidor);
 
 	return 0;
 } 

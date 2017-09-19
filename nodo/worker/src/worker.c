@@ -9,8 +9,8 @@ void obtenerValoresArchivoConfiguracion() {
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
+	IP_NODO = string_duplicate(config_get_string_value(arch, "IP_NODO"));
 	PUERTO_WORKER = config_get_int_value(arch, "PUERTO_WORKER");
-	PUERTO_DATANODE = config_get_int_value(arch, "PUERTO_DATANODE");
 	RUTA_DATABIN = string_duplicate(config_get_string_value(arch, "RUTA_DATABIN"));
 	config_destroy(arch);
 }
@@ -20,17 +20,15 @@ void imprimirArchivoConfiguracion(){
 				"Configuración:\n"
 				"IP_FILESYSTEM=%s\n"
 				"PUERTO_FILESYSTEM=%d\n"
-				"IP_NODO=%s\n"
 				"NOMBRE_NODO=%s\n"
+				"IP_NODO=%s\n"
 				"PUERTO_WORKER=%d\n"
-				"PUERTO_DATANODE=%d\n"
 				"RUTA_DATABIN=%s\n",
 				IP_FILESYSTEM,
 				PUERTO_FILESYSTEM,
-				IP_NODO,
 				NOMBRE_NODO,
+				IP_NODO,
 				PUERTO_WORKER,
-				PUERTO_DATANODE,
 				RUTA_DATABIN
 				);
 }
@@ -43,7 +41,7 @@ int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 
-	Servidor(IP_NODO, PUERTO_WORKER, WORKER, accion, RecibirPaqueteCliente);
+	Servidor(IP_NODO, PUERTO_WORKER, WORKER, accion, RecibirPaqueteServidor);
 
 	return 0;
 }

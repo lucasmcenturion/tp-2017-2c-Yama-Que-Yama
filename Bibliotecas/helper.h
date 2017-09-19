@@ -35,9 +35,22 @@
 
 #define true 1
 #define false 0
-#define NULL   ((void *) 0)
+#define NULL ((void *) 0)
+
+typedef struct{
+	char* ip;
+	int puerto;
+}
+__attribute__((packed))
+datosWorker;
+
+typedef struct {
+	datosWorker worker;
+
+}__attribute__((packed))
+transformacionDatos;
 
 char* integer_to_string(int x);
-int GetTamanioArchivo(FILE * f);
+size_t getFileSize(const char* filename);
 
 #endif /* HELPER_*/
