@@ -37,12 +37,11 @@ void imprimirArchivoConfiguracion(){
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-	tamanioDataBin = (int)getFileSize(RUTA_DATABIN);
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
-	datosWorker* datos = malloc(sizeof(datosWorker));
+	/*datosWorker* datos = malloc(sizeof(datosWorker));
 	datos->ip = IP_NODO;
 	datos->puerto = PUERTO_WORKER;
-	EnviarDatosTipo(socketFS, DATANODE, datos, sizeof(datosWorker), NUEVOWORKER);
+	EnviarDatosTipo(socketFS, DATANODE, datos, sizeof(datosWorker), NUEVOWORKER);*/
 	while(1){
 
 	}

@@ -3,6 +3,8 @@
 char *IP_NODO, *IP_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
 int socketFS;
+t_list* listaDeProcesos;
+bool end;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("../nodoCFG.txt");
@@ -33,15 +35,18 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-void accion(){
-
+void accionPadre(){
 }
+
+void accionHijo(){
+}
+
 
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-
-	Servidor(IP_NODO, PUERTO_WORKER, WORKER, accion, RecibirPaqueteServidor);
+	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
+	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 
 	return 0;
 }

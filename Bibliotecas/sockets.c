@@ -83,8 +83,8 @@ void ServidorConcurrente(char* ip, int puerto, char nombre[11], t_list** listaDe
 
 }
 
-void ServidorConcurrenteFork(char* ip, int puerto, char nombre[11], t_list** listaDeProcesos,
-		bool* terminar, void (*accionHilo)(void* socketFD)) {
+void ServidorConcurrenteForks(char* ip, int puerto, char nombre[11], t_list** listaDeProcesos,
+		bool* terminar, void (*accionPadre)(void* socketFD), void (*accionHijo) (void* socketFD)) {
 	printf("Iniciando Servidor %s\n", nombre);
 	*terminar = false;
 	*listaDeProcesos = list_create();
@@ -100,20 +100,33 @@ void ServidorConcurrenteFork(char* ip, int puerto, char nombre[11], t_list** lis
 			continue;
 		}
 		printf("\nNueva conexion de %s en " "socket %d\n", inet_ntoa(their_addr.sin_addr), new_fd);
-		//pthread_t hilo = agregarAListaHiloSiNoEsta(listaHilos, socketFD);
-		structHilo* itemNuevo = malloc(sizeof(structHilo));
+		structProceso* itemNuevo = malloc(sizeof(structProceso));
 		itemNuevo->socket = new_fd;
-		pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo, &new_fd);
 		list_add(*listaDeProcesos, itemNuevo);
+		pid_t pid = fork();
+		if(pid >= 0) //fork exitoso
+		{
+			if (pid > 0) //padre
+			{
+				accionPadre(itemNuevo->socket);
+			}
+			else //hijo
+			{
+				accionHijo(itemNuevo->socket);
+			}
+		}
+		else
+			perror("error en el fork");
 	}
 	printf("Apagando Servidor");
 	close(socketFD);
 	//libera los items de lista de hilos , destruye la lista y espera a que termine cada hilo.
 	list_destroy_and_destroy_elements(*listaDeProcesos, LAMBDA(void _(void* elem) {
-			pthread_join(((structHilo*)elem)->hilo, NULL);
 			free(elem); }));
 
 }
+
+
 
 int ConectarAServidor(int puertoAConectar, char* ipAConectar, char servidor[11],
 		char cliente[11], void RecibirElHandshake(int socketFD, char emisor[11])) {

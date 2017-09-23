@@ -24,7 +24,6 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <parser/parser.h>
 #include <ctype.h>
 #include <semaphore.h>
 #include <assert.h>
@@ -43,6 +42,8 @@ typedef struct{
 }
 __attribute__((packed))
 datosWorker;
+
+typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
 
 typedef struct {
 	datosWorker worker;
