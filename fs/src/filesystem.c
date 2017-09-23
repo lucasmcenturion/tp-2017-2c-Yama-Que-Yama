@@ -34,7 +34,7 @@ void accion(void* socket){
 			{
 				case NUEVOWORKER:
 					{
-						datosWorker* worker = paquete->Payload;
+						datosWorker* worker = paquete.Payload;
 						EnviarDatosTipo(socketYAMA, DATANODE, worker, sizeof(datosWorker), NUEVOWORKER);
 					}
 					break;
@@ -44,19 +44,19 @@ void accion(void* socket){
 		}
 		else if (!strcmp(paquete.header.emisor, YAMA))
 		{
-			socketYAMA = socket;
+			socketYAMA = socketFD;
 			switch (paquete.header.tipoMensaje)
 			{
 				case ESDATOS:
-					switch (paquete.Payload)
-					{
-								case LEERARCHIVO:
+					//switch (paquete.Payload)
+					//{
+						//		case LEERARCHIVO:
 									//IniciarPrograma(DATOS[1],DATOS[2],socketFD);
-								break;
-								case ALMACENARARCHIVO:
+							//	break;
+								//case ALMACENARARCHIVO:
 									//SolicitarBytes(DATOS[1],DATOS[2],DATOS[3],DATOS[4],socketFD);
-								break;
-					}
+								//break;
+					//}
 					break;
 			}
 
@@ -66,9 +66,11 @@ void accion(void* socket){
 
 			switch (paquete.header.tipoMensaje)
 			{
-				case ESDATOS:
+				case ESDATOS:{
 					void* datos = paquete.Payload;
 					//AlmacenarArchivo();
+					}
+					break;
 
 			}
 		}
