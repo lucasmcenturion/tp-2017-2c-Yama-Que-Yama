@@ -47,9 +47,26 @@ typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
 
 typedef struct {
 	datosWorker worker;
-
+	int nodo;
+	int bloque;
+	int bytesOcupados;
+	char* archTemp;
 }__attribute__((packed))
 transformacionDatos;
+
+typedef struct {
+	datosWorker* worker;
+	int nodoEncargado;
+	//Lista de nombres de archivos temporales de cada worker
+	char* archTemp;
+}__attribute__((packed))
+reduccionGlobalDatos;
+
+typedef struct{
+ int index;
+ char nombre[255];
+ int padre;
+}__attribute__((packed)) t_directory;
 
 char* integer_to_string(int x);
 size_t getFileSize(const char* filename);
