@@ -99,6 +99,10 @@ int main(){
 	imprimirArchivoConfiguracion();
 	obtenerStatusDataBin();
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
+	datosWorker* datos = malloc(sizeof(datosWorker));
+	datos->ip = IP_NODO;
+	datos->puerto = PUERTO_WORKER;
+	EnviarDatosTipo(socketFS, DATANODE, datos, sizeof(datosWorker), NUEVOWORKER);
 
 	// ● setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
 
