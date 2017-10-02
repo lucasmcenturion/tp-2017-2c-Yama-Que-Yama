@@ -13,6 +13,8 @@ int PUERTO_FILESYSTEM, PUERTO_WORKER;
 int socketFS;
 int tamanioDataBin;
 
+FILE *LogDatanode;
+
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("../nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
@@ -84,14 +86,35 @@ void getBloque(int numeroDeBloque){ 	//getBloque(numero): Devolverá el contenid
 	char * datos;                                                               //HACER MALLOC. no calloc
 
 	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {		// Obtengo el fd del data.bin
-		printf("ERROR en Open() al obtener el FileDescriptor de data.bin");}
+		printf("ERROR en el Open() de getBloque()");}
 
-	if ((datos = mmap ( (caddr_t)0 , tamanioAleer , PROT_READ , MAP_SHARED, unFileDescriptor , tamanioAleer )) == (caddr_t)(-1)) {
-		printf("ERROR en mmap()");}
+	if ((datos = mmap ( (caddr_t)0 , tamanioAleer , PROT_READ , MAP_SHARED, unFileDescriptor , tamanioAleer )) == (caddr_t)(-1))
+		printf("ERROR en el mmap() de getBloque()");
+
+		else {printf("funco bien getbloque");}//enviar los datos obtenidos a fs.
 
 }
 
+void setBloque ( int numeroDeBloque, char* datos){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
+	int unFileDescriptor;
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {		// Obtengo el fd del data.bin
+		printf("ERROR en el Open() de setBloque()");}
 
+	else {printf("sjsjsjsj");}
+
+
+
+}
+
+char* escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
+	fseek ( *archivoDeLog , 0 , SEEK_END );  // fseek( archivo , desplazamiento , posición de origen );
+	fwrite ( contenidoAEscribir , strlen(contenidoAEscribir) , 1 , *archivoDeLog );   // Strlen da la longitud de una cadena de texto.
+	fwrite ( "\n" , 1 , 1 , *archivoDeLog );		// fwrite (datos, tamaño de cada dato, cantidad de datos, archivo).
+	printf("%s\n", contenidoAEscribir);		// Lo muestro por pantalla.
+	return contenidoAEscribir;
+}
+
+//   escribirEnArchivoLog(operacion,&LogDatanode);
 
 
 int main(){
@@ -103,20 +126,17 @@ int main(){
 	datos->ip = IP_NODO;
 	datos->puerto = PUERTO_WORKER;
 	EnviarDatosTipo(socketFS, DATANODE, datos, sizeof(datosWorker), NUEVOWORKER);
-
-	// ● setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
-
-	/*Para simplificar el acceso a los datos de forma aleatoria el alumno debe investigar e
-	implementar la llamada al sistema mmap()​*/
-
-	/*Archivo​ ​de​ ​Log
-		El proceso DataNode deberá contar con un archivo de configuración en el cual se logearán
-		todas las operaciones realizadas. Las mismas deberán ser mostradas por pantalla*/
+	printf("%s", "1");
+	getBloque(3);
+	printf("2");
+	setBloque(2,"1");
+	printf("3");
+	escribirEnArchivoLog("operacion",&LogDatanode);
 
 
-	while(1){
 
-	}
 
 	return 0;
 }
+
+
