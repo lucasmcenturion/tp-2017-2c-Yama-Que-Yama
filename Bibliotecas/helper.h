@@ -62,6 +62,15 @@ typedef struct {
 }__attribute__((packed))
 reduccionGlobalDatos;
 
+typedef struct {
+	datosWorker* worker;
+	char* progTrans; //Programa de Transformacion
+	int bloques;
+	int bytesOcupados;
+	char* archTemp;
+}__attribute__((packed))
+datosTransWorker;
+
 typedef struct{
  int index;
  char nombre[255];
