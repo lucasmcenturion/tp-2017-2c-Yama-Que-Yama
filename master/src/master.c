@@ -28,6 +28,12 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
+void realizarTransformacion(){
+
+}
+
+
+
 void accionHilo(datosTransWorker* paquete){ //hacer struct structHiloWorker, donde ponemos worker y sacarlo de datosTransWorker
 	datosWorker* worker = paquete->worker;
 
@@ -57,6 +63,8 @@ int main(){
 	listaHilos = list_create();
 
 	//datosParaTransformacion.progTrans = asdasd; Asignar el programa de transformacion.
+
+	//FALTA: Mandar mensaje a Yama de que comience transformacion
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));
