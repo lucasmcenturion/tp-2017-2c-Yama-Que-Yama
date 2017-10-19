@@ -37,6 +37,7 @@
 #define NULL ((void *) 0)
 
 typedef struct{
+	int nodo;
 	char* ip;
 	int puerto;
 }
