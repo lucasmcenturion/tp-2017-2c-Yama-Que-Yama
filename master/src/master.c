@@ -20,37 +20,15 @@ void obtenerValoresArchivoConfiguracion() {
 
 void imprimirArchivoConfiguracion(){
 	printf(
-				"Configuración:\n"
-				"YAMA_IP=%s\n"
-				"YAMA_PUERTO=%d\n",
-				YAMA_IP,
-				YAMA_PUERTO
-				);
+			"Configuración:\n"
+			"YAMA_IP=%s\n"
+			"YAMA_PUERTO=%d\n",
+			YAMA_IP,
+			YAMA_PUERTO
+	);
 }
 
-void realizarTransformacion(Paquete paquete){
 
-	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
-
-	datosTransWorker* datosParaTransformacion = malloc(sizeof(datosTransWorker));
-	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
-	datosParaTransformacion->archTemp = ((transformacionDatos*)paquete->Payload)->archTemp;
-	datosParaTransformacion->bloques = ((transformacionDatos*)paquete->Payload)->bloque;
-	datosParaTransformacion->bytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
-
-
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
-
-	/*
-	pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo,
-				&(((transformacionDatos*)paquete->Payload)->worker));
-	*/
-
-	list_add(listaHilos, itemNuevo);
-
-
-}
 
 typedef enum{TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL}programa;
 
@@ -66,52 +44,54 @@ typedef struct{
 
 
 void accionHilo(solicitudPrograma* solicitud){ //hacer struct structHiloWorker, donde ponemos worker y sacarlo de datosTransWorker
-	datosWorker* worker = solicitud->worker;
+	datosWorker* worker = &solicitud->worker;
 
 	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);
+	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
 	switch (solicitud->header)
 	{
 	case TRANSFORMACION:
 		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), TRANSFWORKER);
-		Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-			RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
-			if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-				if((bool*)paqueteArecibir->Payload) {
-					//Envia msj a YAMA con verificacion
-				}
-				else {
-					//manejo de error
-				}
+		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paqueteArecibir->Payload) {
+				//Envia msj a YAMA con verificacion
+			}
+			else {
+				//manejo de error
+			}
+		}
+		break;
 
 	case REDUCCIONLOCAL:
 		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), REDLOCALWORKER);
-				Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-					RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
-					if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-						if((bool*)paqueteArecibir->Payload) {
-							//Envia msj a YAMA con verificacion
-						}
-						else {
-							//manejo de error
-						}
-
+		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paqueteArecibir->Payload) {
+				//Envia msj a YAMA con verificacion
+			}
+			else {
+				//manejo de error
+			}
+		}
+		break;
 
 
 	case REDUCCIONGLOBAL:
 		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), REDGLOBALWORKER);
-				Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-					RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
-					if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-						if((bool*)paqueteArecibir->Payload) {
-								//Envia msj a YAMA con verificacion
-						}
-						else {
-								//manejo de error
-						}
-
+		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paqueteArecibir->Payload) {
+				//Envia msj a YAMA con verificacion
+			}
+			else {
+				//manejo de error
+			}
+			break;
+		}
 	}
 
-				//NO ES DEFINITIVO!
+	//NO ES DEFINITIVO!
 	/*EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), TRANSFWORKER);
 	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
 	RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
@@ -124,13 +104,36 @@ void accionHilo(solicitudPrograma* solicitud){ //hacer struct structHiloWorker, 
 		}
 	}
 
-*/
+	 */
 	/*
 	datosWorker* worker = w;
 	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);*/
 }
 
 
+void realizarTransformacion(Paquete* paquete){
+
+	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
+
+	datosTransWorker* datosParaTransformacion = malloc(sizeof(datosTransWorker));
+	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
+	datosParaTransformacion->archTemp = ((transformacionDatos*)paquete->Payload)->archTemp;
+	datosParaTransformacion->bloques = ((transformacionDatos*)paquete->Payload)->bloque;
+	datosParaTransformacion->bytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+
+
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
+
+	/*
+						pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo,
+									&(((transformacionDatos*)paquete->Payload)->worker));
+	 */
+
+	list_add(listaHilos, itemNuevo);
+
+
+}
 
 
 int main(){
@@ -160,7 +163,7 @@ int main(){
 			datosParaTransformacion->archTemp = ((transformacionDatos*)paquete->Payload)->archTemp;
 			datosParaTransformacion->bloques = ((transformacionDatos*)paquete->Payload)->bloque;
 			datosParaTransformacion->bytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
-*/
+			 */
 
 
 			//pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
@@ -168,16 +171,16 @@ int main(){
 			/*
 			pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo,
 						&(((transformacionDatos*)paquete->Payload)->worker));
-			*/
+			 */
 
 			//list_add(listaHilos, itemNuevo);
 		}
 	}
 
 	list_destroy_and_destroy_elements(listaHilos, LAMBDA(void _(void* elem) {
-				pthread_join(((hiloWorker*)elem)->hilo, NULL);
-				free(elem); }));
-	
+		pthread_join(((hiloWorker*)elem)->hilo, NULL);
+		free(elem); }));
+
 
 	return 0;
 }
