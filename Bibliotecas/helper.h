@@ -55,10 +55,19 @@ typedef struct {
 }__attribute__((packed))
 transformacionDatos;
 
+
 typedef struct {
 	datosWorker* worker;
+	char** listaArchivosTemps; //Lista de nombres de archivos temporales de cada worker
+	char* archTemp;
+}__attribute__((packed))
+reduccionLocalDatos;
+
+typedef struct {
+	datosWorker* worker;
+	datosWorker WorkerEncargado;
 	int nodoEncargado;
-	//Lista de nombres de archivos temporales de cada worker
+	char** listaArchivosTemps; //Lista de nombres de archivos temporales de cada worker
 	char* archTemp;
 }__attribute__((packed))
 reduccionGlobalDatos;

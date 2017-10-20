@@ -11,6 +11,8 @@ typedef struct{
 } hiloWorker;
 
 
+
+
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("masterCFG.txt");
 	YAMA_IP = string_duplicate(config_get_string_value(arch, "YAMA_IP"));
@@ -34,41 +36,49 @@ typedef enum{TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL}programa;
 
 typedef struct{
 	programa header;
-	datosWorker worker;
+	datosWorker* worker;
 	int bloque;
 	char* archivoTemporal;
 	char* programa;
 	int cantidadDeBytesOcupados;
+	char** ListaArchivosTemporales;
+	datosWorker workerEncargado;
 }solicitudPrograma;
 
 
-
-void accionHilo(solicitudPrograma* solicitud){ //hacer struct structHiloWorker, donde ponemos worker y sacarlo de datosTransWorker
+void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por nodo TODO
 	datosWorker* worker = &solicitud->worker;
 
 	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);
 	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
 	switch (solicitud->header)
 	{
+
 	case TRANSFORMACION:
 		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), TRANSFWORKER);
 		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
-				//Envia msj a YAMA con verificacion
+				bool* ok = true;
+				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				//manejo de error
 			}
 		}
+		else {
+			//manejo de error por paquete mal recibido
+		}
 		break;
+
 
 	case REDUCCIONLOCAL:
 		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), REDLOCALWORKER);
 		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
-				//Envia msj a YAMA con verificacion
+				bool* ok = true;
+				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				//manejo de error
@@ -82,7 +92,8 @@ void accionHilo(solicitudPrograma* solicitud){ //hacer struct structHiloWorker, 
 		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
-				//Envia msj a YAMA con verificacion
+				bool* ok = true;
+				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				//manejo de error
@@ -91,50 +102,88 @@ void accionHilo(solicitudPrograma* solicitud){ //hacer struct structHiloWorker, 
 		}
 	}
 
-	//NO ES DEFINITIVO!
-	/*EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), TRANSFWORKER);
-	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-	RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
-	if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-		if((bool*)paqueteArecibir->Payload) {
-			//Envia msj a YAMA con verificacion
-		}
-		else {
-			//manejo de error
-		}
-	}
-
-	 */
-	/*
-	datosWorker* worker = w;
-	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);*/
 }
 
 
 void realizarTransformacion(Paquete* paquete){
-
+	solicitudPrograma* datosParaTransPorNodo;
+	int cantPaquetes = sizeof(paquete->Payload)/sizeof(transformacionDatos);
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
 
-	datosTransWorker* datosParaTransformacion = malloc(sizeof(datosTransWorker));
-	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
-	datosParaTransformacion->archTemp = ((transformacionDatos*)paquete->Payload)->archTemp;
-	datosParaTransformacion->bloques = ((transformacionDatos*)paquete->Payload)->bloque;
-	datosParaTransformacion->bytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma)*cantPaquetes);
+	int i;
+	for(i=0;i<cantPaquetes;i++){
+		datosParaTransformacion[i].worker = &((transformacionDatos*)paquete->Payload)->worker;
+		datosParaTransformacion[i].archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
+		datosParaTransformacion[i].bloque = ((transformacionDatos*)paquete->Payload)->bloque;
+		datosParaTransformacion[i].cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+	}
 
 
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
+	int j=1;
+	int cont=0;
+	for(i=0;i<cantPaquetes-1;i++){
+		 //PREREQUISITO: Yama nos lo manda ordenado por Nodos
+		if(datosParaTransformacion[i].worker->nodo!=datosParaTransformacion[i+1].worker->nodo){ //Nos fijamos si es el mismo nodo
+			j++;
 
-	/*
-						pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo,
-									&(((transformacionDatos*)paquete->Payload)->worker));
-	 */
-
+		}
+		else { //Si dejan de ser iguales, es que ya tenemos 1 nodo terminado
+			datosParaTransPorNodo = malloc(sizeof(solicitudPrograma)*j); //Hacemos un malloc por la cantidad de elementos
+			int y;
+			for(y=cont;y<j;y++){
+				datosParaTransPorNodo[y]=datosParaTransformacion[y]; //Asignamos los que encontramos
+			}
+			datosParaTransPorNodo->header = TRANSFORMACION;
+			pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransPorNodo);
+			cont = i;
+			j=1;
+		}
+	}
+	//Hacemos una vez porque el ultimo siempre nos va a quedar colgado, mas en el caso de que puede ser que los ultimos 3 sean iguales
+	datosParaTransPorNodo = malloc(sizeof(solicitudPrograma)*j); //Hacemos un malloc por la cantidad de elementos
+	int y;
+	for(y=cont;y<j;y++){
+		datosParaTransPorNodo[y]=datosParaTransformacion[y]; //Asignamos los que encontramos
+	}
+	datosParaTransPorNodo->header = TRANSFORMACION;
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransPorNodo);
 	list_add(listaHilos, itemNuevo);
 
 
 }
 
+void realizarReduccionLocal(Paquete* paquete){
+	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
+	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+	itemNuevo->worker = *((reduccionLocalDatos*)paquete->Payload)->worker;
+
+	datosParaReducLocal->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
+	datosParaReducLocal->ListaArchivosTemporales = ((reduccionLocalDatos*)paquete->Payload)->listaArchivosTemps;
+	datosParaReducLocal->archivoTemporal = ((reduccionLocalDatos*)paquete->Payload)->archTemp;
+
+	datosParaReducLocal->header = REDUCCIONLOCAL;
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducLocal);
+	list_add(listaHilos, itemNuevo);
+}
+
+void realizarReduccionGlobal(Paquete* paquete){
+
+	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+	itemNuevo->worker = *((reduccionGlobalDatos*)paquete->Payload)->worker;
+	solicitudPrograma* datosParaReducGlobal = malloc(sizeof(solicitudPrograma));
+
+	datosParaReducGlobal->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
+	datosParaReducGlobal->workerEncargado = ((reduccionGlobalDatos*)paquete->Payload)->WorkerEncargado;
+	datosParaReducGlobal->ListaArchivosTemporales = ((reduccionGlobalDatos*)paquete->Payload)->listaArchivosTemps;
+	datosParaReducGlobal->archivoTemporal = ((reduccionGlobalDatos*)paquete->Payload)->archTemp;
+
+	datosParaReducGlobal->header = REDUCCIONGLOBAL;
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducGlobal);
+	list_add(listaHilos, itemNuevo);
+
+}
 
 int main(){
 	obtenerValoresArchivoConfiguracion();
@@ -148,32 +197,19 @@ int main(){
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));
 
-	while (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)){
-		if (paquete->header.tipoMensaje == NUEVOWORKER){
-
-
-			realizarTransformacion(paquete);
-
-
-			/*hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-			itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
-
-			datosTransWorker* datosParaTransformacion = malloc(sizeof(datosTransWorker));
-			datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
-			datosParaTransformacion->archTemp = ((transformacionDatos*)paquete->Payload)->archTemp;
-			datosParaTransformacion->bloques = ((transformacionDatos*)paquete->Payload)->bloque;
-			datosParaTransformacion->bytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
-			 */
-
-
-			//pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
-
-			/*
-			pthread_create(&(itemNuevo->hilo), NULL, (void*)accionHilo,
-						&(((transformacionDatos*)paquete->Payload)->worker));
-			 */
-
-			//list_add(listaHilos, itemNuevo);
+	while(true){
+		while (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)){
+			switch(paquete->header.tipoMensaje){
+			case NUEVOWORKER:
+				realizarTransformacion(paquete);
+				break;
+			case REDLOCALWORKER:
+				realizarReduccionLocal(paquete);
+				break;
+			case REDGLOBALWORKER:
+				realizarReduccionGlobal(paquete);
+				break;
+			}
 		}
 	}
 
