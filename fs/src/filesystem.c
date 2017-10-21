@@ -1,5 +1,5 @@
 #include "sockets.h"
-
+#define TAM_BLOQUE 1048576;
 char *IP;
 int PUERTO;
 int socketFS;
@@ -110,8 +110,91 @@ void consola() {
 			printf("muestra archivo\n");
 		else if(!strncmp(linea, "mkdir ", 6))
 			printf("crea directorio\n");
-		else if(!strncmp(linea, "cpfrom ", 7))
-			printf("copiando desde\n");
+		else if(!strncmp(linea, "cpfrom ", 7)){
+			/*
+			 * cpfrom	[path_archivo_origen]	[directorio_yamafs]	 [tipo_archivo]	-	Copiar	un	archivo	local	al	yamafs,
+				siguiendo	los	lineamientos	en	la	operaciòn	Almacenar	Archivo,	de	la	Interfaz	del
+				FileSystem.
+			 * */
+			//char *cadena=calloc(255,sizeof(char));
+			//char cadena[255];
+			//fgets(cadena,255,stdin);
+			//printf("%s",linea);
+			char **array_input=string_split(linea," ");
+			char *path_archivo=malloc(sizeof(array_input[1]));
+			path_archivo=array_input[1];
+			char *directorio=malloc(sizeof(array_input[2]));
+			directorio=array_input[2];
+			int tipo_archivo = atoi(array_input[3]);
+			printf("%s,%s,%i\n",path_archivo,directorio,tipo_archivo);
+			FILE* archivo = fopen("/home/utnso/Escritorio/test.dat", "r");
+			t_list* bloques  = list_create();
+			if (tipo_archivo == 0)
+			{
+				//texto
+
+				    if(archivo == NULL)
+				    {
+				        printf("error, el archivo no existe");
+				    }
+
+				    fseek(archivo, 0, SEEK_END);
+				    long int size = ftell(archivo);
+				    rewind(archivo);
+
+				    char* content = calloc(size + 1, 1);
+
+				    fread(content,1,size,archivo);
+				    char** array_oraciones = string_split(content, "\n");
+				    char *buffer = string_new();
+				    string_append(&buffer, array_oraciones[0]);
+				    int size_array_oraciones=0;
+				    while( array_oraciones[size_array_oraciones] ) {
+				    	size_array_oraciones++;
+				    }
+				    int i=0;
+				    while (i<(size_array_oraciones-1)){
+				    	if ((string_length(buffer)+string_length(array_oraciones[i]))< 1048576){
+				    		string_append(&buffer, array_oraciones[i]);
+				    	}
+				    	else
+				    	{
+				    		printf("%i\n",string_length(buffer));
+				    		list_add(bloques,buffer);
+				    		buffer=string_new();
+
+				    	}
+				    	i++;
+				    }
+				    list_add(bloques,buffer);
+				    printf("%i\n",list_size(bloques));
+
+			}
+			else
+			{
+				/*if(archivo == NULL)
+				{
+					printf("error, el archivo no existe");
+				}
+
+				fseek(archivo, 0, SEEK_END);
+				long int  size = ftell(archivo);
+				rewind(archivo);
+				int a=true;
+				while(a){
+					if(size<1048576){
+						char* content = calloc(size + 1, 1);
+						fread(content,1,size,archivo);
+						list_add(bloques,content);
+						a=false;
+					}else{
+						char *content=malloc(1048576);
+
+					}
+				}*/
+			}
+
+		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
 		else if(!strncmp(linea, "cpblock ", 8))
