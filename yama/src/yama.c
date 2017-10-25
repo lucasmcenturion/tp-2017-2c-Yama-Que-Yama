@@ -41,6 +41,23 @@ bool RecibirPaqueteFilesystem(Paquete* paquete){
 	RecibirPaqueteCliente(socketFS,YAMA,paquete);
 	if(paquete->header.tipoMensaje == NUEVOWORKER){
 		//TODO: GUARDAR Y ENVIAR A MASTER
+		void* datos = paquete->Payload;
+		int tamanio = paquete->header.tamPayload;
+		datosWorker* worker = malloc(tamanio);
+		uint32_t largo;
+		largo = *((uint32_t*)datos);
+		datos += sizeof(uint32_t);
+		worker->nodo = string_new();
+		strcpy(worker->nodo, datos);
+		datos+=largo + 1;
+		worker->puerto = *((uint32_t*)datos);
+		datos += sizeof(uint32_t);
+		largo = *((uint32_t*)datos);
+		datos += sizeof(uint32_t);
+		worker->ip = string_new();
+		strcpy(worker->ip, datos);
+		datos += largo + 1;
+		datos -= tamanio;
 		return false;
 	}
 	else
@@ -53,9 +70,10 @@ int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	socketFS = ConectarAServidor(FS_PUERTO, FS_IP, FILESYSTEM, YAMA, RecibirHandshake);
-	//pthread_t conexionFilesystem;
-	//pthread_create(&conexionFilesystem, NULL, (void*)RecibirPaqueteFilesystem,NULL);
+	pthread_t conexionFilesystem;
+	pthread_create(&conexionFilesystem, NULL, (void*)RecibirPaqueteFilesystem,NULL);
 	Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteServidor);
+	pthread_join(conexionFilesystem, NULL);
 
 	return 0;
 } 

@@ -37,9 +37,9 @@
 #define NULL ((void *) 0)
 
 typedef struct{
-	int nodo;
+	char* nodo;
 	char* ip;
-	int puerto;
+	uint32_t puerto;
 }
 __attribute__((packed))
 datosWorker;
@@ -80,6 +80,17 @@ typedef struct {
 	char* archTemp;
 }__attribute__((packed))
 datosTransWorker;
+
+typedef struct {
+	int job;
+	int master;
+	char* nodo;
+	int bloque;
+	char* etapa;
+	char* archivoTemporal;
+	char* estado;
+}__attribute__((packed))
+registroEstado;
 
 typedef struct{
  int index;

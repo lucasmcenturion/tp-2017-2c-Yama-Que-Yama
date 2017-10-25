@@ -34,8 +34,9 @@ void accion(void* socket){
 			{
 				case NUEVOWORKER:
 					{
-						datosWorker* worker = paquete.Payload;
-						EnviarDatosTipo(socketYAMA, DATANODE, worker, sizeof(datosWorker), NUEVOWORKER);
+						void* datos = paquete.Payload;
+						int tamanio = paquete.header.tamPayload;
+						EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
 					}
 					break;
 				case ESDATOS:

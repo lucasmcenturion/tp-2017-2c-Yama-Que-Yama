@@ -122,10 +122,22 @@ int main(){
 	imprimirArchivoConfiguracion();
 	obtenerStatusDataBin();
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
-	datosWorker* datos = malloc(sizeof(datosWorker));
-	datos->ip = IP_NODO;
-	datos->puerto = PUERTO_WORKER;
-	EnviarDatosTipo(socketFS, DATANODE, datos, sizeof(datosWorker), NUEVOWORKER);
+
+	int tamanio = sizeof(uint32_t) * 3 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
+	void* datos = malloc(tamanio);
+	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
+	datos += sizeof(uint32_t);
+	strcpy(datos, NOMBRE_NODO);
+	datos +=  strlen(NOMBRE_NODO) + 1;
+	*((uint32_t*)datos) = PUERTO_WORKER;
+	datos += sizeof(uint32_t);
+	*((uint32_t*)datos) = strlen(IP_NODO);
+	datos += sizeof(uint32_t);
+	strcpy(datos, IP_NODO);
+	datos += strlen(IP_NODO) + 1;
+	datos -= tamanio;
+	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
+
 	printf("%s", "1");
 	getBloque(3);
 	printf("2");
