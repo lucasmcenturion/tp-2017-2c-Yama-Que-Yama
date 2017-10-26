@@ -40,6 +40,8 @@ typedef struct{
 	char* nodo;
 	char* ip;
 	uint32_t puerto;
+	uint32_t cargaDeTrabajo;
+	uint32_t disponibilidad;
 }
 __attribute__((packed))
 datosWorker;
