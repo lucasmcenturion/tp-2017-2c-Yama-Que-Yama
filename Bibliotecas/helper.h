@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <semaphore.h>
@@ -42,6 +43,7 @@ typedef struct{
 	uint32_t puerto;
 	uint32_t cargaDeTrabajo;
 	uint32_t disponibilidad;
+	uint32_t contTareasRealizadas;
 }
 __attribute__((packed))
 datosWorker;

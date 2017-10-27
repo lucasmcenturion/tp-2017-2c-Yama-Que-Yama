@@ -72,6 +72,8 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 			datos += sizeof(uint32_t);
 			worker->disponibilidad = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
+			worker->contTareasRealizadas = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
 			datos -= tamanio;
 			list_add(listaWorkers,worker);
 		}
@@ -94,7 +96,7 @@ void accion(Paquete* paquete, int socket){
 	{
 		switch (paquete.header.tipoMensaje)
 		{
-			case NUEVOWORKER:
+			case tipo:
 			{
 
 			}
@@ -130,6 +132,7 @@ void availability(datosWorker* worker){
 }
 
 void planificacion(){
+	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad();
 	//ordena por disponibilidad de mayor a menor
 	list_sort(listaWorkers, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
@@ -137,14 +140,14 @@ void planificacion(){
 	uint32_t disp = ((datosWorker*)list_get(listaWorkers, 0))->disponibilidad;
 	//obtiene los elementos que poseen la mayor disponibilidad
 	t_list* disponibles = list_filter(listaWorkers,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
-	//ordena por carga de trabajo de menor a mayor
-	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
+	//ordena por cantidad tareas realizadas de menor a mayor
+	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
+	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
 	clock = list_get(disponibles, 0);
 	list_destroy(disponibles);
 }
 
 void calcularDisponibilidad(){
-	//calcula la disponibilidad por cada worker y la actualiza
 	list_iterate(listaWorkers,LAMBDA(void _(void* item) { availability(item);}));
 }
 
