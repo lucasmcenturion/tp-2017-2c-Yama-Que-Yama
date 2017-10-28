@@ -6,12 +6,15 @@
 #include <sys/stat.h>  //Para obtener propiedades del databin.
 #include <time.h>      //Para mostrar datos de databin.
 #include <sys/mman.h>  //Para mmap.
+#define TAMBLOQUE 1024*1024
 
 
 char *IP_FILESYSTEM,*NOMBRE_NODO,*IP_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER;
 int socketFS;
 int tamanioDataBin;
+int cantidad_bloques;
+int cantidad_bloques_libres;
 
 FILE *LogDatanode;
 
@@ -95,12 +98,18 @@ void getBloque(int numeroDeBloque){ 	//getBloque(numero): Devolverá el contenid
 
 }
 
-void setBloque ( int numeroDeBloque, char* datos){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
+void setBloque ( int numeroDeBloque, void *datos){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
+	//necesito saber el tamaño de lo que tengo que guardar
+	//una vez que tengo el tamaño, puedo hacer el memcpy para copiarlos
 	int unFileDescriptor;
-	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {		// Obtengo el fd del data.bin
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_WRONLY)) == -1){		// Obtengo el fd del data.bin
 		printf("ERROR en el Open() de setBloque()");}
+	else {
+		void *data=mmap(0,tamanioDataBin,PROT_WRITE,MAP_SHARED,unFileDescriptor,numeroDeBloque*TAMBLOQUE);
+		memcpy(data,datos,sizeof(datos));
 
-	else {printf("sjsjsjsj");}
+
+	}
 
 
 
@@ -123,6 +132,7 @@ int main(){
 	obtenerStatusDataBin();
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
 
+	//TODO hacerlo funcion
 	int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
 	void* datos = malloc(tamanio);
 	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
@@ -143,12 +153,21 @@ int main(){
 	datos += sizeof(uint32_t);
 	datos -= tamanio;
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
+	free(datos);
 
-	printf("%s", "1");
+	tamanio = sizeof(uint32_t) * 1  + sizeof(char) * strlen(NOMBRE_NODO) + 1;
+	datos = malloc(tamanio);
+	*((uint32_t*)datos) = tamanioDataBin;
+	datos += sizeof(uint32_t);
+	strcpy(datos, NOMBRE_NODO);
+	datos +=  strlen(NOMBRE_NODO) + 1;
+	datos -= tamanio;
+	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
+	free(datos);
+
+
 	getBloque(3);
-	printf("2");
 	setBloque(2,"1");
-	printf("3");
 	escribirEnArchivoLog("operacion",&LogDatanode);
 
 

@@ -1,11 +1,12 @@
 #include "sockets.h"
 #include <sys/mman.h>
-#define TAMBLOQUE 1024*1024
+#define TAMBLOQUE (1024*1024)
 char *IP;
 int PUERTO;
 int socketFS;
 int socketYAMA;
 t_list* listaHilos;
+t_list* datanodes;
 bool end;
 
 void obtenerValoresArchivoConfiguracion() {
@@ -28,7 +29,7 @@ void imprimirArchivoConfiguracion(){
 void accion(void* socket){
 	int socketFD = *(int*)socket;
 	Paquete paquete;
-	while (RecibirPaqueteServidor(socketFD, FILESYSTEM, &paquete) > 0) {
+	while (RecibirPaqueteServidor(socketFD, FILESYSTEM, &paquete) > 0){
 		if(!strcmp(paquete.header.emisor, DATANODE))
 		{
 			switch (paquete.header.tipoMensaje)
@@ -40,8 +41,19 @@ void accion(void* socket){
 						EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
 					}
 					break;
-				case ESDATOS:
-					break;
+				case IDENTIFICACIONDATANODE:
+				{
+					void *datos=paquete.Payload;
+					info_datanode *data=calloc(1,sizeof(info_datanode));
+					uint32_t size_databin=*((uint32_t*)datos);
+					datos += sizeof(uint32_t);
+					data->nodo = string_new();
+					strcpy(data->nodo, datos);
+					datos-=sizeof(uint32_t);
+					data->socket=socketFD;
+					obtener_bloques(size_databin,data);
+					list_add(datanodes,data);
+				}
 			}
 		}
 		else if (!strcmp(paquete.header.emisor, YAMA))
@@ -83,6 +95,11 @@ void accion(void* socket){
 			free(paquete.Payload);
 	}
 	close(socketFD);
+}
+void obtener_bloques(uint32_t size,info_datanode *data){
+	int cantidad_bloques=(int)(size/TAMBLOQUE);
+	data->bloques_totales=cantidad_bloques;
+	data->bloques_libres=cantidad_bloques;
 }
 
 void consola() {
@@ -179,8 +196,13 @@ void consola() {
 					memcpy(bloque,data,size_aux);
 					list_add(bloques,bloque);
 				}
-				printf("%i\n",sizeof(list_get(bloques,0))+sizeof(list_get(bloques,1))+sizeof(list_get(bloques,2))+sizeof(list_get(bloques,3)));
+				void *bloque0=list_get(bloques,0);
+				void *bloque1=list_get(bloques,1);
+				void *bloque2=list_get(bloques,2);
+				void *bloque3=list_get(bloques,3);
+				printf('h0l@');
 			}
+			//enviarBloques(bloques);
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -204,9 +226,13 @@ void consola() {
 	}
 }
 
+void enviarBloques(t_list *bloques){
+
+}
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
+	datanodes=list_create();
 	pthread_t hiloConsola;
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);

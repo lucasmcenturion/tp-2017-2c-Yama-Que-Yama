@@ -97,6 +97,14 @@ typedef struct {
 registroEstado;
 
 typedef struct{
+	uint32_t socket;
+	uint32_t bloques_totales;
+	uint32_t bloques_libres;
+	char *nodo;
+}__attribute__((packed))
+info_datanode;
+
+typedef struct{
  int index;
  char nombre[255];
  int padre;

@@ -27,9 +27,10 @@
 							<tool id="cdt.managedbuild.tool.gnu.c.compiler.exe.debug.1375279247" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.exe.debug">
 								<option defaultValue="gnu.c.optimization.level.none" id="gnu.c.compiler.exe.debug.option.optimization.level.1487467351" name="Optimization Level" superClass="gnu.c.compiler.exe.debug.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.exe.debug.option.debugging.level.402692674" name="Debug Level" superClass="gnu.c.compiler.exe.debug.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
-								<option id="gnu.c.compiler.option.include.files.506998594" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files" valueType="includeFiles"/>
+								<option id="gnu.c.compiler.option.include.files.506998594" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files"/>
 								<option id="gnu.c.compiler.option.include.paths.1642646447" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/Bibliotecas"/>
+									<listOptionValue builtIn="false" value="lcommons"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.281756267" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
