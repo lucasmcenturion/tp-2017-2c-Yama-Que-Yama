@@ -1,5 +1,6 @@
 #include "sockets.h"
-#define TAMBLOQUE 1048576
+#include <sys/mman.h>
+#define TAMBLOQUE 1024*1024
 char *IP;
 int PUERTO;
 int socketFS;
@@ -120,38 +121,65 @@ void consola() {
 			char **array_input=string_split(linea," ");
 			char *path_archivo=malloc(sizeof(array_input[1]));
 			path_archivo=array_input[1];
-			//char *directorio=malloc(sizeof(array_input[2]));
-			//directorio=array_input[2];
+			char *directorio=malloc(sizeof(array_input[2]));
+			directorio=array_input[2];
 			int tipo_archivo = atoi(array_input[3]);
 			t_list* bloques  = list_create();
 			int archivo = open(path_archivo, O_RDWR);
-			struct stat texto_stat;
+			struct stat archivo_stat;
 			void *data;
-			fstat(archivo,&texto_stat);
-			int size_aux=texto_stat.st_size;
-			data = mmap(0,texto_stat.st_size,PROT_READ,MAP_SHARED, archivo,0);
+			fstat(archivo,&archivo_stat);
+			int size_aux=archivo_stat.st_size;
+			data = mmap(0,archivo_stat.st_size,PROT_READ,MAP_SHARED, archivo,0);
+			bool condicion=true;
 			if(tipo_archivo==0){
 				//archivo de texto
 				int i=TAMBLOQUE-1;
 				while(size_aux>TAMBLOQUE){
 					if(((char*)data)[i]=='\n'){
-						void *bloque=realloc(bloque,i+1);
-						memcpy(bloque,data,i);
+						void *bloque=calloc(1,i+1);
+						memcpy(bloque,data,i+1);
 						list_add(bloques,bloque);
 						data+=i+1;
-						size_aux-=TAMBLOQUE;
+						size_aux-=i+1;
 						if(!(size_aux>TAMBLOQUE)){
-							bloque=realloc(bloque,size_aux);
+							bloque=calloc(1,size_aux);
 							memcpy(bloque,data,size_aux);
 							list_add(bloques,bloque);
+							condicion=false;
 						}
 					}else{
 						i--;
 					}
 				}
-				printf("%i\n",string_length(list_get(bloques,0))+string_length(list_get(bloques,1)));
+				if(condicion){
+					void *bloque=calloc(1,size_aux);
+					memcpy(bloque,data,size_aux);
+					list_add(bloques,bloque);
+				}
 			}else{
-				//binario
+				//archivo binario
+				if(size_aux>TAMBLOQUE){
+					//tamaño archivo mayor al de un bloque
+					while(size_aux>TAMBLOQUE){
+						void *bloque=calloc(1,TAMBLOQUE);
+						memcpy(bloque,data,TAMBLOQUE);
+						list_add(bloques,bloque);
+						size_aux-=TAMBLOQUE;
+						data+=TAMBLOQUE;
+					}
+					if(!(size_aux>TAMBLOQUE)){
+						void *bloque=calloc(1,size_aux);
+						memcpy(bloque,data,size_aux);
+						list_add(bloques,bloque);
+					}
+				}else{
+					//tamaño archivo menor a un bloque
+					void *bloque=calloc(1,size_aux);
+					memcpy(bloque,data,size_aux);
+					list_add(bloques,bloque);
+				}
+				printf("%i\n",sizeof(list_get(bloques,0))+sizeof(list_get(bloques,1))+sizeof(list_get(bloques,2))+sizeof(list_get(bloques,3)));
 			}
 		}
 		else if(!strncmp(linea, "cpto ", 5))
