@@ -206,8 +206,9 @@ void consola() {
 					list_add(bloques_a_enviar,bloque_a_enviar);
 				}
 			}
-
 			enviarBloques(bloques);
+			//TODO tambien destroy elements;
+			list_destroy(bloques);
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -240,25 +241,31 @@ void enviarBloques(t_list *bloques){
 	int datanodes_disponibles=list_size(bloques);
 	int i=0;
 	int i_bloque=0;
-	if(datanodes_disponibles<=2){
+	if(datanodes_disponibles<2){
 		perror("No hay datanodes disponibles");
 	}else{
 		//hay por lo menos 2 datanodes disponibles
 		while(bloques_a_enviar){
-				int index_primer_copia= primer_disponible(disponibles,i);
-				int index_segunda_copia= primer_disponible(disponibles,i+1);
-				if(index_primer_copia>0 && index_segunda_copia>0 && index_primer_copia!=index_segunda_copia){
-					//enviar datos a list_get(bloques,primer_copia)
-					//enviar datos a list_get(bloques,segunda_copia)
-				}
-				if(i+1==datanodes_disponibles){
-
+			int index_primer_copia= primer_disponible(disponibles,i);
+			int index_segunda_copia= primer_disponible(disponibles,i+1);
+			if(index_primer_copia>0 && index_segunda_copia>0 && index_primer_copia!=index_segunda_copia){
+				//enviar datos a list_get(bloques,primer_copia)
+				//enviar datos a list_get(bloques,segunda_copia)
+			}else{
+				if(index_primer_copia!=index_segunda_copia){
+					perror("Se intenta copiar en el mismo datanodes dos copias");
 				}else{
-					i++;
+					perror("No hay mas lugares para guardar alguna de sus copias");
 				}
-				bloques_a_enviar--;
-
 			}
+			if(i+1==datanodes_disponibles){
+				i=0;
+			}else{
+				i++;
+			}
+			bloques_a_enviar--;
+		}
+		list_destroy(disponibles);
 	}
 }
 
