@@ -1,6 +1,6 @@
 #include "sockets.h"
 #include <sys/mman.h>
-#define TAMBLOQUE (1024*1024)
+#define TAMBLOQUE 9
 char *IP;
 int PUERTO;
 int socketFS;
@@ -141,7 +141,7 @@ void consola() {
 			char *directorio=malloc(sizeof(array_input[2]));
 			directorio=array_input[2];
 			int tipo_archivo = atoi(array_input[3]);
-			t_list* bloques  = list_create();
+			t_list *bloques_a_enviar  = list_create();
 			int archivo = open(path_archivo, O_RDWR);
 			struct stat archivo_stat;
 			void *data;
@@ -156,15 +156,12 @@ void consola() {
 					if(((char*)data)[i]=='\n'){
 						void *bloque=calloc(1,i+1);
 						memcpy(bloque,data,i+1);
-						list_add(bloques,bloque);
+						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
+						bloque_a_enviar->datos=bloque;
+						bloque_a_enviar->tamano=i+1;
+						list_add(bloques_a_enviar,bloque_a_enviar);
 						data+=i+1;
 						size_aux-=i+1;
-						if(!(size_aux>TAMBLOQUE)){
-							bloque=calloc(1,size_aux);
-							memcpy(bloque,data,size_aux);
-							list_add(bloques,bloque);
-							condicion=false;
-						}
 					}else{
 						i--;
 					}
@@ -172,7 +169,10 @@ void consola() {
 				if(condicion){
 					void *bloque=calloc(1,size_aux);
 					memcpy(bloque,data,size_aux);
-					list_add(bloques,bloque);
+					bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
+					bloque_a_enviar->datos=bloque;
+					bloque_a_enviar->tamano=size_aux;
+					list_add(bloques_a_enviar,bloque_a_enviar);
 				}
 			}else{
 				//archivo binario
@@ -181,28 +181,33 @@ void consola() {
 					while(size_aux>TAMBLOQUE){
 						void *bloque=calloc(1,TAMBLOQUE);
 						memcpy(bloque,data,TAMBLOQUE);
-						list_add(bloques,bloque);
+						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
+						bloque_a_enviar->datos=bloque;
+						bloque_a_enviar->tamano=TAMBLOQUE;
+						list_add(bloques_a_enviar,bloque_a_enviar);
 						size_aux-=TAMBLOQUE;
 						data+=TAMBLOQUE;
 					}
 					if(!(size_aux>TAMBLOQUE)){
 						void *bloque=calloc(1,size_aux);
 						memcpy(bloque,data,size_aux);
-						list_add(bloques,bloque);
+						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
+						bloque_a_enviar->datos=bloque;
+						bloque_a_enviar->tamano=size_aux;
+						list_add(bloques_a_enviar,bloque_a_enviar);
 					}
 				}else{
 					//tamaño archivo menor a un bloque
 					void *bloque=calloc(1,size_aux);
 					memcpy(bloque,data,size_aux);
-					list_add(bloques,bloque);
+					bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
+					bloque_a_enviar->datos=bloque;
+					bloque_a_enviar->tamano=size_aux;
+					list_add(bloques_a_enviar,bloque_a_enviar);
 				}
-				void *bloque0=list_get(bloques,0);
-				void *bloque1=list_get(bloques,1);
-				void *bloque2=list_get(bloques,2);
-				void *bloque3=list_get(bloques,3);
-				printf('h0l@');
 			}
-			//enviarBloques(bloques);
+
+			enviarBloques(bloques);
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -227,7 +232,68 @@ void consola() {
 }
 
 void enviarBloques(t_list *bloques){
+	//filtramos los que tengan bloques libres
+	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
+	//una vez obtenidos,los enviamos
+	t_list *disponibles=list_filter(datanodes,LAMBDA(bool _(void* item1){ return ((info_datanode*)item1)->bloques_libres>0;}));
+	int bloques_a_enviar=list_size(bloques);
+	int datanodes_disponibles=list_size(bloques);
+	int i=0;
+	int i_bloque=0;
+	if(datanodes_disponibles<=2){
+		perror("No hay datanodes disponibles");
+	}else{
+		//hay por lo menos 2 datanodes disponibles
+		while(bloques_a_enviar){
+				int index_primer_copia= primer_disponible(disponibles,i);
+				int index_segunda_copia= primer_disponible(disponibles,i+1);
+				if(index_primer_copia>0 && index_segunda_copia>0 && index_primer_copia!=index_segunda_copia){
+					//enviar datos a list_get(bloques,primer_copia)
+					//enviar datos a list_get(bloques,segunda_copia)
+				}
+				if(i+1==datanodes_disponibles){
 
+				}else{
+					i++;
+				}
+				bloques_a_enviar--;
+
+			}
+	}
+}
+
+int primer_disponible(t_list *datanodes, int index_actual){
+	//esta funcion retorna el index de la lista
+	int total=list_size(datanodes);
+	int proximo;
+	bool disponible=false;
+	if(index_actual+1==total-1){
+		proximo=0;
+	}else{
+		proximo=index_actual+1;
+	}
+	while(1){
+		if(((info_datanode*)list_get(datanodes,proximo))->bloques_libres>0){
+			//existe un nodo que tiene bloques libres para guardar
+			disponible=true;
+			break;
+		}
+		proximo++;
+		if(proximo==total-1){
+			proximo=0;
+		}
+	}
+	if(disponible){
+		if(proximo==index_actual){
+			//existe un nodo con bloques libres,pero es el mismo que el actual(tienen = index)
+			return -1;
+		}else{
+			//existeu un nodo con bloques libres, diferente al actual(tienen != index)
+			return proximo;
+		}
+	}else{
+		return -1;
+	}
 }
 int main(){
 	obtenerValoresArchivoConfiguracion();

@@ -105,6 +105,12 @@ typedef struct{
 info_datanode;
 
 typedef struct{
+	uint32_t tamano;
+	void *datos;
+}__attribute__((packed))
+bloques;
+
+typedef struct{
  int index;
  char nombre[255];
  int padre;
