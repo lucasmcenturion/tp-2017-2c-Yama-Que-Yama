@@ -106,12 +106,32 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 
 
 void realizarTransformacion(Paquete* paquete){
-	solicitudPrograma* datosParaTransPorNodo;
-	int cantPaquetes = sizeof(paquete->Payload)/sizeof(transformacionDatos);
+
+	//int cantPaquetes = sizeof(paquete->Payload)/sizeof(transformacionDatos);
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
+	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma));
 
-	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma)*cantPaquetes);
+	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
+	datosParaTransformacion->archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
+	datosParaTransformacion->bloque = ((transformacionDatos*)paquete->Payload)->bloque;
+	datosParaTransformacion->cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+
+
+	datosParaTransformacion->header = REDUCCIONLOCAL;
+		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
+		list_add(listaHilos, itemNuevo);
+
+}
+
+
+
+
+
+
+
+
+/*	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma)*cantPaquetes);
 	int i;
 	for(i=0;i<cantPaquetes;i++){
 		datosParaTransformacion[i].worker = &((transformacionDatos*)paquete->Payload)->worker;
@@ -147,12 +167,13 @@ void realizarTransformacion(Paquete* paquete){
 	for(y=cont;y<j;y++){
 		datosParaTransPorNodo[y]=datosParaTransformacion[y]; //Asignamos los que encontramos
 	}
-	datosParaTransPorNodo->header = TRANSFORMACION;
+	datosParaTransPorNodo[0]->header = TRANSFORMACION;
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransPorNodo);
 	list_add(listaHilos, itemNuevo);
 
 
 }
+*/
 
 void realizarReduccionLocal(Paquete* paquete){
 	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
@@ -166,6 +187,8 @@ void realizarReduccionLocal(Paquete* paquete){
 	datosParaReducLocal->header = REDUCCIONLOCAL;
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducLocal);
 	list_add(listaHilos, itemNuevo);
+
+
 }
 
 void realizarReduccionGlobal(Paquete* paquete){
