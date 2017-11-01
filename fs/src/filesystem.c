@@ -1,6 +1,6 @@
 #include "sockets.h"
 #include <sys/mman.h>
-#define TAMBLOQUE 9
+#define TAMBLOQUE (1024*1024)
 char *IP;
 int PUERTO;
 int socketFS;
@@ -26,6 +26,11 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
+
+bool no_tiene_socket(info_datanode *datanode,int *socket){
+	return datanode->socket!=socket;
+}
+
 void accion(void* socket){
 	int socketFD = *(int*)socket;
 	Paquete paquete;
@@ -38,7 +43,7 @@ void accion(void* socket){
 					{
 						void* datos = paquete.Payload;
 						int tamanio = paquete.header.tamPayload;
-						EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
+						//EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
 					}
 					break;
 				case IDENTIFICACIONDATANODE:
@@ -51,7 +56,37 @@ void accion(void* socket){
 					strcpy(data->nodo, datos);
 					datos-=sizeof(uint32_t);
 					data->socket=socketFD;
-					obtener_bloques(size_databin,data);
+					char *path=string_new();
+					string_append(&path,"/home/utnso/metadata/bitmaps/");
+					string_append(&path,data->nodo);
+					string_append(&path,".dat");
+					printf("%s\n",path);
+					//verifico si existen sus estructuras administrativas
+					if(access(path, F_OK ) == -1 ){
+						//no tiene un bitmap,es archivo nuevo
+						FILE *f=fopen(path,"w");
+						fclose(f);
+						int size_bitarray=(int)(size_databin/TAMBLOQUE)%8>0 ? ((int)((int)(size_databin/TAMBLOQUE)/8))+1 : (int)(size_databin/TAMBLOQUE);
+						truncate(path,size_bitarray);
+						int bitmap = open(path,O_RDWR);
+						struct stat mystat;
+						void *bmap;
+						if (fstat(bitmap, &mystat) < 0) {
+							printf("Error al establecer fstat\n");
+							close(bitmap);
+						}
+						bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+						if (bmap == MAP_FAILED) {
+									printf("Error al mapear a memoria: %s\n", strerror(errno));
+						}
+						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+						data->bloques_libres=(int)(size_databin/TAMBLOQUE);
+						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
+						// TODO	falta cambiar los datos del nodo
+					}else{
+						//ya existe un bitmap, alguna vez este nodo se conecto
+						//TODO 	obtener del bitmap los bloques ocupados
+					}
 					list_add(datanodes,data);
 				}
 			}
@@ -95,11 +130,8 @@ void accion(void* socket){
 			free(paquete.Payload);
 	}
 	close(socketFD);
-}
-void obtener_bloques(uint32_t size,info_datanode *data){
-	int cantidad_bloques=(int)(size/TAMBLOQUE);
-	data->bloques_totales=cantidad_bloques;
-	data->bloques_libres=cantidad_bloques;
+	//list_remove_by_condition(datanodes,(void*) no_tiene_socket,&socketFD);
+
 }
 
 void consola() {
@@ -206,9 +238,9 @@ void consola() {
 					list_add(bloques_a_enviar,bloque_a_enviar);
 				}
 			}
-			enviarBloques(bloques);
+			enviarBloques(bloques_a_enviar);
 			//TODO tambien destroy elements;
-			list_destroy(bloques);
+			list_destroy(bloques_a_enviar);
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -232,41 +264,8 @@ void consola() {
 	}
 }
 
-void enviarBloques(t_list *bloques){
-	//filtramos los que tengan bloques libres
-	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
-	//una vez obtenidos,los enviamos
-	t_list *disponibles=list_filter(datanodes,LAMBDA(bool _(void* item1){ return ((info_datanode*)item1)->bloques_libres>0;}));
-	int bloques_a_enviar=list_size(bloques);
-	int datanodes_disponibles=list_size(bloques);
-	int i=0;
-	int i_bloque=0;
-	if(datanodes_disponibles<2){
-		perror("No hay datanodes disponibles");
-	}else{
-		//hay por lo menos 2 datanodes disponibles
-		while(bloques_a_enviar){
-			int index_primer_copia= primer_disponible(disponibles,i);
-			int index_segunda_copia= primer_disponible(disponibles,i+1);
-			if(index_primer_copia>0 && index_segunda_copia>0 && index_primer_copia!=index_segunda_copia){
-				//enviar datos a list_get(bloques,primer_copia)
-				//enviar datos a list_get(bloques,segunda_copia)
-			}else{
-				if(index_primer_copia!=index_segunda_copia){
-					perror("Se intenta copiar en el mismo datanodes dos copias");
-				}else{
-					perror("No hay mas lugares para guardar alguna de sus copias");
-				}
-			}
-			if(i+1==datanodes_disponibles){
-				i=0;
-			}else{
-				i++;
-			}
-			bloques_a_enviar--;
-		}
-		list_destroy(disponibles);
-	}
+bool esta_disponible(info_datanode *un_datanode){
+	return un_datanode->bloques_libres>0;
 }
 
 int primer_disponible(t_list *datanodes, int index_actual){
@@ -274,8 +273,12 @@ int primer_disponible(t_list *datanodes, int index_actual){
 	int total=list_size(datanodes);
 	int proximo;
 	bool disponible=false;
+	if(((info_datanode*)list_get(datanodes,index_actual))->bloques_libres>0 && index_actual<total){
+		return index_actual;
+	}
 	if(index_actual+1==total-1){
-		proximo=0;
+		//proximo=0;
+		proximo=total-1;
 	}else{
 		proximo=index_actual+1;
 	}
@@ -302,6 +305,43 @@ int primer_disponible(t_list *datanodes, int index_actual){
 		return -1;
 	}
 }
+
+void enviarBloques(t_list *bloques_a_enviar){
+	//filtramos los que tengan bloques libres
+	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
+	//una vez obtenidos,los enviamos
+	t_list *disponibles=list_filter(datanodes, (void*) esta_disponible);
+	int size_bloques=list_size(bloques_a_enviar);
+	int datanodes_disponibles=list_size(disponibles);
+	int i=0;
+	if(datanodes_disponibles<2){
+		perror("No hay datanodes disponibles");
+	}else{
+		//hay por lo menos 2 datanodes disponibles
+		while(size_bloques){
+			int index_primer_copia= primer_disponible(disponibles,i);
+			int index_segunda_copia= primer_disponible(disponibles,i+1);
+			if(index_primer_copia>=0 && index_segunda_copia>=0 && index_primer_copia!=index_segunda_copia){
+				//enviar datos a list_get(bloques,primer_copia)
+				//enviar datos a list_get(bloques,segunda_copia)
+			}else{
+				if(index_primer_copia!=index_segunda_copia){
+					perror("Se intenta copiar en el mismo datanodes dos copias");
+				}else{
+					perror("No hay mas lugares para guardar alguna de sus copias");
+				}
+			}
+			if(i+1==datanodes_disponibles-1){
+				i=0;
+			}else{
+				i++;
+			}
+			size_bloques--;
+		}
+		list_destroy(disponibles);
+	}
+}
+
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
