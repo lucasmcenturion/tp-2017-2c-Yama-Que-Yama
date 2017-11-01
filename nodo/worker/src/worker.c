@@ -35,10 +35,10 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-void accionPadre(){
+void accionPadre(int socketMaster){
 }
 
-void accionHijo(){
+void accionHijo(int socketMaster){
 }
 
 
@@ -46,6 +46,11 @@ int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
+	/*
+	 * Centu: como le pasamos el socketFD (que vendria siendo el master, no?) a la funcion accionHijo que tenemos aca
+	 * y otra cosa, accionPadre tiene que quedar escuchando, esta bien si dejamos accionPadre vacio?
+	 */
+
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 
 	return 0;

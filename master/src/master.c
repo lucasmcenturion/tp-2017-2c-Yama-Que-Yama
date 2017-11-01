@@ -63,11 +63,11 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
-				//manejo de error
+				perror("No se puedo realizar la operacion de Transformacion");
 			}
 		}
 		else {
-			//manejo de error por paquete mal recibido
+			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
 		break;
 
@@ -81,8 +81,11 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
-				//manejo de error
+				perror("No se puedo realizar la operacion de Reduccion Local");
 			}
+		}
+		else{
+			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
 		break;
 
@@ -96,22 +99,26 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
-				//manejo de error
+				perror("No se puedo realizar la operacion de Reduccion Global");
 			}
 			break;
+		}
+		else{
+			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
 	}
 
 }
 
 
-void realizarTransformacion(Paquete* paquete){
+void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	//int cantPaquetes = sizeof(paquete->Payload)/sizeof(transformacionDatos);
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
 	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma));
 
+	datosParaTransformacion->programa = programaT;
 	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
 	datosParaTransformacion->archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
 	datosParaTransformacion->bloque = ((transformacionDatos*)paquete->Payload)->bloque;
@@ -175,11 +182,12 @@ void realizarTransformacion(Paquete* paquete){
 }
 */
 
-void realizarReduccionLocal(Paquete* paquete){
+void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = *((reduccionLocalDatos*)paquete->Payload)->worker;
 
+	datosParaReducLocal->programa = programaR;
 	datosParaReducLocal->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
 	datosParaReducLocal->ListaArchivosTemporales = ((reduccionLocalDatos*)paquete->Payload)->listaArchivosTemps;
 	datosParaReducLocal->archivoTemporal = ((reduccionLocalDatos*)paquete->Payload)->archTemp;
@@ -191,12 +199,13 @@ void realizarReduccionLocal(Paquete* paquete){
 
 }
 
-void realizarReduccionGlobal(Paquete* paquete){
+void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = *((reduccionGlobalDatos*)paquete->Payload)->worker;
 	solicitudPrograma* datosParaReducGlobal = malloc(sizeof(solicitudPrograma));
 
+	datosParaReducGlobal->programa = programaR;
 	datosParaReducGlobal->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
 	datosParaReducGlobal->workerEncargado = ((reduccionGlobalDatos*)paquete->Payload)->WorkerEncargado;
 	datosParaReducGlobal->ListaArchivosTemporales = ((reduccionGlobalDatos*)paquete->Payload)->listaArchivosTemps;
@@ -208,11 +217,12 @@ void realizarReduccionGlobal(Paquete* paquete){
 
 }
 
-int main(){
+int main(int argc, char* argv[]){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	listaHilos = list_create();
-
+	char* programaTrans = argv[1];
+	char* programaReduc = argv[2];
 	//datosParaTransformacion.progTrans = asdasd; Asignar el programa de transformacion.
 
 	//FALTA: Mandar mensaje a Yama de que comience transformacion
@@ -224,13 +234,13 @@ int main(){
 		while (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)){
 			switch(paquete->header.tipoMensaje){
 			case NUEVOWORKER:
-				realizarTransformacion(paquete);
+				realizarTransformacion(paquete, programaTrans);
 				break;
 			case REDLOCALWORKER:
-				realizarReduccionLocal(paquete);
+				realizarReduccionLocal(paquete, programaReduc);
 				break;
 			case REDGLOBALWORKER:
-				realizarReduccionGlobal(paquete);
+				realizarReduccionGlobal(paquete, programaReduc);
 				break;
 			}
 		}
