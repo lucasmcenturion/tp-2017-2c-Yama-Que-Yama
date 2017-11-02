@@ -35,10 +35,11 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-void accionPadre(int socketMaster){
+void accionPadre(void* socketMaster){
 }
 
-void accionHijo(int socketMaster){
+void accionHijo(void* socketMaster){
+
 }
 
 

@@ -55,12 +55,12 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 	{
 
 	case TRANSFORMACION:
-		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), TRANSFWORKER);
-		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), TRANSFWORKER);
+		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
 				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
+				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				perror("No se puedo realizar la operacion de Transformacion");
@@ -73,12 +73,12 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 
 
 	case REDUCCIONLOCAL:
-		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), REDLOCALWORKER);
-		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), REDLOCALWORKER);
+		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
 				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
+				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				perror("No se puedo realizar la operacion de Reduccion Local");
@@ -91,12 +91,12 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 
 
 	case REDUCCIONGLOBAL:
-		EnviarDatosTipo(socketWorker, "MASTER" , solicitud, sizeof(solicitud), REDGLOBALWORKER);
-		RecibirPaqueteCliente(socketWorker, "MASTER", paqueteArecibir);
+		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), REDGLOBALWORKER);
+		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
 		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paqueteArecibir->Payload) {
 				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, "MASTER" ,ok, sizeof(bool), VALIDACIONYAMA);
+				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
 			else {
 				perror("No se puedo realizar la operacion de Reduccion Global");
