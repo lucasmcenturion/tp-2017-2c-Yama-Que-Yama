@@ -80,12 +80,109 @@ void accion(void* socket){
 									printf("Error al mapear a memoria: %s\n", strerror(errno));
 						}
 						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+						//cuando se lo crea, se inicializa todos con 0, es decir, todos los bloques libres
+						munmap(bmap,mystat.st_size);
+						bitarray_destroy(bitarray);
 						data->bloques_libres=(int)(size_databin/TAMBLOQUE);
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
 						// TODO	falta cambiar los datos del nodo
+						t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
+						int tamanio_actual;
+						tamanio_actual=config_get_int_value(nodos,"TAMANIO");
+						tamanio_actual = tamanio_actual == NULL ? data->bloques_totales : tamanio_actual+data->bloques_totales;
+						int nDigits = floor(log10(abs(tamanio_actual))) + 1;
+						char *string_tamanio_actual=malloc(nDigits*sizeof(char));
+						sprintf(string_tamanio_actual,"%i",tamanio_actual);
+						config_set_value(nodos,"TAMANIO",string_tamanio_actual);
+						int libre;
+						libre=config_get_int_value(nodos,"LIBRE");
+						libre= libre==NULL ? data->bloques_libres : libre+data->bloques_libres;
+						nDigits = floor(log10(abs(libre))) + 1;
+						char *string_libre=malloc(nDigits*sizeof(char));
+						sprintf(string_libre,"%i",libre);
+						config_set_value(nodos,"LIBRE",string_libre);
+						char *nodos_actuales=config_get_string_value(nodos,"NODOS");
+						if(nodos_actuales){
+							nodos_actuales=config_get_string_value(nodos,"NODOS");
+							char **separado_por_comas=string_split(nodos_actuales,",");
+							int cantidad_comas=0;
+							while(separado_por_comas[cantidad_comas]){
+								cantidad_comas++;
+							}
+							int iterate=0;
+							char *nuevos_nodos=string_new();
+							while(iterate<cantidad_comas){
+								if(cantidad_comas==1){
+									string_append(&nuevos_nodos,string_substring(separado_por_comas[(cantidad_comas-1)],0,string_length(separado_por_comas[(cantidad_comas-1)])-1));
+									string_append(&nuevos_nodos,",");
+									string_append(&nuevos_nodos,data->nodo);
+									string_append(&nuevos_nodos,"]");
+								}else{
+									if(iterate==0){
+										string_append(&nuevos_nodos,separado_por_comas[iterate]);
+										string_append(&nuevos_nodos,",");
+										}else{
+											if(iterate==(cantidad_comas-1)){
+												string_append(&nuevos_nodos,string_substring(separado_por_comas[(cantidad_comas-1)],0,string_length(separado_por_comas[(cantidad_comas-1)])-1));
+												string_append(&nuevos_nodos,",");
+												string_append(&nuevos_nodos,data->nodo);
+												string_append(&nuevos_nodos,"]");
+											}else{
+												string_append(&nuevos_nodos,separado_por_comas[iterate]);
+												string_append(&nuevos_nodos,",");
+										}
+									}
+								}
+								iterate++;
+							}
+							config_set_value(nodos,"NODOS",nuevos_nodos);
+						}else{
+							char* nodo_nuevo=string_new();
+							string_append(&nodo_nuevo,"[");
+							string_append(&nodo_nuevo,data->nodo);
+							string_append(&nodo_nuevo,"]");
+							config_set_value(nodos,"NODOS",nodo_nuevo);
+
+						}
+						char *nodo_actual_total=string_new();
+						string_append(&nodo_actual_total,data->nodo);
+						string_append(&nodo_actual_total,"Total");
+						nDigits = floor(log10(abs(data->bloques_totales))) + 1;
+						char *string_bloques_totales=malloc(nDigits*sizeof(char));
+						sprintf(string_bloques_totales,"%i",data->bloques_totales);
+						config_set_value(nodos,nodo_actual_total,string_bloques_totales);
+						char *nodo_actual_libre=string_new();
+						string_append(&nodo_actual_libre,data->nodo);
+						string_append(&nodo_actual_libre,"Libre");
+						nDigits = floor(log10(abs(data->bloques_libres))) + 1;
+						char *string_bloques_libres=malloc(nDigits*sizeof(char));
+						sprintf(string_bloques_libres,"%i",data->bloques_libres);
+						config_set_value(nodos,nodo_actual_libre,string_bloques_libres);
+						config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
+
 					}else{
 						//ya existe un bitmap, alguna vez este nodo se conecto
-						//TODO 	obtener del bitmap los bloques ocupados
+						int bitmap = open(path,O_RDWR);
+						struct stat mystat;
+						void *bmap;
+						if (fstat(bitmap, &mystat) < 0) {
+							printf("Error al establecer fstat\n");
+							close(bitmap);
+						}
+						bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+						if (bmap == MAP_FAILED) {
+									printf("Error al mapear a memoria: %s\n", strerror(errno));
+						}
+						t_bitarray *bitarray =(t_bitarray*)bmap;
+						int i;
+						int bloques_ocupados=0;
+						for (i=0 ; i < bitarray_get_max_bit(bitarray); ++i) {
+							if(bitarray_test_bit(bitarray,i)==1){
+								bloques_ocupados++;
+							}
+						}
+						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
+						data->bloques_libres=data->bloques_totales-bloques_ocupados;
 					}
 					list_add(datanodes,data);
 				}
@@ -238,6 +335,7 @@ void consola() {
 					list_add(bloques_a_enviar,bloque_a_enviar);
 				}
 			}
+			munmap(data,archivo_stat.st_size);
 			enviarBloques(bloques_a_enviar);
 			//TODO tambien destroy elements;
 			list_destroy(bloques_a_enviar);
