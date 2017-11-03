@@ -27,10 +27,84 @@ void imprimirArchivoConfiguracion(){
 }
 
 
-bool no_tiene_socket(info_datanode *datanode,int *socket){
-	return datanode->socket!=socket;
-}
+void eliminar_ea_nodos(char*nombre){
+	t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
+	char *nodos_actuales=config_get_string_value(nodos,"NODOS");
+	char **separado_por_comas=string_split(nodos_actuales,",");
+	int cantidad_comas=0;
+	int i=0;
+	while(separado_por_comas[cantidad_comas]){
+		cantidad_comas++;
+	}
+	char *nuevos_nodos=string_new();
+	if(cantidad_comas==1){
+		//tiene un solo elemento
+		char *substring=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0])-2);
+		if(strcmp(nombre,substring)==0){
+			config_set_value(nodos,"NODOS","");
+		}
+	}else{
+		//tiene mas de un elemento
+		while(i<cantidad_comas){
+			char * substring;
+			if(i==0){
+				substring=string_substring(separado_por_comas[i],1,strlen(separado_por_comas[i])-1);
+				if(strcmp(nombre,substring)==0){
+					string_append(&nuevos_nodos,"[");
+				}else{
+					string_append(&nuevos_nodos,separado_por_comas[i]);
+				}
+			}else{
+				if(i==(cantidad_comas-1)){
+					substring=string_substring(separado_por_comas[i],0,strlen(separado_por_comas[i])-1);
+					if(strcmp(nombre,substring)==0){
+						string_append(&nuevos_nodos,"]");
+					}else{
+						string_append(&nuevos_nodos,separado_por_comas[i]);
+					}
 
+				}else{
+					substring=separado_por_comas[i];
+					if(strcmp(nombre,substring)==0){
+						string_append(&nuevos_nodos,",");
+					}else{
+						string_append(&nuevos_nodos,",");
+						string_append(&nuevos_nodos,separado_por_comas[i]);
+					}
+				}
+			}
+			i++;
+		}
+	}
+	config_set_value(nodos,"NODOS",nuevos_nodos);
+	char *libre=string_new();
+	string_append(&libre,nombre);
+	string_append(&libre,"Libre");
+	if(config_has_property(nodos,libre)){
+		config_set_value(nodos,libre,"0");
+	}
+	char *total=string_new();
+	string_append(&total,nombre);
+	string_append(&total,"Total");
+	if(config_has_property(nodos,total)){
+		config_set_value(nodos,total,"0");
+	}
+	config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
+
+}
+void eliminar(info_datanode* elemento){
+	free(elemento);
+}
+void sacar_datanode(int socket){
+	int tiene_socket(info_datanode *datanode){
+		if(datanode->socket==socket){
+			eliminar_ea_nodos(datanode->nodo);
+		}
+		return datanode->socket!=socket;
+	}
+	t_list *aux=list_filter(datanodes,(void*) tiene_socket);
+	datanodes=aux;
+}
 void accion(void* socket){
 	int socketFD = *(int*)socket;
 	Paquete paquete;
@@ -80,6 +154,8 @@ void accion(void* socket){
 									printf("Error al mapear a memoria: %s\n", strerror(errno));
 						}
 						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+						bitarray_set_bit(bitarray,0);
+						printf("%i\n",bitarray_test_bit(bitarray,0));
 						//cuando se lo crea, se inicializa todos con 0, es decir, todos los bloques libres
 						munmap(bmap,mystat.st_size);
 						bitarray_destroy(bitarray);
@@ -89,14 +165,14 @@ void accion(void* socket){
 						t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
 						int tamanio_actual;
 						tamanio_actual=config_get_int_value(nodos,"TAMANIO");
-						tamanio_actual = tamanio_actual == NULL ? data->bloques_totales : tamanio_actual+data->bloques_totales;
+						tamanio_actual = tamanio_actual == 0 ? data->bloques_totales : tamanio_actual+data->bloques_totales;
 						int nDigits = floor(log10(abs(tamanio_actual))) + 1;
 						char *string_tamanio_actual=malloc(nDigits*sizeof(char));
 						sprintf(string_tamanio_actual,"%i",tamanio_actual);
 						config_set_value(nodos,"TAMANIO",string_tamanio_actual);
 						int libre;
 						libre=config_get_int_value(nodos,"LIBRE");
-						libre= libre==NULL ? data->bloques_libres : libre+data->bloques_libres;
+						libre= libre==0 ? data->bloques_libres : libre+data->bloques_libres;
 						nDigits = floor(log10(abs(libre))) + 1;
 						char *string_libre=malloc(nDigits*sizeof(char));
 						sprintf(string_libre,"%i",libre);
@@ -113,7 +189,8 @@ void accion(void* socket){
 							char *nuevos_nodos=string_new();
 							while(iterate<cantidad_comas){
 								if(cantidad_comas==1){
-									string_append(&nuevos_nodos,string_substring(separado_por_comas[(cantidad_comas-1)],0,string_length(separado_por_comas[(cantidad_comas-1)])-1));
+									char *substring=string_substring(separado_por_comas[(cantidad_comas-1)],0,strlen(separado_por_comas[(cantidad_comas-1)])-2);
+									string_append(&nuevos_nodos,substring);
 									string_append(&nuevos_nodos,",");
 									string_append(&nuevos_nodos,data->nodo);
 									string_append(&nuevos_nodos,"]");
@@ -123,7 +200,8 @@ void accion(void* socket){
 										string_append(&nuevos_nodos,",");
 										}else{
 											if(iterate==(cantidad_comas-1)){
-												string_append(&nuevos_nodos,string_substring(separado_por_comas[(cantidad_comas-1)],0,string_length(separado_por_comas[(cantidad_comas-1)])-1));
+												char *substring=string_substring(separado_por_comas[(cantidad_comas-1)],0,strlen(separado_por_comas[(cantidad_comas-1)])-1);
+												string_append(&nuevos_nodos,substring);
 												string_append(&nuevos_nodos,",");
 												string_append(&nuevos_nodos,data->nodo);
 												string_append(&nuevos_nodos,"]");
@@ -162,6 +240,11 @@ void accion(void* socket){
 
 					}else{
 						//ya existe un bitmap, alguna vez este nodo se conecto
+						char *path=string_new();
+						string_append(&path,"/home/utnso/metadata/bitmaps/");
+						string_append(&path,data->nodo);
+						string_append(&path,".dat");
+						printf("%s\n",path);
 						int bitmap = open(path,O_RDWR);
 						struct stat mystat;
 						void *bmap;
@@ -173,16 +256,18 @@ void accion(void* socket){
 						if (bmap == MAP_FAILED) {
 									printf("Error al mapear a memoria: %s\n", strerror(errno));
 						}
-						t_bitarray *bitarray =(t_bitarray*)bmap;
+						int size_bitarray=(int)(size_databin/TAMBLOQUE)%8>0 ? ((int)((int)(size_databin/TAMBLOQUE)/8))+1 : (int)(size_databin/TAMBLOQUE);
+						t_bitarray *bitarray =bitarray_create_with_mode(bmap,size_bitarray,MSB_FIRST);
 						int i;
 						int bloques_ocupados=0;
-						for (i=0 ; i < bitarray_get_max_bit(bitarray); ++i) {
+						for (i=0 ; i < (int)(size_databin/TAMBLOQUE); ++i) {
 							if(bitarray_test_bit(bitarray,i)==1){
 								bloques_ocupados++;
 							}
 						}
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
 						data->bloques_libres=data->bloques_totales-bloques_ocupados;
+						munmap(bmap,mystat.st_size);
 					}
 					list_add(datanodes,data);
 				}
@@ -227,7 +312,7 @@ void accion(void* socket){
 			free(paquete.Payload);
 	}
 	close(socketFD);
-	//list_remove_by_condition(datanodes,(void*) no_tiene_socket,&socketFD);
+	sacar_datanode(socketFD);
 
 }
 
