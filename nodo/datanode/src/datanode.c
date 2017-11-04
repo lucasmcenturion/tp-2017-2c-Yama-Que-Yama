@@ -6,15 +6,13 @@
 #include <sys/stat.h>  //Para obtener propiedades del databin.
 #include <time.h>      //Para mostrar datos de databin.
 #include <sys/mman.h>  //Para mmap.
-#define TAMBLOQUE 1024*1024
+#define TAMBLOQUE (1024*1024)
 
 
 char *IP_FILESYSTEM,*NOMBRE_NODO,*IP_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER;
 int socketFS;
 int tamanioDataBin;
-int cantidad_bloques;
-int cantidad_bloques_libres;
 
 FILE *LogDatanode;
 
@@ -85,55 +83,70 @@ void obtenerStatusDataBin(){
 
 void getBloque(int numeroDeBloque){ 	//getBloque(numero): Devolverá el contenido del bloque solicitado almacenado en el espacio de Datos.
 	int unFileDescriptor;
-	int tamanioAleer = tamanioDataBin/20;	// Voy a leer un sólo bloque de 1MB
-	char * datos;                                                               //HACER MALLOC. no calloc
+	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
 
-	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {		// Obtengo el fd del data.bin
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {						// Obtengo el fd del data.bin
 		printf("ERROR en el Open() de getBloque()");}
 
-	if ((datos = mmap ( (caddr_t)0 , tamanioAleer , PROT_READ , MAP_SHARED, unFileDescriptor , tamanioAleer )) == (caddr_t)(-1))
+	if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1))
 		printf("ERROR en el mmap() de getBloque()");
 
-		else {printf("funco bien getbloque");}//enviar los datos obtenidos a fs.
+		else {
+			  //obtener datos de bloque especifico   ----> locacíon del primer byte del bloque obtenido  -->  punteroDataBin + tamanioBloque * numeroDeBloque
+			  //enviar los datos obtenidos a fs.  usando enviardatostipo()         ??????????????????????????????
+			  void *datos_a_enviar=calloc(1,sizeof(TAMBLOQUE));
+			  memcpy(datos_a_enviar,punteroDataBin,TAMBLOQUE);
+			  //send
+			  printf("funco bien mmap de getbloque");}
+
+	if(munmap( punteroDataBin , tamanioDataBin ) == -1) printf("Error en munmap de getBloque()\n");
+    else {printf("funco bien munmap de getBloque\n");}
 
 }
 
-void setBloque ( int numeroDeBloque, void *datos){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
-	//necesito saber el tamaño de lo que tengo que guardar
-	//una vez que tengo el tamaño, puedo hacer el memcpy para copiarlos
+void setBloque ( int numeroDeBloque, void * datosParaGrabar){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
 	int unFileDescriptor;
-	if ((unFileDescriptor = open(RUTA_DATABIN, O_WRONLY)) == -1){		// Obtengo el fd del data.bin
+	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
+
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_WRONLY)) == -1) {		// Obtengo el fd del data.bin
 		printf("ERROR en el Open() de setBloque()");}
-	else {
-		void *data=mmap(0,tamanioDataBin,PROT_WRITE,MAP_SHARED,unFileDescriptor,numeroDeBloque*TAMBLOQUE);
-		memcpy(data,datos,sizeof(datos));
 
+	if ((punteroDataBin = mmap ( (caddr_t)0 , tamanioDataBin , PROT_WRITE , MAP_SHARED, unFileDescriptor , 0 )) == (caddr_t)(-1))
+		printf("ERROR en el mmap() de setBloque()");
 
-	}
+		else {memcpy(punteroDataBin + TAMBLOQUE * numeroDeBloque, datosParaGrabar, TAMBLOQUE);
+			  // enviar confirmacion a fs con numero de bloque
 
+			  printf("funco bien mmap de setBloque");}
+
+    if(munmap( punteroDataBin , tamanioDataBin ) == -1) printf("Error en munmap de setBloque()\n");
+    else {printf("funco bien munmap de setBloque\n");}
 
 
 }
 
-char* escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
+void escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
 	fseek ( *archivoDeLog , 0 , SEEK_END );  // fseek( archivo , desplazamiento , posición de origen );
 	fwrite ( contenidoAEscribir , strlen(contenidoAEscribir) , 1 , *archivoDeLog );   // Strlen da la longitud de una cadena de texto.
 	fwrite ( "\n" , 1 , 1 , *archivoDeLog );		// fwrite (datos, tamaño de cada dato, cantidad de datos, archivo).
 	printf("%s\n", contenidoAEscribir);		// Lo muestro por pantalla.
-	return contenidoAEscribir;
 }
 
 //   escribirEnArchivoLog(operacion,&LogDatanode);
 
 
 int main(){
+
+
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
+	fflush( stdout );
 	obtenerStatusDataBin();
+	fflush( stdout );
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
+	fflush( stdout );
 
-	//TODO hacerlo funcion
-	int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
+	int tamanio = sizeof(uint32_t) * 5 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
 	void* datos = malloc(tamanio);
 	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
 	datos += sizeof(uint32_t);
@@ -149,12 +162,13 @@ int main(){
 	datos += sizeof(uint32_t);
 	*((uint32_t*)datos) = 0;
 	datos += sizeof(uint32_t);
-	*((uint32_t*)datos) = 0;
-	datos += sizeof(uint32_t);
 	datos -= tamanio;
-	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
-	free(datos);
 
+	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
+
+	//getBloque(3);
+	//setBloque(2,"1");
+	//escribirEnArchivoLog("operacion",&LogDatanode);
 	tamanio = sizeof(uint32_t) * 1  + sizeof(char) * strlen(NOMBRE_NODO) + 1;
 	datos = malloc(tamanio);
 	*((uint32_t*)datos) = tamanioDataBin;
@@ -164,16 +178,33 @@ int main(){
 	datos -= tamanio;
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
 	free(datos);
+	Paquete paquete;
+	fflush( stdout );
+	printf("Me voy a quedar lupeando chiks\n");
+	fflush( stdout );
+	while (RecibirPaqueteCliente(socketFS, FILESYSTEM, &paquete)>0){
+		switch(paquete.header.tipoMensaje){
+		case GETBLOQUE:
 
-
-	getBloque(3);
-	setBloque(2,"1");
-	escribirEnArchivoLog("operacion",&LogDatanode);
-
-
-
-
+			break;
+		case SETBLOQUE:
+			{
+			void *datos;
+			datos=paquete.Payload;
+			int numero,tamanio;
+			numero=*((uint32_t*)datos);
+			datos+=sizeof(uint32_t);
+			tamanio=*((uint32_t*)datos);
+			datos+=sizeof(uint32_t);
+			void *bloque=malloc(sizeof(tamanio));
+			memcpy(bloque,datos,tamanio);
+			setBloque(numero,bloque);
+			break;
+			}
+		}
+		if (paquete.Payload != NULL){
+			free(paquete.Payload);
+		}
+	}
 	return 0;
 }
-
-

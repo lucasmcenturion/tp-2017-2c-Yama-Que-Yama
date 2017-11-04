@@ -8,6 +8,7 @@ int socketYAMA;
 t_list* listaHilos;
 t_list* datanodes;
 bool end;
+pthread_mutex_t mutex_datanodes;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("filesystemCFG.txt");
@@ -25,76 +26,6 @@ void imprimirArchivoConfiguracion(){
 				PUERTO
 				);
 }
-
-
-void eliminar_ea_nodos(char*nombre){
-	t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
-	char *nodos_actuales=config_get_string_value(nodos,"NODOS");
-	char **separado_por_comas=string_split(nodos_actuales,",");
-	int cantidad_comas=0;
-	int i=0;
-	while(separado_por_comas[cantidad_comas]){
-		cantidad_comas++;
-	}
-	char *nuevos_nodos=string_new();
-	if(cantidad_comas==1){
-		//tiene un solo elemento
-		char *substring=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0])-2);
-		if(strcmp(nombre,substring)==0){
-			config_set_value(nodos,"NODOS","");
-		}
-	}else{
-		//tiene mas de un elemento
-		while(i<cantidad_comas){
-			char * substring;
-			if(i==0){
-				substring=string_substring(separado_por_comas[i],1,strlen(separado_por_comas[i])-1);
-				if(strcmp(nombre,substring)==0){
-					string_append(&nuevos_nodos,"[");
-				}else{
-					string_append(&nuevos_nodos,separado_por_comas[i]);
-				}
-			}else{
-				if(i==(cantidad_comas-1)){
-					substring=string_substring(separado_por_comas[i],0,strlen(separado_por_comas[i])-1);
-					if(strcmp(nombre,substring)==0){
-						string_append(&nuevos_nodos,"]");
-					}else{
-						string_append(&nuevos_nodos,separado_por_comas[i]);
-					}
-
-				}else{
-					substring=separado_por_comas[i];
-					if(strcmp(nombre,substring)==0){
-						string_append(&nuevos_nodos,",");
-					}else{
-						string_append(&nuevos_nodos,",");
-						string_append(&nuevos_nodos,separado_por_comas[i]);
-					}
-				}
-			}
-			i++;
-		}
-	}
-	config_set_value(nodos,"NODOS",nuevos_nodos);
-	char *libre=string_new();
-	string_append(&libre,nombre);
-	string_append(&libre,"Libre");
-	if(config_has_property(nodos,libre)){
-		config_set_value(nodos,libre,"0");
-	}
-	char *total=string_new();
-	string_append(&total,nombre);
-	string_append(&total,"Total");
-	if(config_has_property(nodos,total)){
-		config_set_value(nodos,total,"0");
-	}
-	config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
-
-}
-void eliminar(info_datanode* elemento){
-	free(elemento);
-}
 void sacar_datanode(int socket){
 	int tiene_socket(info_datanode *datanode){
 		if(datanode->socket==socket){
@@ -102,9 +33,12 @@ void sacar_datanode(int socket){
 		}
 		return datanode->socket!=socket;
 	}
+	pthread_mutex_lock(&mutex_datanodes);
 	t_list *aux=list_filter(datanodes,(void*) tiene_socket);
 	datanodes=aux;
+	pthread_mutex_unlock(&mutex_datanodes);
 }
+
 void accion(void* socket){
 	int socketFD = *(int*)socket;
 	Paquete paquete;
@@ -154,90 +88,13 @@ void accion(void* socket){
 									printf("Error al mapear a memoria: %s\n", strerror(errno));
 						}
 						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
-						bitarray_set_bit(bitarray,0);
-						printf("%i\n",bitarray_test_bit(bitarray,0));
 						//cuando se lo crea, se inicializa todos con 0, es decir, todos los bloques libres
 						munmap(bmap,mystat.st_size);
 						bitarray_destroy(bitarray);
 						data->bloques_libres=(int)(size_databin/TAMBLOQUE);
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
 						// TODO	falta cambiar los datos del nodo
-						t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
-						int tamanio_actual;
-						tamanio_actual=config_get_int_value(nodos,"TAMANIO");
-						tamanio_actual = tamanio_actual == 0 ? data->bloques_totales : tamanio_actual+data->bloques_totales;
-						int nDigits = floor(log10(abs(tamanio_actual))) + 1;
-						char *string_tamanio_actual=malloc(nDigits*sizeof(char));
-						sprintf(string_tamanio_actual,"%i",tamanio_actual);
-						config_set_value(nodos,"TAMANIO",string_tamanio_actual);
-						int libre;
-						libre=config_get_int_value(nodos,"LIBRE");
-						libre= libre==0 ? data->bloques_libres : libre+data->bloques_libres;
-						nDigits = floor(log10(abs(libre))) + 1;
-						char *string_libre=malloc(nDigits*sizeof(char));
-						sprintf(string_libre,"%i",libre);
-						config_set_value(nodos,"LIBRE",string_libre);
-						char *nodos_actuales=config_get_string_value(nodos,"NODOS");
-						if(nodos_actuales){
-							nodos_actuales=config_get_string_value(nodos,"NODOS");
-							char **separado_por_comas=string_split(nodos_actuales,",");
-							int cantidad_comas=0;
-							while(separado_por_comas[cantidad_comas]){
-								cantidad_comas++;
-							}
-							int iterate=0;
-							char *nuevos_nodos=string_new();
-							while(iterate<cantidad_comas){
-								if(cantidad_comas==1){
-									char *substring=string_substring(separado_por_comas[(cantidad_comas-1)],0,strlen(separado_por_comas[(cantidad_comas-1)])-2);
-									string_append(&nuevos_nodos,substring);
-									string_append(&nuevos_nodos,",");
-									string_append(&nuevos_nodos,data->nodo);
-									string_append(&nuevos_nodos,"]");
-								}else{
-									if(iterate==0){
-										string_append(&nuevos_nodos,separado_por_comas[iterate]);
-										string_append(&nuevos_nodos,",");
-										}else{
-											if(iterate==(cantidad_comas-1)){
-												char *substring=string_substring(separado_por_comas[(cantidad_comas-1)],0,strlen(separado_por_comas[(cantidad_comas-1)])-1);
-												string_append(&nuevos_nodos,substring);
-												string_append(&nuevos_nodos,",");
-												string_append(&nuevos_nodos,data->nodo);
-												string_append(&nuevos_nodos,"]");
-											}else{
-												string_append(&nuevos_nodos,separado_por_comas[iterate]);
-												string_append(&nuevos_nodos,",");
-										}
-									}
-								}
-								iterate++;
-							}
-							config_set_value(nodos,"NODOS",nuevos_nodos);
-						}else{
-							char* nodo_nuevo=string_new();
-							string_append(&nodo_nuevo,"[");
-							string_append(&nodo_nuevo,data->nodo);
-							string_append(&nodo_nuevo,"]");
-							config_set_value(nodos,"NODOS",nodo_nuevo);
-
-						}
-						char *nodo_actual_total=string_new();
-						string_append(&nodo_actual_total,data->nodo);
-						string_append(&nodo_actual_total,"Total");
-						nDigits = floor(log10(abs(data->bloques_totales))) + 1;
-						char *string_bloques_totales=malloc(nDigits*sizeof(char));
-						sprintf(string_bloques_totales,"%i",data->bloques_totales);
-						config_set_value(nodos,nodo_actual_total,string_bloques_totales);
-						char *nodo_actual_libre=string_new();
-						string_append(&nodo_actual_libre,data->nodo);
-						string_append(&nodo_actual_libre,"Libre");
-						nDigits = floor(log10(abs(data->bloques_libres))) + 1;
-						char *string_bloques_libres=malloc(nDigits*sizeof(char));
-						sprintf(string_bloques_libres,"%i",data->bloques_libres);
-						config_set_value(nodos,nodo_actual_libre,string_bloques_libres);
-						config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
-
+						actualizar_nodos_bin(data);
 					}else{
 						//ya existe un bitmap, alguna vez este nodo se conecto
 						char *path=string_new();
@@ -268,8 +125,11 @@ void accion(void* socket){
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
 						data->bloques_libres=data->bloques_totales-bloques_ocupados;
 						munmap(bmap,mystat.st_size);
+						actualizar_nodos_bin(data);
 					}
+					pthread_mutex_lock(&mutex_datanodes);
 					list_add(datanodes,data);
+					pthread_mutex_unlock(&mutex_datanodes);
 				}
 			}
 		}
@@ -368,12 +228,12 @@ void consola() {
 				int i=TAMBLOQUE-1;
 				while(size_aux>TAMBLOQUE){
 					if(((char*)data)[i]=='\n'){
-						void *bloque=calloc(1,i+1);
-						memcpy(bloque,data,i+1);
-						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
-						bloque_a_enviar->datos=bloque;
-						bloque_a_enviar->tamano=i+1;
-						list_add(bloques_a_enviar,bloque_a_enviar);
+						void *datos_bloque=calloc(1,i+1);
+						memcpy(datos_bloque,data,i+1);
+						bloque *bloque_add=calloc(1,sizeof(bloque));
+						bloque_add->datos=datos_bloque;
+						bloque_add->tamanio=i+1;
+						list_add(bloques_a_enviar,bloque_add);
 						data+=i+1;
 						size_aux-=i+1;
 					}else{
@@ -381,47 +241,47 @@ void consola() {
 					}
 				}
 				if(condicion){
-					void *bloque=calloc(1,size_aux);
-					memcpy(bloque,data,size_aux);
-					bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
-					bloque_a_enviar->datos=bloque;
-					bloque_a_enviar->tamano=size_aux;
-					list_add(bloques_a_enviar,bloque_a_enviar);
+					void *datos_bloque=calloc(1,size_aux);
+					memcpy(datos_bloque,data,size_aux);
+					bloque *bloque_add=calloc(1,sizeof(bloque));
+					bloque_add->datos=datos_bloque;
+					bloque_add->tamanio=size_aux;
+					list_add(bloques_a_enviar,bloque_add);
 				}
 			}else{
 				//archivo binario
 				if(size_aux>TAMBLOQUE){
 					//tamaño archivo mayor al de un bloque
 					while(size_aux>TAMBLOQUE){
-						void *bloque=calloc(1,TAMBLOQUE);
-						memcpy(bloque,data,TAMBLOQUE);
-						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
-						bloque_a_enviar->datos=bloque;
-						bloque_a_enviar->tamano=TAMBLOQUE;
-						list_add(bloques_a_enviar,bloque_a_enviar);
+						void *datos_bloque=calloc(1,TAMBLOQUE);
+						memcpy(datos_bloque,data,TAMBLOQUE);
+						bloque *bloque_add=calloc(1,sizeof(bloque));
+						bloque_add->datos=datos_bloque;
+						bloque_add->tamanio=TAMBLOQUE;
+						list_add(bloques_a_enviar,bloque_add);
 						size_aux-=TAMBLOQUE;
 						data+=TAMBLOQUE;
 					}
 					if(!(size_aux>TAMBLOQUE)){
-						void *bloque=calloc(1,size_aux);
-						memcpy(bloque,data,size_aux);
-						bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
-						bloque_a_enviar->datos=bloque;
-						bloque_a_enviar->tamano=size_aux;
-						list_add(bloques_a_enviar,bloque_a_enviar);
+						void *datos_bloque=calloc(1,size_aux);
+						memcpy(datos_bloque,data,size_aux);
+						bloque *bloque_add=calloc(1,sizeof(bloque));
+						bloque_add->datos=datos_bloque;
+						bloque_add->tamanio=size_aux;
+						list_add(bloques_a_enviar,bloque_add);
 					}
 				}else{
 					//tamaño archivo menor a un bloque
-					void *bloque=calloc(1,size_aux);
-					memcpy(bloque,data,size_aux);
-					bloques *bloque_a_enviar=calloc(1,sizeof(bloques));
-					bloque_a_enviar->datos=bloque;
-					bloque_a_enviar->tamano=size_aux;
-					list_add(bloques_a_enviar,bloque_a_enviar);
+					void *datos_bloque=calloc(1,size_aux);
+					memcpy(datos_bloque,data,size_aux);
+					bloque *bloque_add=calloc(1,sizeof(bloque));
+					bloque_add->datos=datos_bloque;
+					bloque_add->tamanio=size_aux;
+					list_add(bloques_a_enviar,bloque_add);
 				}
 			}
 			munmap(data,archivo_stat.st_size);
-			enviarBloques(bloques_a_enviar);
+			enviarBloques((t_list*)bloques_a_enviar);
 			//TODO tambien destroy elements;
 			list_destroy(bloques_a_enviar);
 		}
@@ -448,30 +308,50 @@ void consola() {
 }
 
 bool esta_disponible(info_datanode *un_datanode){
-	return un_datanode->bloques_libres>0;
+	t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
+	int libre;
+	char *nombre_libre=string_new();
+	string_append(&nombre_libre,un_datanode->nodo);
+	string_append(&nombre_libre,"Libre");
+	libre=config_has_property(nodos,nombre_libre);
+	return libre>0;
 }
 
 int primer_disponible(t_list *datanodes, int index_actual){
 	//esta funcion retorna el index de la lista
+	pthread_mutex_lock(&mutex_datanodes);
 	int total=list_size(datanodes);
+	pthread_mutex_unlock(&mutex_datanodes);
 	int proximo;
 	bool disponible=false;
-	if(((info_datanode*)list_get(datanodes,index_actual))->bloques_libres>0 && index_actual<total){
+	int aux;
+	pthread_mutex_lock(&mutex_datanodes);
+	int disponibilidad=esta_disponible(list_get(datanodes,index_actual));
+	pthread_mutex_unlock(&mutex_datanodes);
+	if(disponibilidad && index_actual<=(total-1)){
 		return index_actual;
 	}
-	if(index_actual+1==total-1){
+	if((index_actual+1)==(total-1)){
 		//proximo=0;
 		proximo=total-1;
 	}else{
 		proximo=index_actual+1;
 	}
+	proximo=aux;
 	while(1){
-		if(((info_datanode*)list_get(datanodes,proximo))->bloques_libres>0){
+		pthread_mutex_lock(&mutex_datanodes);
+		disponibilidad=esta_disponible(list_get(datanodes,proximo));
+		pthread_mutex_unlock(&mutex_datanodes);
+		if(disponibilidad){
 			//existe un nodo que tiene bloques libres para guardar
 			disponible=true;
 			break;
 		}
 		proximo++;
+		if(proximo==aux){
+			//realizo un ciclo y no hay disponible,debe romper el ciclo
+			break;
+		}
 		if(proximo==total-1){
 			proximo=0;
 		}
@@ -493,10 +373,15 @@ void enviarBloques(t_list *bloques_a_enviar){
 	//filtramos los que tengan bloques libres
 	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
 	//una vez obtenidos,los enviamos
+	pthread_mutex_lock(&mutex_datanodes);
 	t_list *disponibles=list_filter(datanodes, (void*) esta_disponible);
+	pthread_mutex_unlock(&mutex_datanodes);
 	int size_bloques=list_size(bloques_a_enviar);
+	pthread_mutex_lock(&mutex_datanodes);
 	int datanodes_disponibles=list_size(disponibles);
+	pthread_mutex_unlock(&mutex_datanodes);
 	int i=0;
+	int i_bloques=0;
 	if(datanodes_disponibles<2){
 		perror("No hay datanodes disponibles");
 	}else{
@@ -505,6 +390,65 @@ void enviarBloques(t_list *bloques_a_enviar){
 			int index_primer_copia= primer_disponible(disponibles,i);
 			int index_segunda_copia= primer_disponible(disponibles,i+1);
 			if(index_primer_copia>=0 && index_segunda_copia>=0 && index_primer_copia!=index_segunda_copia){
+				//obtenemos datos del primer datanode para enviarle el bloque
+				char *ruta=string_new();
+				string_append(&ruta,"/home/utnso/metadata/bitmaps/");
+				pthread_mutex_lock(&mutex_datanodes);
+				char *nombre=((info_datanode*)list_get(datanodes,index_primer_copia))->nodo;
+				pthread_mutex_unlock(&mutex_datanodes);
+				//string_append(&ruta,&nombre);
+				strcat(ruta, nombre);
+				string_append(&ruta,".dat");
+				t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
+				int total;
+				char *nombre_total=string_new();
+				string_append(&nombre_total,nombre);
+				string_append(&nombre_total,"Total");
+				total=config_has_property(nodos,nombre_total);
+				int size_bitarray=total%8>0 ? total+1 : total;
+				if(access(ruta, F_OK ) != -1){
+					int bitmap = open(ruta,O_RDWR);
+					struct stat mystat;
+					void *bmap;
+					if (fstat(bitmap, &mystat) < 0) {
+						printf("Error al establecer fstat\n");
+						close(bitmap);
+					}
+					bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+					if (bmap == MAP_FAILED) {
+								printf("Error al mapear a memoria: %s\n", strerror(errno));
+					}
+					t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+					int j;
+					for (j=0; j < total; j++) {
+						if(bitarray_test_bit(bitarray,j)==0){
+							break;
+						}
+					}
+					int numero_bloque=j;
+					bloque *primer_bloque=malloc(sizeof(bloque));
+					primer_bloque=list_get(bloques_a_enviar,i_bloques);
+					primer_bloque->numero=numero_bloque;
+					//enviamos al datanode el bloque y el tamaño de bloque
+					int tamanio = sizeof(uint32_t) * 2  + primer_bloque->tamanio;
+					void *datos = malloc(tamanio);
+					*((uint32_t*)datos) = primer_bloque->numero;
+					datos += sizeof(uint32_t);
+					*((uint32_t*)datos) = primer_bloque->tamanio;
+					datos += sizeof(uint32_t);
+					memcpy(datos,primer_bloque->datos,primer_bloque->tamanio);
+					datos += primer_bloque->tamanio;
+					datos -= tamanio;
+					//aca envias
+					pthread_mutex_lock(&mutex_datanodes);
+					int socket=((info_datanode*)list_get(datanodes,index_primer_copia))->socket;
+					pthread_mutex_unlock(&mutex_datanodes);
+					EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+					free(datos);
+				}else{
+					printf("No existe el bitmap de %s\n",nombre);
+				}
+
 				//enviar datos a list_get(bloques,primer_copia)
 				//enviar datos a list_get(bloques,segunda_copia)
 			}else{
@@ -520,6 +464,7 @@ void enviarBloques(t_list *bloques_a_enviar){
 				i++;
 			}
 			size_bloques--;
+			i_bloques++;
 		}
 		list_destroy(disponibles);
 	}
@@ -530,6 +475,7 @@ int main(){
 	imprimirArchivoConfiguracion();
 	datanodes=list_create();
 	pthread_t hiloConsola;
+	pthread_mutex_init(&mutex_datanodes,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);

@@ -105,10 +105,10 @@ typedef struct{
 info_datanode;
 
 typedef struct{
-	uint32_t tamano;
-	void *datos;
-}__attribute__((packed))
-bloques;
+ int numero;
+ int tamanio;
+ void *datos;
+}__attribute__((packed)) bloque;
 
 typedef struct{
  int index;

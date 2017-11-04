@@ -1,6 +1,6 @@
 IP_FILESYSTEM=127.0.0.1
 PUERTO_FILESYSTEM=7777
-NOMBRE_NODO=Nodo8
+NOMBRE_NODO=Nodo2
 IP_NODO=127.0.0.1
 PUERTO_WORKER=7111
 RUTA_DATABIN=/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/archivos/nodo1/data.bin
