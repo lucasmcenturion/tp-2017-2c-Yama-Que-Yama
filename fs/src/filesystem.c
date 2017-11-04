@@ -131,6 +131,23 @@ void accion(void* socket){
 					list_add(datanodes,data);
 					pthread_mutex_unlock(&mutex_datanodes);
 				}
+				break;
+				case RESULOPERACION:
+				{
+					void *datos=paquete.Payload;
+					uint32_t *numeroDeBloque=calloc(1,sizeof(uint32_t));
+					uint32_t *resultado=calloc(1,sizeof(uint32_t));
+					void *datos=paquete.Payload;
+					*((uint32_t)datos)=numeroDeBloque;
+					datos+=sizeof(uint32_t);
+					*((uint32_t)datos)=resultado; //1 resultado exitoso -1 resulado erroneo
+					if(resultado==-1){
+						printf()
+					}else{
+						//poner bitarray como ese bloque ocupado
+					}
+				}
+				break;
 			}
 		}
 		else if (!strcmp(paquete.header.emisor, YAMA))
@@ -445,6 +462,7 @@ void enviarBloques(t_list *bloques_a_enviar){
 					pthread_mutex_unlock(&mutex_datanodes);
 					EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
 					free(datos);
+
 				}else{
 					printf("No existe el bitmap de %s\n",nombre);
 				}

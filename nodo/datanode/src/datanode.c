@@ -86,43 +86,69 @@ void getBloque(int numeroDeBloque){ 	//getBloque(numero): Devolverá el contenid
 	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
 
 	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {						// Obtengo el fd del data.bin
-		printf("ERROR en el Open() de getBloque()");}
-
-	if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1))
+		printf("ERROR en el Open() de getBloque()");
+	}
+	if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1)){
 		printf("ERROR en el mmap() de getBloque()");
-
-		else {
+	}else{
 			  //obtener datos de bloque especifico   ----> locacíon del primer byte del bloque obtenido  -->  punteroDataBin + tamanioBloque * numeroDeBloque
 			  //enviar los datos obtenidos a fs.  usando enviardatostipo()         ??????????????????????????????
-			  void *datos_a_enviar=calloc(1,sizeof(TAMBLOQUE));
-			  memcpy(datos_a_enviar,punteroDataBin,TAMBLOQUE);
+			  void *datos_a_enviar=calloc(1,TAMBLOQUE);
+			  memmove(datos_a_enviar,punteroDataBin,TAMBLOQUE);
 			  //send
-			  printf("funco bien mmap de getbloque");}
-
-	if(munmap( punteroDataBin , tamanioDataBin ) == -1) printf("Error en munmap de getBloque()\n");
-    else {printf("funco bien munmap de getBloque\n");}
+			  printf("funco bien mmap de getbloque\n");
+			  fflush(stdout);
+			  printf("%s\n",(char*)datos_a_enviar);
+			  fflush(stdout);
+			  //luego de enviar hacer free de datos_a_enviar
+	}
+	if(munmap( punteroDataBin , tamanioDataBin ) == -1){
+		printf("Error en munmap de getBloque()\n");
+	}
+    else{
+    	printf("funco bien munmap de getBloque\n");
+    }
 
 }
 
 void setBloque ( int numeroDeBloque, void * datosParaGrabar){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
 	int unFileDescriptor;
 	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
+	bool error=false;
 
-	if ((unFileDescriptor = open(RUTA_DATABIN, O_WRONLY)) == -1) {		// Obtengo el fd del data.bin
-		printf("ERROR en el Open() de setBloque()");}
+    unFileDescriptor = open(RUTA_DATABIN,O_RDWR);
+	//struct stat mystat;
+	void *bmap;
+	if (unFileDescriptor == -1) {
+		printf("Error al abrir el archivo\n");
+		fflush(stdout);
+		close(unFileDescriptor);
+		error=true;
+	}
+	punteroDataBin = mmap(NULL, tamanioDataBin, PROT_WRITE | PROT_READ, MAP_SHARED, unFileDescriptor, 0);
+	if (punteroDataBin == MAP_FAILED) {
+				printf("Error al mapear a memoria: %s\n", strerror(errno));
+				fflush(stdout);
+				error=true;
+	}else{
+		memmove(punteroDataBin,datosParaGrabar,TAMBLOQUE);
 
-	if ((punteroDataBin = mmap ( (caddr_t)0 , tamanioDataBin , PROT_WRITE , MAP_SHARED, unFileDescriptor , 0 )) == (caddr_t)(-1))
-		printf("ERROR en el mmap() de setBloque()");
 
-		else {memcpy(punteroDataBin + TAMBLOQUE * numeroDeBloque, datosParaGrabar, TAMBLOQUE);
-			  // enviar confirmacion a fs con numero de bloque
-
-			  printf("funco bien mmap de setBloque");}
-
-    if(munmap( punteroDataBin , tamanioDataBin ) == -1) printf("Error en munmap de setBloque()\n");
-    else {printf("funco bien munmap de setBloque\n");}
-
-
+	}
+	int rv=munmap(punteroDataBin,tamanioDataBin);
+	if(rv==-1){
+		printf("Error en munmap de setBloque\n");
+		fflush(stdout);
+		error=true;
+	}
+	int resultado= !error ? 1 : -1;
+	uint32_t tamanio = sizeof(uint32_t) * 2;
+	void *datos = malloc(tamanio);
+	*((uint32_t)datos)=numeroDeBloque;
+	datos+=sizeof(uint32_t);
+	*((uint32_t)datos)=resultado; //1 resultado exitoso
+	datos-=tamanio;
+	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
 }
 
 void escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
@@ -178,10 +204,10 @@ int main(){
 	datos -= tamanio;
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
 	free(datos);
-	Paquete paquete;
 	fflush( stdout );
 	printf("Me voy a quedar lupeando chiks\n");
 	fflush( stdout );
+	Paquete paquete;
 	while (RecibirPaqueteCliente(socketFS, FILESYSTEM, &paquete)>0){
 		switch(paquete.header.tipoMensaje){
 		case GETBLOQUE:
@@ -191,14 +217,14 @@ int main(){
 			{
 			void *datos;
 			datos=paquete.Payload;
-			int numero,tamanio;
-			numero=*((uint32_t*)datos);
+			int numero = *((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
-			tamanio=*((uint32_t*)datos);
+			int tamano=*((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
-			void *bloque=malloc(sizeof(tamanio));
-			memcpy(bloque,datos,tamanio);
+			void *bloque=calloc(1,tamano);
+			memmove(bloque,datos,tamano);
 			setBloque(numero,bloque);
+			getBloque(numero);
 			break;
 			}
 		}
