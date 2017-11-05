@@ -142,11 +142,14 @@ void setBloque ( int numeroDeBloque, void * datosParaGrabar){  //setBloque(numer
 		error=true;
 	}
 	int resultado= !error ? 1 : -1;
-	uint32_t tamanio = sizeof(uint32_t) * 2;
+	uint32_t tamanio = sizeof(uint32_t) * 2+sizeof(char) * strlen(NOMBRE_NODO);
 	void *datos = malloc(tamanio);
 	*((uint32_t)datos)=numeroDeBloque;
 	datos+=sizeof(uint32_t);
 	*((uint32_t)datos)=resultado; //1 resultado exitoso
+	datos+=sizeof(uint32_t);
+	strcpy(datos, NOMBRE_NODO);
+	datos +=  strlen(NOMBRE_NODO) + 1;
 	datos-=tamanio;
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
 }
