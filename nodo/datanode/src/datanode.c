@@ -81,44 +81,43 @@ void obtenerStatusDataBin(){
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void getBloque(int numeroDeBloque){ 	//getBloque(numero): Devolverá el contenido del bloque solicitado almacenado en el espacio de Datos.
+void getBloque(int numeroDeBloque){
 	int unFileDescriptor;
-	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
+	void * punteroDataBin;
+	punteroDataBin= (void *) malloc (TAMBLOQUE);
 
-	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {						// Obtengo el fd del data.bin
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {
 		printf("ERROR en el Open() de getBloque()");
 	}
 	if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1)){
 		printf("ERROR en el mmap() de getBloque()");
 	}else{
-			  //obtener datos de bloque especifico   ----> locacíon del primer byte del bloque obtenido  -->  punteroDataBin + tamanioBloque * numeroDeBloque
-			  //enviar los datos obtenidos a fs.  usando enviardatostipo()         ??????????????????????????????
 			  void *datos_a_enviar=calloc(1,TAMBLOQUE);
 			  memmove(datos_a_enviar,punteroDataBin,TAMBLOQUE);
-			  //send
+			  enviarDatosTipo (socketFS, DATANODE, datos_a_enviar, TAMBLOQUE, BLOQUEOBTENIDO);
+
 			  printf("funco bien mmap de getbloque\n");
 			  fflush(stdout);
 			  printf("%s\n",(char*)datos_a_enviar);
 			  fflush(stdout);
-			  //luego de enviar hacer free de datos_a_enviar
+			  free(datos_a_enviar);
 	}
-	if(munmap( punteroDataBin , tamanioDataBin ) == -1){
-		printf("Error en munmap de getBloque()\n");
-	}
-    else{
-    	printf("funco bien munmap de getBloque\n");
-    }
+	int unmap=munmap(punteroDataBin,tamanioDataBin);
+	if(unmap==-1){
+		printf("Error en munmap de getBloque\n");
+		fflush(stdout);
+		free(punteroDataBin);
+	}else free(punteroDataBin);
 
 }
 
-void setBloque ( int numeroDeBloque, void * datosParaGrabar){  //setBloque(numero, [datos]): Grabará los datos enviados en el bloque solicitado del espacio de Datos.
+void setBloque ( int numeroDeBloque, void * datosParaGrabar ){
 	int unFileDescriptor;
-	void * punteroDataBin;                                                               //HACER MALLOC. no calloc
+	void * punteroDataBin;
+	punteroDataBin = (void *) malloc (TAMBLOQUE);
 	bool error=false;
 
     unFileDescriptor = open(RUTA_DATABIN,O_RDWR);
-	//struct stat mystat;
-	void *bmap;
 	if (unFileDescriptor == -1) {
 		printf("Error al abrir el archivo\n");
 		fflush(stdout);
@@ -130,36 +129,38 @@ void setBloque ( int numeroDeBloque, void * datosParaGrabar){  //setBloque(numer
 				printf("Error al mapear a memoria: %s\n", strerror(errno));
 				fflush(stdout);
 				error=true;
-	}else{
-		memmove(punteroDataBin,datosParaGrabar,TAMBLOQUE);
+	}else memmove(punteroDataBin,datosParaGrabar,TAMBLOQUE);
 
-
-	}
-	int rv=munmap(punteroDataBin,tamanioDataBin);
-	if(rv==-1){
+	int unmap=munmap(punteroDataBin,tamanioDataBin);
+	if(unmap==-1){
 		printf("Error en munmap de setBloque\n");
 		fflush(stdout);
 		error=true;
-	}
-	int resultado= !error ? 1 : -1;
-	uint32_t tamanio = sizeof(uint32_t) * 2+sizeof(char) * strlen(NOMBRE_NODO);
+		free(punteroDataBin);
+	}else free(punteroDataBin);
+
+	int resultado= !error ? 1 : -1;   // 1 resultado OK, -1 resultado ERRONEO
+	uint32_t tamanio = sizeof(uint32_t) * 2 + strlen(NOMBRE_NODO);  //defino el tamaño del mensaje a mandar
 	void *datos = malloc(tamanio);
-	*((uint32_t)datos)=numeroDeBloque;
+	*((uint32_t)datos)=numeroDeBloque; // guardo el numero de bloque
 	datos+=sizeof(uint32_t);
-	*((uint32_t)datos)=resultado; //1 resultado exitoso
+	*((uint32_t)datos)=resultado;      // guardo el resultado de la operacion
 	datos+=sizeof(uint32_t);
-	strcpy(datos, NOMBRE_NODO);
+	strcpy(datos, NOMBRE_NODO);        // guardo el nombre del nodo
 	datos +=  strlen(NOMBRE_NODO) + 1;
-	datos-=tamanio;
+	datos-=tamanio;					   // vuelvo al principio para luego recibirlo en el mismo orden
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
 }
 
+
 void escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
-	fseek ( *archivoDeLog , 0 , SEEK_END );  // fseek( archivo , desplazamiento , posición de origen );
-	fwrite ( contenidoAEscribir , strlen(contenidoAEscribir) , 1 , *archivoDeLog );   // Strlen da la longitud de una cadena de texto.
-	fwrite ( "\n" , 1 , 1 , *archivoDeLog );		// fwrite (datos, tamaño de cada dato, cantidad de datos, archivo).
-	printf("%s\n", contenidoAEscribir);		// Lo muestro por pantalla.
+	fseek ( *archivoDeLog , 0 , SEEK_END );  // grabo los datos mas recientes al final del archivo.
+	fwrite ( contenidoAEscribir , strlen(contenidoAEscribir) , 1 , *archivoDeLog );
+	fwrite ( "\n" , 1 , 1 , *archivoDeLog );
+	printf("%s\n", contenidoAEscribir);
+	fflush(stdout);
 }
+
 
 //   escribirEnArchivoLog(operacion,&LogDatanode);
 
