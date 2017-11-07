@@ -14,7 +14,7 @@ pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_index;
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("filesystemCFG.txt");
+	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/fs/filesystemCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
 	PUERTO = config_get_int_value(arch, "PUERTO");
 	config_destroy(arch);
@@ -310,11 +310,12 @@ void consola() {
 				printf("Error, verifique parámetros\n");
 				fflush(stdout);
 			}
-			char *path_archivo=malloc(sizeof(array_input[1]));
-			path_archivo=array_input[1];
-			char *directorio_yama=malloc(string_length(array_input[2]));
+			char *path_archivo=malloc(strlen(array_input[1])+1);
+			strcpy(path_archivo,array_input[1]);
+			char *directorio_yama=malloc(strlen(array_input[2])+1);
 			strcpy(directorio_yama,array_input[2]);
-			char **separado_por_barras=string_split(array_input[2],"/");
+			char **separado_por_barras=calloc(1,strlen(array_input[2])+1);
+			separado_por_barras=string_split(array_input[2],"/");
 			int index_ultimo_directorio;
 			int i=0;
 			while(separado_por_barras[i]){
