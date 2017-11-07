@@ -224,34 +224,115 @@ void accion(void* socket){
 	sacar_datanode(socketFD);
 
 }
+int existe_directorio(char *nombre,int index_padre){
+	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
+	strcpy(ruta,"/home/utnso/metadata/directorios.dat");
+	int fd_directorio = open(ruta,O_RDWR);
+	printf("%i\n",fd_directorio);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+		return 0;
+	}else{
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+			return 0;
+		}
+		directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+		if (directorios == MAP_FAILED) {
+					printf("Error al mapear a memoria: %s\n", strerror(errno));
+					return 0;
+		}else{
+			t_directory aux[100];
+			memmove(aux,directorios,100*sizeof(t_directory));
+			int i=0;
+			for (i = 1; i < 100; ++i) {
+				if(aux[i].padre==index_padre && (strcmp(aux[i].nombre,nombre)==0)){
+					munmap(directorios,mystat.st_size);
+					return 1;
+				}
+			}
+			munmap(directorios,mystat.st_size);
+			return 2;
+		}
+	}
+}
 bool existe_rutafs(char *ruta){
-	char **separado_por_barras=string_split(ruta,"/");
+	//TODO
+	char **separado_por_barras=calloc(1,strlen(ruta)+1);
+	separado_por_barras=string_split(ruta,"/");
 	int cantidad=0;
 	while(separado_por_barras[cantidad]){
 		cantidad++;
 	}
 	cantidad--;
-	while(cantidad>=0){
-		if(cantidad==0){ //ruta formada por un solo directorio
-			if((existe_directorio(separado_por_barras[0])==1) && (obtener_index(separado_por_barras[0],1)==-1)){
-				printf("El directorio ya existe");
+	int i=0;
+	bool condicion=true;
+	while(i<=cantidad){
+		if(cantidad==0){
+			//ruta con un único directorio
+			if(existe_directorio(separado_por_barras[i],-1)==1){
+						//existe el directorio, por lo tanto existe la ruta
+					return true;
 			}else{
-				//crear directorio
+				//no existe, hay que crear este único directorio
+				setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],-1);
+				pthread_mutex_lock(&mutex_index);
+				index_directorio++;
+				pthread_mutex_unlock(&mutex_index);
 			}
 		}else{
-			if((existe_directorio(separado_por_barras[cantidad])==1) && (existe_directorio(separado_por_barras[cantidad-1])==1)){
-				int index_padre=obtener_index(separado_por_barras[cantidad-1],0);
-				if(obtener_index(separado_por_barras[cantidad],1)==index_padre){
-					cantidad--;
+			//ruta con más de un directorio
+			int index_padre_anterior=existe_directorio(separado_por_barras[i],-1)==1 ? obtener_index(separado_por_barras[i],-1) : index_directorio ;
+			if(i==0){
+				//primer directorio de todos
+				if(existe_directorio(separado_por_barras[i],-1)==1){
+					//si existe este directorio con el index -1 como padre, entonces vamos bien
+					//setear una variable en true para saber que vamos bien
+					i++;
 				}else{
-					return false;
+					setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],-1);
+					pthread_mutex_lock(&mutex_index);
+					index_directorio++;
+					pthread_mutex_unlock(&mutex_index);
+					condicion=false;
+					i++;
+					//si ya no existe este directorio con el index -1, entonces tooodo lo demás no existe
+					//setear una variable en false para saber que hay que crearlo a los siguientes, además de este
+				}
+			}
+			if(condicion){
+				if(existe_directorio(separado_por_barras[i],index_padre_anterior)==1){
+					//si existe este directorio con el index del anterior como padre, entonces vamos bien
+					//dejamos condicion con true
+					index_padre_anterior=obtener_index(separado_por_barras[i],index_padre_anterior);
+				}else{
+					//si no existe este directorio, lo creamos y seteamos condicion en false para que a partir del proximo
+					// se empiecen a crear
+					setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],index_padre_anterior);
+					index_padre_anterior=index_directorio;
+					pthread_mutex_lock(&mutex_index);
+					index_directorio++;
+					pthread_mutex_unlock(&mutex_index);
+					condicion=false;
 				}
 			}else{
-				return false;
+				setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],index_padre_anterior);
+				index_padre_anterior=index_directorio;
+				pthread_mutex_lock(&mutex_index);
+				index_directorio++;
+				pthread_mutex_unlock(&mutex_index);
+				//hay que crear todos los directorios restantes
 			}
 		}
 	}
-	return true;
+	if(condicion){
+		return true;
+	}else{
+		return false;
+	}
 }
 void consola() {
 	char * linea;
@@ -314,48 +395,10 @@ void consola() {
 			strcpy(path_archivo,array_input[1]);
 			char *directorio_yama=malloc(strlen(array_input[2])+1);
 			strcpy(directorio_yama,array_input[2]);
-			char **separado_por_barras=calloc(1,strlen(array_input[2])+1);
-			separado_por_barras=string_split(array_input[2],"/");
-			int index_ultimo_directorio;
-			int i=0;
-			while(separado_por_barras[i]){
-				//ejemplo /root/user/julian separado_por_barras[1]=root
-				if(existe_directorio(separado_por_barras[i])!=1){
-					//crea el directorio
-					printf("El directorio %s no existe, se creará\n",separado_por_barras[i]);
-					fflush(stdout);
-					int rv_disponible=primer_lugar_disponible();
-					if(rv_disponible==-1){//retorna el index del primer lugar del array disponible,en caso de error -1
-						printf("Error,no hay mas lugar para el directorio %s\n");
-						fflush(stdout);
-					}else{
-						//hay lugar disponible
-						if(i==0){
-							pthread_mutex_lock(&mutex_index);
-							setear_directorio(rv_disponible,index_directorio,separado_por_barras[i],0);
-							index_directorio++;
-							pthread_mutex_unlock(&mutex_index);
-						}else{
-							//proximo directorio
-							int index_padre=obtener_index(separado_por_barras[i-1],0);
-							pthread_mutex_lock(&mutex_index);
-							setear_directorio(rv_disponible,index_directorio,separado_por_barras[i],index_padre);
-							if(!(separado_por_barras[i+1])){
-								//guardo este index para saber donde guardar los datos del archivo
-								index_ultimo_directorio=index_directorio;
-							}
-							index_directorio++;
-							pthread_mutex_unlock(&mutex_index);
-						}
-					}
-				}
-				//si ya existe el directorio, no hago nada
-				i++;
-			}
-			i=0;
-			while(separado_por_barras[i]){
-				mostrar_directorio(separado_por_barras[i]);
-				i++;
+			if(existe_rutafs(directorio_yama)==true){
+				printf("Existe el directorio :D\n");
+			}else{
+				printf("No existe el directorio, se lo creó");
 			}
 			int tipo_archivo = atoi(array_input[3]);
 			t_list *bloques_a_enviar  = list_create();
