@@ -38,7 +38,41 @@ void imprimirArchivoConfiguracion(){
 void accionPadre(void* socketMaster){
 }
 
-void accionHijo(void* socketMaster){
+void accionHijo(void* socketM){
+
+	int socketMaster = *(int*) socketM;
+	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
+	RecibirPaqueteCliente(socketMaster, WORKER, paqueteArecibir);
+	if(!strcmp(paqueteArecibir->header.emisor, MASTER)){ //Posible error en el !
+
+		solicitudPrograma* programa = malloc(paqueteArecibir->header.tamPayload);
+		switch(paqueteArecibir->header.tipoMensaje){
+		case TRANSFWORKER:{
+			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
+			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
+			programa->bloque = ((solicitudPrograma*)paqueteArecibir->Payload)->bloque;
+			programa->cantidadDeBytesOcupados = ((solicitudPrograma*)paqueteArecibir->Payload)->cantidadDeBytesOcupados;
+			break;
+		}
+		case REDLOCALWORKER:{
+			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
+			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
+			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;
+			break;
+		}
+		case REDGLOBALWORKER:{
+			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
+			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
+			programa->workerEncargado = ((solicitudPrograma*)paqueteArecibir->Payload)->workerEncargado;
+			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;
+			break;
+		}
+		}
+
+	}
+	else{
+		perror("Recibido de otro emisor que no es master");
+	}
 
 }
 
@@ -47,10 +81,6 @@ int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
-	/*
-	 * Centu: como le pasamos el socketFD (que vendria siendo el master, no?) a la funcion accionHijo que tenemos aca
-	 * y otra cosa, accionPadre tiene que quedar escuchando, esta bien si dejamos accionPadre vacio?
-	 */
 
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 
