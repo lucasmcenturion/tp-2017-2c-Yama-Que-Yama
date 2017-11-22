@@ -354,12 +354,6 @@ bool existe_ruta(char *ruta_fs){
 		}else{
 			t_directory aux[100];
 			memmove(aux,directorios,100*sizeof(t_directory));
-			int var;
-			for (var = 0; var < 100; ++var) {
-				printf("%i,%i\n",aux[var].index,index_directorio);
-
-			}
-
 			char **separado_por_barras=string_split(ruta_fs,"/");
 			int cantidad=0;
 			while(separado_por_barras[cantidad]){
@@ -418,8 +412,64 @@ void consola() {
 				printf("remover archivo\n");
 			linea -= 3;
 		}
-		else if(!strncmp(linea, "rename ", 7))
-			printf("renombar\n");
+		else if(!strncmp(linea, "rename ", 7)){
+			char **array_input=string_split(linea," ");
+			//TODO rename
+			if(!array_input[0] || !array_input[1] || !array_input[2]){
+				printf("Error, verificar parametros\n");
+				fflush(stdout);
+			}else{
+				char **separado_por_puntos=string_split(array_input[1],".");
+				if(separado_por_puntos[1]){
+					//es un archivo
+				}else{
+					//es un directorio
+					char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
+					strcpy(ruta,"/home/utnso/metadata/directorios.dat");
+					int fd_directorio = open(ruta,O_RDWR);
+					if(fd_directorio==-1){
+						printf("Error al intentar abrir el archivo");
+					}else{
+						struct stat mystat;
+						void *directorios;
+						if (fstat(fd_directorio, &mystat) < 0) {
+							printf("Error al establecer fstat\n");
+							close(fd_directorio);
+						}else{
+							directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+							if (directorios == MAP_FAILED) {
+								printf("Error al mapear a memoria: %s\n", strerror(errno));
+							}else{
+								t_directory aux[100];
+								memmove(aux,directorios,100*sizeof(t_directory));
+								char **separado_por_barras=string_split(array_input[1],"/");
+								int i=0;
+								int padre_anterior=-1;
+								int index_ultimo_directorio;
+								while(separado_por_barras[i]){
+									if(!(separado_por_barras[i+1])){
+										index_ultimo_directorio=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+									}else{
+										padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+									}
+									i++;
+								}
+								int var;
+								for (var = 0; var < 100; ++var){
+									if(aux[var].index==index_ultimo_directorio){
+										strcpy(aux[var].nombre,array_input[2]);
+										break;
+									}
+								}
+								memmove(directorios,aux,100*sizeof(t_directory));
+								munmap(directorios,mystat.st_size);
+								close(fd_directorio);
+							}
+						}
+					}
+				}
+			}
+		}
 		else if(!strncmp(linea, "mv ", 3))
 			printf("mover\n");
 		else if(!strncmp(linea, "cat ", 4))
@@ -493,7 +543,6 @@ void consola() {
 					}else{
 						t_directory aux[100];
 						memmove(aux,directorios,100*sizeof(t_directory));
-						int index_padre;
 						char **separado_por_barras=string_split(directorio_yama,"/");
 						int i=0;
 						int padre_anterior=-1;
