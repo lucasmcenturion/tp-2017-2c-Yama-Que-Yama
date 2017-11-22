@@ -94,7 +94,7 @@ void getBloque(int numeroDeBloque){
 	}else{
 			  void *datos_a_enviar=calloc(1,TAMBLOQUE);
 			  memmove(datos_a_enviar,punteroDataBin,TAMBLOQUE);
-			  enviarDatosTipo (socketFS, DATANODE, datos_a_enviar, TAMBLOQUE, BLOQUEOBTENIDO);
+			  EnviarDatosTipo(socketFS, DATANODE, datos_a_enviar, TAMBLOQUE, BLOQUEOBTENIDO);
 
 			  printf("funco bien mmap de getbloque\n");
 			  fflush(stdout);
@@ -142,9 +142,9 @@ void setBloque ( int numeroDeBloque, void * datosParaGrabar ){
 	int resultado= !error ? 1 : -1;   // 1 resultado OK, -1 resultado ERRONEO
 	uint32_t tamanio = sizeof(uint32_t) * 2 + strlen(NOMBRE_NODO);  //defino el tamaño del mensaje a mandar
 	void *datos = malloc(tamanio);
-	*((uint32_t)datos)=numeroDeBloque; // guardo el numero de bloque
+	*((uint32_t*)datos)=numeroDeBloque; // guardo el numero de bloque
 	datos+=sizeof(uint32_t);
-	*((uint32_t)datos)=resultado;      // guardo el resultado de la operacion
+	*((uint32_t*)datos)=resultado;      // guardo el resultado de la operacion
 	datos+=sizeof(uint32_t);
 	strcpy(datos, NOMBRE_NODO);        // guardo el nombre del nodo
 	datos +=  strlen(NOMBRE_NODO) + 1;

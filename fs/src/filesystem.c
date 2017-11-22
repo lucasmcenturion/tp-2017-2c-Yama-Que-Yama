@@ -7,12 +7,13 @@ int socketFS;
 int socketYAMA;
 t_list* listaHilos;
 t_list* datanodes;
+bool directorios_ocupados[100];
+t_dictionary *archivos_actuales;
 int index_directorio=1;
 bool end;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_index;
-
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/fs/filesystemCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
@@ -94,6 +95,7 @@ void accion(void* socket){
 						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
 						//cuando se lo crea, se inicializa todos con 0, es decir, todos los bloques libres
 						munmap(bmap,mystat.st_size);
+						close(bitmap);
 						bitarray_destroy(bitarray);
 						data->bloques_libres=(int)(size_databin/TAMBLOQUE);
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
@@ -128,6 +130,7 @@ void accion(void* socket){
 						data->bloques_totales=(int)(size_databin/TAMBLOQUE);
 						data->bloques_libres=data->bloques_totales-bloques_ocupados;
 						munmap(bmap,mystat.st_size);
+						close(bitmap);
 						actualizar_nodos_bin(data);
 					}
 					pthread_mutex_lock(&mutex_datanodes);
@@ -224,11 +227,10 @@ void accion(void* socket){
 	sacar_datanode(socketFD);
 
 }
-int existe_directorio(char *nombre,int index_padre){
+int existe_directorio(char *ruta_directorio){
 	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
 	strcpy(ruta,"/home/utnso/metadata/directorios.dat");
 	int fd_directorio = open(ruta,O_RDWR);
-	printf("%i\n",fd_directorio);
 	if(fd_directorio==-1){
 		printf("Error al intentar abrir el archivo");
 		return 0;
@@ -247,91 +249,154 @@ int existe_directorio(char *nombre,int index_padre){
 		}else{
 			t_directory aux[100];
 			memmove(aux,directorios,100*sizeof(t_directory));
-			int i=0;
-			for (i = 1; i < 100; ++i) {
-				if(aux[i].padre==index_padre && (strcmp(aux[i].nombre,nombre)==0)){
-					munmap(directorios,mystat.st_size);
-					return 1;
-				}
-			}
+			actualizar_directorios_ocupados(aux);
+			memmove(aux,verificar(aux,ruta_directorio),100*sizeof(t_directory));
+			memmove(directorios,aux,100*sizeof(t_directory));
 			munmap(directorios,mystat.st_size);
+			close(fd_directorio);
 			return 2;
 		}
 	}
 }
-bool existe_rutafs(char *ruta){
-	//TODO
-	char **separado_por_barras=calloc(1,strlen(ruta)+1);
-	separado_por_barras=string_split(ruta,"/");
-	int cantidad=0;
-	while(separado_por_barras[cantidad]){
-		cantidad++;
-	}
-	cantidad--;
-	int i=0;
-	bool condicion=true;
-	while(i<=cantidad){
-		if(cantidad==0){
-			//ruta con un único directorio
-			if(existe_directorio(separado_por_barras[i],-1)==1){
-						//existe el directorio, por lo tanto existe la ruta
-					return true;
-			}else{
-				//no existe, hay que crear este único directorio
-				setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],-1);
-				pthread_mutex_lock(&mutex_index);
-				index_directorio++;
-				pthread_mutex_unlock(&mutex_index);
-			}
+void actualizar_directorios_ocupados(t_directory aux[100]){
+	int i;
+	for (i = 0; i < 100; ++i) {
+		if(strcmp(aux[i].nombre,"/0")==0){
+			directorios_ocupados[i]=false;
 		}else{
-			//ruta con más de un directorio
-			int index_padre_anterior=existe_directorio(separado_por_barras[i],-1)==1 ? obtener_index(separado_por_barras[i],-1) : index_directorio ;
-			if(i==0){
-				//primer directorio de todos
-				if(existe_directorio(separado_por_barras[i],-1)==1){
-					//si existe este directorio con el index -1 como padre, entonces vamos bien
-					//setear una variable en true para saber que vamos bien
-					i++;
-				}else{
-					setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],-1);
-					pthread_mutex_lock(&mutex_index);
-					index_directorio++;
-					pthread_mutex_unlock(&mutex_index);
-					condicion=false;
-					i++;
-					//si ya no existe este directorio con el index -1, entonces tooodo lo demás no existe
-					//setear una variable en false para saber que hay que crearlo a los siguientes, además de este
-				}
-			}
-			if(condicion){
-				if(existe_directorio(separado_por_barras[i],index_padre_anterior)==1){
-					//si existe este directorio con el index del anterior como padre, entonces vamos bien
-					//dejamos condicion con true
-					index_padre_anterior=obtener_index(separado_por_barras[i],index_padre_anterior);
-				}else{
-					//si no existe este directorio, lo creamos y seteamos condicion en false para que a partir del proximo
-					// se empiecen a crear
-					setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],index_padre_anterior);
-					index_padre_anterior=index_directorio;
-					pthread_mutex_lock(&mutex_index);
-					index_directorio++;
-					pthread_mutex_unlock(&mutex_index);
-					condicion=false;
-				}
-			}else{
-				setear_directorio(primer_lugar_disponible(),index_directorio,separado_por_barras[i],index_padre_anterior);
-				index_padre_anterior=index_directorio;
-				pthread_mutex_lock(&mutex_index);
-				index_directorio++;
-				pthread_mutex_unlock(&mutex_index);
-				//hay que crear todos los directorios restantes
-			}
+			directorios_ocupados[i]=true;
 		}
 	}
-	if(condicion){
-		return true;
+}
+void actualizar_index_directorios(t_directory aux[100]){
+	int i;
+	for (i= 0; i < 100; ++i) {
+		if((strcmp(aux[i].nombre,"/0")!=0) && (aux[i].index > index_directorio)){
+			index_directorio=aux[i].index+1;
+		}
+	}
+}
+verificar(t_directory aux[100],char *ruta){
+	//verifica si existe, y si no existe, lo crea;
+	pthread_mutex_lock(&mutex_directorio);
+	actualizar_index_directorios(aux);
+	pthread_mutex_unlock(&mutex_directorio);
+	char **separado_por_barras=string_split(ruta,"/");
+	int i=0;
+	int padre_anterior=-1;
+	while(separado_por_barras[i]){
+		if(!(existe(separado_por_barras[i],padre_anterior,aux))){
+			int index_array=primer_index_libre();
+			if(index_array!=-1){
+				pthread_mutex_lock(&mutex_directorio);
+				aux[index_array].padre=padre_anterior;
+				aux[index_array].index=index_directorio;
+				strcpy(aux[index_array].nombre,separado_por_barras[i]);
+				directorios_ocupados[index_array]=true;
+				index_directorio++;
+				pthread_mutex_unlock(&mutex_directorio);
+			}else{
+				printf("No hay mas lugar libre");
+			}
+		}
+		padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+		i++;
+	}
+	return aux;
+}
+int primer_index_libre(){
+	int i;
+	for (i = 0; i < 100; ++i) {
+		if(directorios_ocupados[i]==false){
+			return i;
+		}
+	}
+	return -1;
+}
+obtener_index_directorio(char *nombre,int index_padre,t_directory aux[100]){
+	int i;
+	for (i=0; i < 100; i++) {
+		if((aux[i].padre==index_padre) && (strcmp(aux[i].nombre,nombre)==0)){
+			return aux[i].index;
+		}
+	}
+}
+existe(char*nombre,int index_padre,t_directory aux[100]){
+	int i;
+	for(i=0;i<100;i++){
+		if((aux[i].padre==index_padre)  && (strcmp(aux[i].nombre,nombre)==0)){
+			return true;
+		}
+	}
+	return false;
+
+}
+
+bool existe_ruta(char *ruta_fs){
+	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
+	strcpy(ruta,"/home/utnso/metadata/directorios.dat");
+	int fd_directorio = open(ruta,O_RDWR);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+		return 0;
 	}else{
-		return false;
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+			return 0;
+		}
+		directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+		if (directorios == MAP_FAILED) {
+					printf("Error al mapear a memoria: %s\n", strerror(errno));
+					return 0;
+		}else{
+			t_directory aux[100];
+			memmove(aux,directorios,100*sizeof(t_directory));
+			int var;
+			for (var = 0; var < 100; ++var) {
+				printf("%i,%i\n",aux[var].index,index_directorio);
+
+			}
+
+			char **separado_por_barras=string_split(ruta_fs,"/");
+			int cantidad=0;
+			while(separado_por_barras[cantidad]){
+				cantidad++;
+			}
+			if(cantidad==1){
+				//ruta con un solo directorio
+				return existe(separado_por_barras[cantidad-1],-1,aux);
+			}else{
+				//ruta formada por mas de un directorio
+				int index_padre_anterior=-1;
+				int i=0;
+				cantidad--;
+				while(cantidad>=0){
+					if(i==0){
+						if(!(existe(separado_por_barras[i],index_padre_anterior,aux))){
+							munmap(directorios,mystat.st_size);
+							close(fd_directorio);
+							return false;
+						}
+					}else{
+						if(!(existe(separado_por_barras[i],index_padre_anterior,aux))){
+							munmap(directorios,mystat.st_size);
+							close(fd_directorio);
+							return false;
+						}
+
+					}
+					index_padre_anterior=obtener_index_directorio(separado_por_barras[i],index_padre_anterior,aux);
+					i++;
+					cantidad--;
+				}
+				munmap(directorios,mystat.st_size);
+				close(fd_directorio);
+				return true;
+			}
+		}
 	}
 }
 void consola() {
@@ -362,15 +427,21 @@ void consola() {
 		else if(!strncmp(linea, "mkdir ", 6)){
 			printf("crea directorio\n");
 			char **array_input=string_split(linea," ");
-			if(!array_input[0] || array_input[2]){
-				printf("Error, verificar parametros");
+			//TODO
+			if(!array_input[0] || !array_input[1]){
+				printf("Error, verificar parametros\n");
+				fflush(stdout);
 			}
-			if(!existe_rutafs(array_input[1])){
-				//crear directorio
+			if(existe_ruta(array_input[1])){
+				printf("El directorio ya existe!\n");
+				fflush(stdout);
 			}else{
-				printf("Existe lince");
+				printf("El directorio no existe, se creará\n");
+				fflush(stdout);
+				if(existe_directorio(array_input[1])){
+					printf("Directorio creado correctamente\n");
+				}
 			}
-
 		}
 		else if(!strncmp(linea, "cpfrom ", 7)){
 			/*
@@ -393,12 +464,51 @@ void consola() {
 			}
 			char *path_archivo=malloc(strlen(array_input[1])+1);
 			strcpy(path_archivo,array_input[1]);
+			char *nombre_archivo=obtener_nombre_archivo(path_archivo);
 			char *directorio_yama=malloc(strlen(array_input[2])+1);
 			strcpy(directorio_yama,array_input[2]);
-			if(existe_rutafs(directorio_yama)==true){
-				printf("Existe el directorio :D\n");
+			if(!existe_ruta(array_input[1])){
+				printf("El directorio no existe, se creara\n");
+				if(existe_directorio(array_input[1])){
+					printf("Directorio creado correctamente\n");
+				}
 			}else{
-				printf("No existe el directorio, se lo creó");
+				printf("El directorio ya existe\n");
+			}
+			char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
+			strcpy(ruta,"/home/utnso/metadata/directorios.dat");
+			int fd_directorio = open(ruta,O_RDWR);
+			if(fd_directorio==-1){
+				printf("Error al intentar abrir el archivo");
+			}else{
+				struct stat mystat;
+				void *directorios;
+				if (fstat(fd_directorio, &mystat) < 0) {
+					printf("Error al establecer fstat\n");
+					close(fd_directorio);
+				}else{
+					directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+					if (directorios == MAP_FAILED) {
+						printf("Error al mapear a memoria: %s\n", strerror(errno));
+					}else{
+						t_directory aux[100];
+						memmove(aux,directorios,100*sizeof(t_directory));
+						int index_padre;
+						char **separado_por_barras=string_split(directorio_yama,"/");
+						int i=0;
+						int padre_anterior=-1;
+						int index_directorio_padre;
+						while(separado_por_barras[i]){
+							if(!(separado_por_barras[i+1])){
+								index_directorio_padre=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+							}else{
+								padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+							}
+							i++;
+						}
+					}
+				}
+
 			}
 			int tipo_archivo = atoi(array_input[3]);
 			t_list *bloques_a_enviar  = list_create();
@@ -467,7 +577,9 @@ void consola() {
 				}
 			}
 			munmap(data,archivo_stat.st_size);
-			enviarBloques((t_list*)bloques_a_enviar);
+			close(path_archivo);
+			//TODO agregar a enviarBloques el index_directorio_padre
+			enviarBloques((t_list*)bloques_a_enviar,nombre_archivo);
 			//TODO tambien destroy elements;
 			list_destroy(bloques_a_enviar);
 		}
@@ -477,8 +589,19 @@ void consola() {
 			printf("copia de bloque\n");
 		else if(!strncmp(linea, "md5 ", 4))
 			printf("MD5\n");
-		else if(!strncmp(linea, "ls ", 3))
-			printf("lista de archivos\n");
+		else if(!strncmp(linea, "ls ", 3)){
+			char **array_input=string_split(linea," ");
+			//TODO ls
+			if(!array_input[0] || !array_input[1]){
+				printf("Error, verificar parametros\n");
+				fflush(stdout);
+			}
+			if(!existe_ruta(array_input[1])){
+				printf("El directorio no existe, ingrese un directorio valido\n");
+			}else{
+				mostrar_directorios_hijos(array_input[1]);
+			}
+		}
 		else if(!strncmp(linea, "info ", 5))
 			printf("info archivo\n");
 		else if(!strcmp(linea, "exit"))
@@ -492,14 +615,66 @@ void consola() {
 		free(linea);
 	}
 }
+void mostrar_directorios_hijos(char *path){
+	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
+	strcpy(ruta,"/home/utnso/metadata/directorios.dat");
+	int fd_directorio = open(ruta,O_RDWR);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+	}else{
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+		}else{
+			directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+			if (directorios == MAP_FAILED) {
+				printf("Error al mapear a memoria: %s\n", strerror(errno));
+			}else{
+				t_directory aux[100];
+				memmove(aux,directorios,100*sizeof(t_directory));
+				char **separado_por_barras=string_split(path,"/");
+				int cantidad=0;
+				while(separado_por_barras[cantidad]){
+					cantidad++;
+				}
+				int i=0;
+				int padre_anterior=-1;
+				int index_actual;
+				while(separado_por_barras[i]){
+					if(!(separado_por_barras[i+1])){
+						index_actual=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+					}else{
+						padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+					}
+					i++;
+				}
+				mostrar_directorios(index_actual,aux);
+			}
+		}
+	}
+}
 
+void mostrar_directorios(int index,t_directory aux[100]){
+	int i;
+	for (i = 0; i < 100; ++i) {
+		if(aux[i].padre == index){
+			char *nombre=malloc(100);
+			strcpy(nombre,aux[i].nombre);
+			nombre=realloc(nombre,strlen(aux[i].nombre)+1);
+			printf("%s\n",nombre);
+		}
+	}
+}
 bool esta_disponible(info_datanode *un_datanode){
 	t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
 	int libre;
-	char *nombre_libre=string_new();
+	char *nombre_libre=calloc(1,strlen(un_datanode->nodo)+strlen("Libre")+1);
 	string_append(&nombre_libre,un_datanode->nodo);
 	string_append(&nombre_libre,"Libre");
 	libre=config_has_property(nodos,nombre_libre);
+	free(nombre_libre);
 	return libre>0;
 }
 
@@ -583,15 +758,17 @@ void enviarBloques(t_list *bloques_a_enviar){
 				char *nombre=((info_datanode*)list_get(datanodes,index_primer_copia))->nodo;
 				pthread_mutex_unlock(&mutex_datanodes);
 				//string_append(&ruta,&nombre);
+				ruta=realloc(ruta,strlen(ruta)+strlen(nombre)+1);
 				strcat(ruta, nombre);
+				ruta=realloc(ruta,strlen(ruta)+strlen(".dat")+1);
 				string_append(&ruta,".dat");
 				t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
 				int total;
 				char *nombre_total=string_new();
 				string_append(&nombre_total,nombre);
 				string_append(&nombre_total,"Total");
-				total=config_has_property(nodos,nombre_total);
-				int size_bitarray=total%8>0 ? total+1 : total;
+				total=config_get_int_value(nodos,nombre_total);
+				int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
 				if(access(ruta, F_OK ) != -1){
 					int bitmap = open(ruta,O_RDWR);
 					struct stat mystat;
@@ -629,8 +806,11 @@ void enviarBloques(t_list *bloques_a_enviar){
 					pthread_mutex_lock(&mutex_datanodes);
 					int socket=((info_datanode*)list_get(datanodes,index_primer_copia))->socket;
 					pthread_mutex_unlock(&mutex_datanodes);
-					EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+					t_dictionary *info_archivo=dictionary_create();
+
+					/*EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
 					free(datos);
+					*/
 
 				}else{
 					printf("No existe el bitmap de %s\n",nombre);
@@ -657,13 +837,84 @@ void enviarBloques(t_list *bloques_a_enviar){
 	}
 }
 
+void crear_directorio(){
+	t_directory directorios_yamafs[100];
+	int i;
+	for (i = 1; i < 100; ++i) {
+		strcpy(directorios_yamafs[i].nombre,"/0");
+	}
+	char *ruta=string_new();
+	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
+	truncate(ruta,100*sizeof(t_directory));
+	int fd_directorio = open(ruta,O_RDWR);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+	}else{
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+		}else{
+			directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+			if (directorios == MAP_FAILED) {
+				printf("Error al mapear a memoria: %s\n", strerror(errno));
+			}else{
+				memmove(directorios,directorios_yamafs,100*sizeof(t_directory));
+				int j;
+				for (j=0; i < 100; ++j) {
+					directorios_ocupados[i]=false;
+				}
+			}
+			munmap(directorios,mystat.st_size);
+			close(fd_directorio);
+		}
+	}
+}
+
+void setear_directorio(int index_array,int index,char *nombre,int padre){
+	char *ruta=string_new();
+	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
+	truncate(ruta,100*sizeof(t_directory));
+	int fd_directorio = open(ruta,O_RDWR);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+	}else{
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+		}else{
+			directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+			if (directorios == MAP_FAILED) {
+						printf("Error al mapear a memoria: %s\n", strerror(errno));
+			}else{
+				t_directory directorios_yamafs[100];
+				memmove(directorios_yamafs,directorios,100*sizeof(t_directory));
+				directorios_yamafs[index_array].index=index;
+				strcpy(directorios_yamafs[index_array].nombre,nombre);
+				directorios_yamafs[index_array].padre=padre;
+				memmove(directorios,directorios_yamafs,100*sizeof(t_directory));
+				munmap(directorios,mystat.st_size);
+				directorios_ocupados[index_array]=true;
+				close(fd_directorio);
+			}
+		}
+	}
+}
 
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-	crear_directorio();
-	setear_directorio(0,0,"root",-1);
+	if(access("/home/utnso/metadata/directorios.dat", F_OK ) == -1 ){
+		FILE *f=fopen("/home/utnso/metadata/directorios.dat","w");
+		fclose(f);
+		crear_directorio();
+		setear_directorio(0,0,"root",-1);
+	}
 	datanodes=list_create();
+	archivos_actuales=dictionary_create();
 	pthread_t hiloConsola;
 	pthread_mutex_init(&mutex_datanodes,NULL);
 	pthread_mutex_init(&mutex_directorio,NULL);

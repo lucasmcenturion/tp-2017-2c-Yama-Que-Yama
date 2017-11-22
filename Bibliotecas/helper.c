@@ -179,63 +179,7 @@ void eliminar_ea_nodos(char*nombre){
 	}
 	config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
 }
-void crear_directorio(){
-	t_directory directorios_yamafs[100];
-	int i;
-	for (i = 1; i < 100; ++i) {
-		strcpy(directorios_yamafs[i].nombre,"/0");
-	}
-	char *ruta=string_new();
-	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
-	truncate(ruta,100*sizeof(t_directory));
-	int fd_directorio = open(ruta,O_RDWR);
-	if(fd_directorio==-1){
-		printf("Error al intentar abrir el archivo");
-	}
-	struct stat mystat;
-	void *directorios;
-	if (fstat(fd_directorio, &mystat) < 0) {
-		printf("Error al establecer fstat\n");
-		close(fd_directorio);
-	}
-	directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
-	if (directorios == MAP_FAILED) {
-				printf("Error al mapear a memoria: %s\n", strerror(errno));
-	}else{
-		memmove(directorios,directorios_yamafs,100*sizeof(t_directory));
-	}
-	munmap(directorios,mystat.st_size);
-}
-void setear_directorio(int index_array,int index,char *nombre,int padre){
-	char *ruta=string_new();
-	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
-	truncate(ruta,100*sizeof(t_directory));
-	int fd_directorio = open(ruta,O_RDWR);
-	if(fd_directorio==-1){
-		printf("Error al intentar abrir el archivo");
-	}else{
-		struct stat mystat;
-		void *directorios;
-		if (fstat(fd_directorio, &mystat) < 0) {
-			printf("Error al establecer fstat\n");
-			close(fd_directorio);
-		}else{
-			directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
-			if (directorios == MAP_FAILED) {
-						printf("Error al mapear a memoria: %s\n", strerror(errno));
-			}else{
-				t_directory directorios_yamafs[100];
-				memmove(directorios_yamafs,directorios,100*sizeof(t_directory));
-				directorios_yamafs[index_array].index=index;
-				strcpy(directorios_yamafs[index_array].nombre,nombre);
-				directorios_yamafs[index_array].padre=padre;
-				memmove(directorios,directorios_yamafs,100*sizeof(t_directory));
-				munmap(directorios,mystat.st_size);
 
-			}
-		}
-	}
-}
 int primer_lugar_disponible(){
 	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);
 	strcpy(ruta,"/home/utnso/metadata/directorios.dat");
@@ -315,12 +259,13 @@ void mostrar_directorio(char * nombre){
 				printf("Error al mapear a memoria: %s\n", strerror(errno));
 	}else{
 		int i;
-		for (i=1; i< 100; ++i) {
+		for (i=0; i< 100; ++i) {
 			t_directory element=((t_directory*)directorios)[i];
 			if(strcmp(element.nombre,nombre)==0){
 				printf("Index : %i\n",element.index);
 				printf("Index Padre: %i\n",element.padre);
 				printf("Nombre: %s\n",element.nombre);
+				fflush(stdout);
 			}
 		}
 
@@ -358,4 +303,12 @@ int existe_algun_directorio(char *nombre){
 			return 2;
 		}
 	}
+}
+char *obtener_nombre_archivo(char*path){
+	char **separado_por_barras=string_split(path,"/");
+	int cantidad=0;
+	while(separado_por_barras[cantidad]){
+		cantidad++;
+	}
+	return separado_por_barras[cantidad-1];
 }
