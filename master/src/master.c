@@ -31,22 +31,7 @@ void imprimirArchivoConfiguracion(){
 }
 
 
-
-typedef enum{TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL}programa;
-
-typedef struct{
-	programa header;
-	datosWorker* worker;
-	int bloque;
-	char* archivoTemporal;
-	char* programa;
-	int cantidadDeBytesOcupados;
-	char** ListaArchivosTemporales;
-	datosWorker workerEncargado;
-}solicitudPrograma;
-
-
-void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por nodo TODO
+void accionHilo(solicitudPrograma* solicitud){
 	datosWorker* worker = &solicitud->worker;
 
 	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);
@@ -113,7 +98,6 @@ void accionHilo(solicitudPrograma* solicitud){ //Revisar si se envia bien por no
 
 void realizarTransformacion(Paquete* paquete, char* programaT){
 
-	//int cantPaquetes = sizeof(paquete->Payload)/sizeof(transformacionDatos);
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
 	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma));
@@ -132,55 +116,6 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 }
 
 
-
-
-
-
-
-
-/*	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma)*cantPaquetes);
-	int i;
-	for(i=0;i<cantPaquetes;i++){
-		datosParaTransformacion[i].worker = &((transformacionDatos*)paquete->Payload)->worker;
-		datosParaTransformacion[i].archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
-		datosParaTransformacion[i].bloque = ((transformacionDatos*)paquete->Payload)->bloque;
-		datosParaTransformacion[i].cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
-	}
-
-
-	int j=1;
-	int cont=0;
-	for(i=0;i<cantPaquetes-1;i++){
-		 //PREREQUISITO: Yama nos lo manda ordenado por Nodos
-		if(datosParaTransformacion[i].worker->nodo!=datosParaTransformacion[i+1].worker->nodo){ //Nos fijamos si es el mismo nodo
-			j++;
-
-		}
-		else { //Si dejan de ser iguales, es que ya tenemos 1 nodo terminado
-			datosParaTransPorNodo = malloc(sizeof(solicitudPrograma)*j); //Hacemos un malloc por la cantidad de elementos
-			int y;
-			for(y=cont;y<j;y++){
-				datosParaTransPorNodo[y]=datosParaTransformacion[y]; //Asignamos los que encontramos
-			}
-			datosParaTransPorNodo->header = TRANSFORMACION;
-			pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransPorNodo);
-			cont = i;
-			j=1;
-		}
-	}
-	//Hacemos una vez porque el ultimo siempre nos va a quedar colgado, mas en el caso de que puede ser que los ultimos 3 sean iguales
-	datosParaTransPorNodo = malloc(sizeof(solicitudPrograma)*j); //Hacemos un malloc por la cantidad de elementos
-	int y;
-	for(y=cont;y<j;y++){
-		datosParaTransPorNodo[y]=datosParaTransformacion[y]; //Asignamos los que encontramos
-	}
-	datosParaTransPorNodo[0]->header = TRANSFORMACION;
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransPorNodo);
-	list_add(listaHilos, itemNuevo);
-
-
-}
-*/
 
 void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
@@ -223,7 +158,6 @@ int main(int argc, char* argv[]){
 	listaHilos = list_create();
 	char* programaTrans = argv[1];
 	char* programaReduc = argv[2];
-	//datosParaTransformacion.progTrans = asdasd; Asignar el programa de transformacion.
 
 	//FALTA: Mandar mensaje a Yama de que comience transformacion
 

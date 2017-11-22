@@ -42,6 +42,19 @@ typedef struct {
 	char emisor[11];
 }__attribute__((packed)) Header;
 
+typedef enum{TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL}programa;
+
+typedef struct{
+	programa header;
+	datosWorker* worker;
+	int bloque;
+	char* archivoTemporal;
+	char* programa;
+	int cantidadDeBytesOcupados;
+	char** ListaArchivosTemporales;
+	datosWorker workerEncargado;
+}__attribute__((packed)) solicitudPrograma;
+
 typedef struct {
 	Header header;
 	void* Payload;
