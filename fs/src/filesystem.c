@@ -2,6 +2,9 @@
 #include <sys/mman.h>
 #define TAMBLOQUE (1024*1024)
 char *IP;
+char *PUNTO_MONTAJE;
+char *RUTA_DIRECTORIOS;
+char *RUTA_NODOS;
 int PUERTO;
 int socketFS;
 int socketYAMA;
@@ -18,6 +21,7 @@ void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/fs/filesystemCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
 	PUERTO = config_get_int_value(arch, "PUERTO");
+	PUNTO_MONTAJE = string_duplicate(config_get_string_value(arch,"PUNTO_MONTAJE"));
 	config_destroy(arch);
 }
 
@@ -25,9 +29,11 @@ void imprimirArchivoConfiguracion(){
 	printf(
 				"Configuración:\n"
 				"IP=%s\n"
-				"PUERTO=%d\n",
+				"PUERTO=%d\n"
+				"PUNTO_MONTAJE=%s\n",
 				IP,
-				PUERTO
+				PUERTO,
+				PUNTO_MONTAJE
 				);
 }
 void sacar_datanode(int socket){
@@ -404,8 +410,63 @@ void consola() {
 		else if(!strncmp(linea, "rm ", 3))
 		{
 			linea += 3;
-			if(!strncmp(linea, "-d", 2))
-				printf("remover directorio\n");
+			if(!strncmp(linea, "-d", 2)){
+				/*linea -= 3;
+				char **separado_por_espacio=string_split(linea," ");
+				if(!separado_por_espacio[0] || !separado_por_espacio[1] || !separado_por_espacio[2]){
+					printf("Error, ingrese bien los datos por favor");
+				}else{
+					char**separado_por_puntos=string_split(separado_por_espacio[2],".");
+					if(separado_por_puntos[1]){
+						//se desea remover un archivo
+					}else{
+						//se desea remover un directorio
+						//TODO RM -D
+						char**separado_por_barras=string_split(separado_por_puntos[0],"/");
+						int fd_directorio = open(RUTA_DIRECTORIOS,O_RDWR);
+						if(fd_directorio==-1){
+							printf("Error al intentar abrir el archivo");
+						}else{
+							struct stat mystat;
+							void *directorios;
+							if (fstat(fd_directorio, &mystat) < 0) {
+								printf("Error al establecer fstat\n");
+								close(fd_directorio);
+							}else{
+								directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+								if (directorios == MAP_FAILED) {
+									printf("Error al mapear a memoria: %s\n", strerror(errno));
+								}else{
+									t_directory aux[100];
+									memmove(aux,directorios,100*sizeof(t_directory));
+									int i=0;
+									int padre_anterior=-1;
+									int index_ultimo_directorio;
+									while(separado_por_barras[i]){
+										if(!(separado_por_barras[i+1])){
+											index_ultimo_directorio=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+										}else{
+											padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+										}
+										i++;
+									}
+									int var;
+									for (var = 0; var < 100; ++var) {
+										if(aux[i].index==index_ultimo_directorio){
+											aux[i].index=-67954;
+											strcpy(aux[i].nombre,"/0");
+											aux[i].padre=-74681;
+											directorios_ocupados[i]=false;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				*/
+			}
 			else if(!strncmp(linea, "-b", 2))
 				printf("remover bloque\n");
 			else
@@ -626,7 +687,7 @@ void consola() {
 				}
 			}
 			munmap(data,archivo_stat.st_size);
-			close(path_archivo);
+			close(archivo);
 			//TODO agregar a enviarBloques el index_directorio_padre
 			enviarBloques((t_list*)bloques_a_enviar,nombre_archivo);
 			//TODO tambien destroy elements;
@@ -892,10 +953,8 @@ void crear_directorio(){
 	for (i = 1; i < 100; ++i) {
 		strcpy(directorios_yamafs[i].nombre,"/0");
 	}
-	char *ruta=string_new();
-	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
-	truncate(ruta,100*sizeof(t_directory));
-	int fd_directorio = open(ruta,O_RDWR);
+	truncate(RUTA_DIRECTORIOS,100*sizeof(t_directory));
+	int fd_directorio = open(RUTA_DIRECTORIOS,O_RDWR);
 	if(fd_directorio==-1){
 		printf("Error al intentar abrir el archivo");
 	}else{
@@ -922,10 +981,8 @@ void crear_directorio(){
 }
 
 void setear_directorio(int index_array,int index,char *nombre,int padre){
-	char *ruta=string_new();
-	string_append(&ruta,"/home/utnso/metadata/directorios.dat");
-	truncate(ruta,100*sizeof(t_directory));
-	int fd_directorio = open(ruta,O_RDWR);
+
+	int fd_directorio = open(RUTA_DIRECTORIOS,O_RDWR);
 	if(fd_directorio==-1){
 		printf("Error al intentar abrir el archivo");
 	}else{
@@ -951,13 +1008,50 @@ void setear_directorio(int index_array,int index,char *nombre,int padre){
 			}
 		}
 	}
+
 }
 
+/*t_directory obtener_directorios(){
+	char *ruta=malloc(strlen(PUNTO_MONTAJE)+strlen("/directorios.dat")+1);
+	strcpy(ruta,PUNTO_MONTAJE);
+	strcat(ruta,"/directorios.dat");
+	int fd_directorio = open(ruta,O_RDWR);
+	if(fd_directorio==-1){
+		printf("Error al intentar abrir el archivo");
+	}else{
+		struct stat mystat;
+		void *directorios;
+		if (fstat(fd_directorio, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(fd_directorio);
+		}else{
+			directorios = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_directorio, 0);
+			if (directorios == MAP_FAILED) {
+						printf("Error al mapear a memoria: %s\n", strerror(errno));
+			}else{
+				t_directory directorios_yamafs[100];
+				memmove(directorios_yamafs,directorios,100*sizeof(t_directory));
+				munmap(directorios,mystat.st_size);
+				close(fd_directorio);
+				free(ruta);
+				free(directorios);
+				return directorios_yamafs;
+			}
+		}
+	}
+}
+*/
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-	if(access("/home/utnso/metadata/directorios.dat", F_OK ) == -1 ){
-		FILE *f=fopen("/home/utnso/metadata/directorios.dat","w");
+	RUTA_DIRECTORIOS=malloc(strlen(PUNTO_MONTAJE)+strlen("/directorios.dat")+1);
+	strcpy(RUTA_DIRECTORIOS,PUNTO_MONTAJE);
+	strcat(RUTA_DIRECTORIOS,"/directorios.dat");
+	RUTA_NODOS=malloc(strlen(PUNTO_MONTAJE)+strlen("/nodos.bin"));
+	strcpy(RUTA_NODOS,PUNTO_MONTAJE);
+	strcat(RUTA_NODOS,"/nodos.bin");
+	if(access(RUTA_DIRECTORIOS, F_OK ) == -1 ){
+		FILE *f=fopen(RUTA_DIRECTORIOS,"w");
 		fclose(f);
 		crear_directorio();
 		setear_directorio(0,0,"root",-1);
