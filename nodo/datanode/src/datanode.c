@@ -223,6 +223,8 @@ int main(){
 			datos+=sizeof(uint32_t);
 			int tamano=*((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
+			int bloque_archivo=*((uint32_t*)datos);
+			datos+=sizeof(uint32_t);
 			void *bloque=calloc(1,tamano);
 			memmove(bloque,datos,tamano);
 			datos+=tamano;
@@ -230,12 +232,13 @@ int main(){
 			strcpy(nombre_archivo,datos);
 			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
 			datos+=strlen(nombre_archivo);
+			datos-=tamanio;
 			int resultado=setBloque(numero,bloque);
 
 			//enviamos respuesta a FS
 
-			int tamanio = sizeof(uint32_t) * 4  + sizeof(char)*strlen(NOMBRE_NODO) +1+ sizeof(char)*strlen(nombre_archivo)+1;
-			void *datos = malloc(tamanio);
+			int tamanio = sizeof(uint32_t) * 5  + sizeof(char)*strlen(NOMBRE_NODO) +1+ sizeof(char)*strlen(nombre_archivo)+1;
+			datos = malloc(tamanio);
 			*((uint32_t*)datos) = numero;
 			datos += sizeof(uint32_t);
 			*((uint32_t*)datos) =copia;
@@ -244,9 +247,11 @@ int main(){
 			datos += sizeof(uint32_t);
 			*((uint32_t*)datos) = tamano;
 			datos += sizeof(uint32_t);
-			strcpy(datos,NOMBRE_NODO,strlen(NOMBRE_NODO)+1);
+			*((uint32_t*)datos) = bloque_archivo;
+			datos += sizeof(uint32_t);
+			strcpy(datos,NOMBRE_NODO);
 			datos += strlen(NOMBRE_NODO)+1;
-			strcpy(datos,nombre_archivo,strlen(nombre_archivo)+1);
+			strcpy(datos,nombre_archivo);
 			datos += strlen(nombre_archivo)+1;
 			datos -= tamanio;
 

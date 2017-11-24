@@ -121,6 +121,7 @@ typedef struct{
 typedef struct{
  int index_padre;
  int total_bloques;
+ int tipo;
  char *nombre_archivo;
 }__attribute__((packed)) t_archivo_actual;
 
