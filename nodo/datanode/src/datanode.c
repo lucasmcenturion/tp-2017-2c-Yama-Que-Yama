@@ -17,7 +17,7 @@ int tamanioDataBin;
 FILE *LogDatanode;
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("../nodoCFG.txt");
+	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
@@ -111,10 +111,9 @@ void getBloque(int numeroDeBloque){
 
 }
 
-void setBloque ( int numeroDeBloque, void * datosParaGrabar ){
+int setBloque ( int numeroDeBloque, void * datosParaGrabar ){
 	int unFileDescriptor;
 	void * punteroDataBin;
-	punteroDataBin = (void *) malloc (TAMBLOQUE);
 	bool error=false;
 
     unFileDescriptor = open(RUTA_DATABIN,O_RDWR);
@@ -136,20 +135,12 @@ void setBloque ( int numeroDeBloque, void * datosParaGrabar ){
 		printf("Error en munmap de setBloque\n");
 		fflush(stdout);
 		error=true;
-		free(punteroDataBin);
-	}else free(punteroDataBin);
+	}else{
+
+	}
 
 	int resultado= !error ? 1 : -1;   // 1 resultado OK, -1 resultado ERRONEO
-	uint32_t tamanio = sizeof(uint32_t) * 2 + strlen(NOMBRE_NODO);  //defino el tamaño del mensaje a mandar
-	void *datos = malloc(tamanio);
-	*((uint32_t*)datos)=numeroDeBloque; // guardo el numero de bloque
-	datos+=sizeof(uint32_t);
-	*((uint32_t*)datos)=resultado;      // guardo el resultado de la operacion
-	datos+=sizeof(uint32_t);
-	strcpy(datos, NOMBRE_NODO);        // guardo el nombre del nodo
-	datos +=  strlen(NOMBRE_NODO) + 1;
-	datos-=tamanio;					   // vuelvo al principio para luego recibirlo en el mismo orden
-	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
+	return resultado;
 }
 
 
@@ -219,16 +210,48 @@ int main(){
 			break;
 		case SETBLOQUE:
 			{
+
+
+			//recibimos los datos
+
+
 			void *datos;
 			datos=paquete.Payload;
 			int numero = *((uint32_t*)datos);
+			datos+=sizeof(uint32_t);
+			int copia = *((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
 			int tamano=*((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
 			void *bloque=calloc(1,tamano);
 			memmove(bloque,datos,tamano);
-			setBloque(numero,bloque);
-			getBloque(numero);
+			datos+=tamano;
+			char *nombre_archivo=malloc(100);
+			strcpy(nombre_archivo,datos);
+			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+			datos+=strlen(nombre_archivo);
+			int resultado=setBloque(numero,bloque);
+
+			//enviamos respuesta a FS
+
+			int tamanio = sizeof(uint32_t) * 4  + sizeof(char)*strlen(NOMBRE_NODO) +1+ sizeof(char)*strlen(nombre_archivo)+1;
+			void *datos = malloc(tamanio);
+			*((uint32_t*)datos) = numero;
+			datos += sizeof(uint32_t);
+			*((uint32_t*)datos) =copia;
+			datos += sizeof(uint32_t);
+			*((uint32_t*)datos) = resultado;
+			datos += sizeof(uint32_t);
+			*((uint32_t*)datos) = tamano;
+			datos += sizeof(uint32_t);
+			strcpy(datos,NOMBRE_NODO,strlen(NOMBRE_NODO)+1);
+			datos += strlen(NOMBRE_NODO)+1;
+			strcpy(datos,nombre_archivo,strlen(nombre_archivo)+1);
+			datos += strlen(nombre_archivo)+1;
+			datos -= tamanio;
+
+			EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
+
 			break;
 			}
 		}

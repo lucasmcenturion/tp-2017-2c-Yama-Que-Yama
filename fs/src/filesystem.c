@@ -17,6 +17,7 @@ bool end;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_directorios_ocupados;
+pthread_mutext_t mutex_archivos_actuales;
 
 t_directory **obtener_directorios(){
 	int fd_directorio = open(RUTA_DIRECTORIOS,O_RDWR);
@@ -194,15 +195,35 @@ void accion(void* socket){
 				break;
 				case RESULOPERACION:
 				{
+
+					//recibimos los datos
+
+
 					void *datos=paquete.Payload;
-					uint32_t numeroDeBloque;
+					uint32_t numero_bloque;
 					uint32_t resultado;
-					*((uint32_t*)datos)=numeroDeBloque;
+					uint32_t tamanio_bloque;
+					uint32_t numero_copia;
+					char *nombre_nodo=malloc(100);
+					char *nombre_archivo=malloc(100);
+
+					numero_bloque = *((uint32_t*)datos);
 					datos+=sizeof(uint32_t);
-					*((uint32_t*)datos)=resultado; //1 resultado exitoso -1 resulado erroneo
-					char *nombre_nodo=string_new();
+					numero_copia = *((uint32_t*)datos);
+					datos+=sizeof(uint32_t);
+					resultado=*((uint32_t*)datos);
+					datos+=sizeof(uint32_t);
+					tamanio_bloque=*((uint32_t*)datos);
+					datos+=sizeof(uint32_t);
 					strcpy(nombre_nodo,datos);
-					if(resultado==-1){
+					nombre_nodo=realloc(nombre_nodo,strlen(nombre_nodo)+1);
+					datos+=strlen(nombre_nodo);
+					strcpy(nombre_archivo,datos);
+					nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+					datos+=strlen(nombre_archivo);
+
+
+					/*if(resultado==-1){
 						printf("Error en datanode de %s, no se pudo guardar el bloque %i\n",nombre_nodo,numeroDeBloque);
 					}else{
 						char*ruta=string_new();
@@ -235,6 +256,7 @@ void accion(void* socket){
 						}
 						//poner bitarray como ese bloque ocupado
 					}
+					*/
 				}
 				break;
 			}
@@ -316,7 +338,7 @@ crear(t_directory aux[100],char *ruta){
 	pthread_mutex_unlock(&mutex_directorio);
 	char **separado_por_barras=string_split(ruta,"/");
 	int i=0;
-	int padre_anterior=-1;
+	int padre_anterior=0;
 	while(separado_por_barras[i]){
 		if(!(existe(separado_por_barras[i],padre_anterior,aux))){
 			int index_array=primer_index_libre();
@@ -399,7 +421,7 @@ bool existe_ruta(char *ruta_fs){
 				return existe(separado_por_barras[cantidad-1],-1,aux);
 			}else{
 				//ruta formada por mas de un directorio
-				int index_padre_anterior=-1;
+				int index_padre_anterior=0;
 				int i=0;
 				cantidad--;
 				while(cantidad>=0){
@@ -468,7 +490,7 @@ void consola() {
 						t_directory *aux=(*directorios);
 						char **separado_por_barras=string_split(array_input[1],"/");
 						int i=0;
-						int padre_anterior=-1;
+						int padre_anterior=0;
 						int index_ultimo_directorio;
 						while(separado_por_barras[i]){
 							if(!(separado_por_barras[i+1])){
@@ -536,7 +558,8 @@ void consola() {
 			}
 			char *path_archivo=malloc(strlen(array_input[1])+1);
 			strcpy(path_archivo,array_input[1]);
-			char *nombre_archivo=obtener_nombre_archivo(path_archivo);
+			char *nombre_archivo=malloc(100);
+			nombre_archivo=obtener_nombre_archivo(path_archivo);
 			char *directorio_yama=malloc(strlen(array_input[2])+1);
 			strcpy(directorio_yama,array_input[2]);
 			if(!existe_ruta(directorio_yama)){
@@ -548,7 +571,7 @@ void consola() {
 			t_directory *aux=(*directorios);
 			char **separado_por_barras=string_split(directorio_yama,"/");
 			int iterador=0;
-			int padre_anterior=-1;
+			int padre_anterior=0;
 			int index_directorio_padre;
 			while(separado_por_barras[iterador]){
 				if(!(separado_por_barras[iterador+1])){
@@ -689,7 +712,7 @@ void mostrar_directorios_hijos(char *path){
 					cantidad++;
 				}
 				int i=0;
-				int padre_anterior=-1;
+				int padre_anterior=0;
 				int index_actual;
 				while(separado_por_barras[i]){
 					if(!(separado_por_barras[i+1])){
@@ -713,6 +736,7 @@ void mostrar_directorios(int index,t_directory aux[100]){
 			strcpy(nombre,aux[i].nombre);
 			nombre=realloc(nombre,strlen(aux[i].nombre)+1);
 			printf("%s\n",nombre);
+			free(nombre);
 		}
 	}
 }
@@ -779,10 +803,11 @@ int primer_disponible(t_list *datanodes, int index_actual){
 	}
 }
 
-void enviarBloques(t_list *bloques_a_enviar){
+void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_directorio_padre){
 	//filtramos los que tengan bloques libres
 	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
 	//una vez obtenidos,los enviamos
+	//TODO ----> ENVIAR BLOQUES
 	pthread_mutex_lock(&mutex_datanodes);
 	t_list *disponibles=list_filter(datanodes, (void*) esta_disponible);
 	pthread_mutex_unlock(&mutex_datanodes);
@@ -792,6 +817,10 @@ void enviarBloques(t_list *bloques_a_enviar){
 	pthread_mutex_unlock(&mutex_datanodes);
 	int i=0;
 	int i_bloques=0;
+	char *ruta=malloc(100);
+	strcpy(ruta,PUNTO_MONTAJE);
+	strcat(ruta,"/bitmaps/");
+
 	if(datanodes_disponibles<2){
 		perror("No hay datanodes disponibles");
 	}else{
@@ -800,73 +829,152 @@ void enviarBloques(t_list *bloques_a_enviar){
 			int index_primer_copia= primer_disponible(disponibles,i);
 			int index_segunda_copia= primer_disponible(disponibles,i+1);
 			if(index_primer_copia>=0 && index_segunda_copia>=0 && index_primer_copia!=index_segunda_copia){
-				//obtenemos datos del primer datanode para enviarle el bloque
-				char *ruta=string_new();
-				string_append(&ruta,"/home/utnso/metadata/bitmaps/");
+				//obtenemos datos del  datanode para enviarle la primer copia del bloque
+
+
+
 				pthread_mutex_lock(&mutex_datanodes);
 				char *nombre=((info_datanode*)list_get(datanodes,index_primer_copia))->nodo;
 				pthread_mutex_unlock(&mutex_datanodes);
-				//string_append(&ruta,&nombre);
-				ruta=realloc(ruta,strlen(ruta)+strlen(nombre)+1);
+				ruta=realloc(ruta,strlen(ruta)+strlen(nombre)+strlen(".dat")+1);
 				strcat(ruta, nombre);
-				ruta=realloc(ruta,strlen(ruta)+strlen(".dat")+1);
-				string_append(&ruta,".dat");
-				t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
+				strcat(ruta,".dat");
+				t_config *nodos=config_create(RUTA_NODOS);
 				int total;
-				char *nombre_total=string_new();
-				string_append(&nombre_total,nombre);
-				string_append(&nombre_total,"Total");
+				char *nombre_total=malloc(100);
+				strcpy(nombre_total,nombre);
+				strcat(nombre_total,"Total");
+				nombre_total=realloc(nombre_total,strlen(nombre_total)+1);
 				total=config_get_int_value(nodos,nombre_total);
-				int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
-				if(access(ruta, F_OK ) != -1){
-					int bitmap = open(ruta,O_RDWR);
-					struct stat mystat;
-					void *bmap;
-					if (fstat(bitmap, &mystat) < 0) {
-						printf("Error al establecer fstat\n");
-						close(bitmap);
-					}
+				int bitmap = open(ruta,O_RDWR);
+				struct stat mystat;
+				void *bmap;
+				if (fstat(bitmap, &mystat) < 0) {
+					printf("Error al establecer fstat\n");
+					close(bitmap);
+				}else{
 					bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
 					if (bmap == MAP_FAILED) {
 								printf("Error al mapear a memoria: %s\n", strerror(errno));
-					}
-					t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
-					int j;
-					for (j=0; j < total; j++) {
-						if(bitarray_test_bit(bitarray,j)==0){
-							break;
+					}else{
+						int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
+						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+						int j;
+						for (j=0; j < total; j++) {
+							if(bitarray_test_bit(bitarray,j)==0){
+								bitarray_set_bit(bitarray,j);
+								break;
+							}
 						}
+						int numero_bloque=j;
+						bloque *primer_bloque=malloc(sizeof(bloque));
+						primer_bloque=list_get(bloques_a_enviar,i_bloques);
+						primer_bloque->numero=numero_bloque;
+						primer_bloque->copia=0;
+						primer_bloque->nombre_archivo=malloc(100);
+						strcpy(primer_bloque->nombre_archivo,nombre_archivo);
+						primer_bloque->nombre_archivo=realloc(primer_bloque->nombre_archivo,strlen(primer_bloque->nombre_archivo)+1);
+						//enviamos al datanode el bloque y el tamaño de bloque
+						int tamanio = sizeof(uint32_t) * 3  + primer_bloque->tamanio + sizeof(char)*strlen(primer_bloque->nombre_archivo)+1;
+						void *datos = malloc(tamanio);
+						*((uint32_t*)datos) = primer_bloque->numero;
+						datos += sizeof(uint32_t);
+						*((uint32_t*)datos) = primer_bloque->copia;
+						datos += sizeof(uint32_t);
+						*((uint32_t*)datos) = primer_bloque->tamanio;
+						datos += sizeof(uint32_t);
+						memmove(datos,primer_bloque->datos,primer_bloque->tamanio);
+						datos += primer_bloque->tamanio;
+						strcpy(datos, primer_bloque->nombre_archivo);
+						datos +=  strlen(primer_bloque->nombre_archivo) + 1;
+						datos -= tamanio;
+						//aca envias
+						pthread_mutex_lock(&mutex_datanodes);
+						int socket=((info_datanode*)list_get(datanodes,index_primer_copia))->socket;
+						pthread_mutex_unlock(&mutex_datanodes);
+						munmap(bmap,mystat.st_size);
+						close(bitmap);
+
+						//actualizo archivos actuales
+						//dictionary_put(archivos_actuales,nombre,)
+						EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+						//free(datos);
+						//free(ruta);
+
+
 					}
-					int numero_bloque=j;
-					bloque *primer_bloque=malloc(sizeof(bloque));
-					primer_bloque=list_get(bloques_a_enviar,i_bloques);
-					primer_bloque->numero=numero_bloque;
-					//enviamos al datanode el bloque y el tamaño de bloque
-					int tamanio = sizeof(uint32_t) * 2  + primer_bloque->tamanio;
-					void *datos = malloc(tamanio);
-					*((uint32_t*)datos) = primer_bloque->numero;
-					datos += sizeof(uint32_t);
-					*((uint32_t*)datos) = primer_bloque->tamanio;
-					datos += sizeof(uint32_t);
-					memcpy(datos,primer_bloque->datos,primer_bloque->tamanio);
-					datos += primer_bloque->tamanio;
-					datos -= tamanio;
-					//aca envias
-					pthread_mutex_lock(&mutex_datanodes);
-					int socket=((info_datanode*)list_get(datanodes,index_primer_copia))->socket;
-					pthread_mutex_unlock(&mutex_datanodes);
-					t_dictionary *info_archivo=dictionary_create();
-
-					/*EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
-					free(datos);
-					*/
-
-				}else{
-					printf("No existe el bitmap de %s\n",nombre);
 				}
 
-				//enviar datos a list_get(bloques,primer_copia)
-				//enviar datos a list_get(bloques,segunda_copia)
+				//obtenemos datos del  datanode para enviarle la segunda copia del bloque
+				free(nombre);
+				free(nombre_total);
+				config_destroy(nodos);
+				pthread_mutex_lock(&mutex_datanodes);
+				nombre=((info_datanode*)list_get(datanodes,index_segunda_copia))->nodo;
+				pthread_mutex_unlock(&mutex_datanodes);
+				ruta=realloc(ruta,strlen(ruta)+strlen(nombre)+strlen(".dat")+1);
+				strcat(ruta, nombre);
+				strcat(ruta,".dat");
+				nodos=config_create(RUTA_NODOS);
+				nombre_total=malloc(100);
+				strcpy(nombre_total,nombre);
+				strcat(nombre_total,"Total");
+				nombre_total=realloc(nombre_total,strlen(nombre_total)+1);
+				total=config_get_int_value(nodos,nombre_total);
+				bitmap = open(ruta,O_RDWR);
+				//struct stat mystat;
+				//void *bmap;
+				if (fstat(bitmap, &mystat) < 0) {
+					printf("Error al establecer fstat\n");
+					close(bitmap);
+				}else{
+					bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+					if (bmap == MAP_FAILED) {
+								printf("Error al mapear a memoria: %s\n", strerror(errno));
+					}else{
+						int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
+						t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+						int j;
+						for (j=0; j < total; j++) {
+							if(bitarray_test_bit(bitarray,j)==0){
+								bitarray_set_bit(bitarray,j);
+								break;
+							}
+						}
+						int numero_bloque=j;
+						bloque *primer_bloque=malloc(sizeof(bloque));
+						primer_bloque=list_get(bloques_a_enviar,i_bloques);
+						primer_bloque->numero=numero_bloque;
+						primer_bloque->copia=1;
+						strcpy(primer_bloque->nombre_archivo,nombre_archivo);
+						//enviamos al datanode el bloque y el tamaño de bloque
+						int tamanio = sizeof(uint32_t) * 3  + primer_bloque->tamanio + sizeof(char)*strlen(primer_bloque->nombre_archivo);
+						void *datos = malloc(tamanio);
+						*((uint32_t*)datos) = primer_bloque->numero;
+						datos += sizeof(uint32_t);
+						*((uint32_t*)datos) = primer_bloque->copia;
+						datos += sizeof(uint32_t);
+						*((uint32_t*)datos) = primer_bloque->tamanio;
+						datos += sizeof(uint32_t);
+						memmove(datos,primer_bloque->datos,primer_bloque->tamanio);
+						datos += primer_bloque->tamanio;
+						strcpy(datos, primer_bloque->nombre_archivo);
+						datos +=  strlen(primer_bloque->nombre_archivo) + 1;
+						datos -= tamanio;
+						//aca envias
+						pthread_mutex_lock(&mutex_datanodes);
+						int socket=((info_datanode*)list_get(datanodes,index_segunda_copia))->socket;
+						pthread_mutex_unlock(&mutex_datanodes);
+
+						EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+						free(datos);
+						free(ruta);
+
+					}
+				}
+			free(nombre);
+			free(nombre_total);
+			config_destroy(nodos);
 			}else{
 				if(index_primer_copia!=index_segunda_copia){
 					perror("Se intenta copiar en el mismo datanodes dos copias");
@@ -896,6 +1004,9 @@ void crear_directorio(){
 	}
 	truncate(RUTA_DIRECTORIOS,100*sizeof(t_directory));
 	guardar_directorios(directorios);
+	pthread_mutex_lock(&mutex_directorio);
+	index_directorio=0;
+	pthread_mutex_unlock(&mutex_directorio);
 	free((*directorios));
 	free(directorios);
 }
@@ -924,6 +1035,16 @@ int main(){
 	RUTA_NODOS=malloc(strlen(PUNTO_MONTAJE)+strlen("/nodos.bin"));
 	strcpy(RUTA_NODOS,PUNTO_MONTAJE);
 	strcat(RUTA_NODOS,"/nodos.bin");
+	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
+	/*
+	t_directory **directorios=obtener_directorios();
+	t_directory *aux=(*directorios);
+	int var;
+	for (var = 0; var < 10; ++var) {
+		printf("%i,%i,%s\n",aux[var].index,aux[var].padre,aux[var].nombre);
+	}
+	return 0;
+	 */
 	if(access(RUTA_DIRECTORIOS, F_OK ) == -1 ){
 		FILE *f=fopen(RUTA_DIRECTORIOS,"w");
 		fclose(f);
@@ -936,6 +1057,7 @@ int main(){
 	pthread_mutex_init(&mutex_datanodes,NULL);
 	pthread_mutex_init(&mutex_directorio,NULL);
 	pthread_mutex_init(&mutex_directorios_ocupados,NULL);
+	pthread_mutex_init(&mutex_archivos_actuales,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);

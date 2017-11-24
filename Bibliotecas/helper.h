@@ -106,8 +106,10 @@ info_datanode;
 
 typedef struct{
  int numero;
+ int copia;
  int tamanio;
  void *datos;
+ char *nombre_archivo;
 }__attribute__((packed)) bloque;
 
 typedef struct{
@@ -115,6 +117,12 @@ typedef struct{
  char nombre[255];
  int padre;
 }__attribute__((packed)) t_directory;
+
+typedef struct{
+ int index_padre;
+ int total_bloques;
+ char *nombre_archivo;
+}__attribute__((packed)) t_archivo_actual;
 
 char* integer_to_string(int x);
 size_t getFileSize(const char* filename);
