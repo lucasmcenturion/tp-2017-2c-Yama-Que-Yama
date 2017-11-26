@@ -61,14 +61,14 @@ transformacionDatos;
 
 
 typedef struct {
-	datosWorker* worker;
+	datosWorker worker;
 	char** listaArchivosTemps; //Lista de nombres de archivos temporales de cada worker
 	char* archTemp;
 }__attribute__((packed))
 reduccionLocalDatos;
 
 typedef struct {
-	datosWorker* worker;
+	datosWorker worker;
 	datosWorker WorkerEncargado;
 	int nodoEncargado;
 	char** listaArchivosTemps; //Lista de nombres de archivos temporales de cada worker
@@ -77,7 +77,7 @@ typedef struct {
 reduccionGlobalDatos;
 
 typedef struct {
-	datosWorker* worker;
+	datosWorker worker;
 	char* progTrans; //Programa de Transformacion
 	int bloques;
 	int bytesOcupados;

@@ -24,16 +24,30 @@
 typedef enum { ESHANDSHAKE, ESDATOS, ESSTRING, ESARCHIVO, ESINT, ESERROR, NUEVOWORKER, TRANSFWORKER, VALIDACIONWORKER, REDLOCALWORKER, REDGLOBALWORKER, VALIDACIONYAMA,ESNOMBRE,IDENTIFICACIONDATANODE,ESBLOQUE,GETBLOQUE,SETBLOQUE,RESULOPERACION,BLOQUEOBTENIDO} tipo;
 typedef enum { FORMATEAR, REMOVER, RENOMBRAR, MOVER, MOSTRAR, CREARDIR, CPFROM, CPTO, CPBLOCK, MD5, LISTAR, INFO} accionesFilesystem;
 typedef enum{TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL}programa;
+
 typedef struct{
 	programa header;
-	datosWorker* worker;
+	datosWorker worker;
 	int bloque;
 	char* archivoTemporal;
 	char* programa;
 	int cantidadDeBytesOcupados;
 	char** ListaArchivosTemporales;
+	int cantArchTempRL;
 	datosWorker workerEncargado;
 }__attribute__((packed)) solicitudPrograma;
+
+typedef struct{
+datosWorker worker;
+char* archTempRL;
+bool encargado;
+}__attribute__((packed)) nodoRG;
+
+typedef struct{
+	nodoRG* nodos;
+	char* archRG;
+}__attribute__((packed)) solicitudRG;
+
 
 typedef struct {
 	tipo tipoMensaje;

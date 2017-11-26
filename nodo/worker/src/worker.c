@@ -1,5 +1,7 @@
 #include "sockets.h"
 
+#define TAMANIODEBLOQUE 1024;
+
 char *IP_NODO, *IP_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
 int socketFS;
@@ -35,6 +37,46 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
+char* listaAstring(char** string, int n ){
+	char* resultado = string_new();
+	int x;
+	for(x=0;x<n-1;x++){
+	string_append(&resultado, string[x]);
+	string_append(&resultado," ");
+	}
+	string_append(&resultado,string[n-1]);
+	return resultado;
+}
+
+void realizarTransformacion(solicitudPrograma* programa){
+	FILE* dataBin = fopen("/home/utnso/workspace/nodo/archivos/nodo1/data.bin","r");
+
+	/*struct stat dataBinStat;
+	stat("/home/utnso/workspace/nodo/archivos/nodo1/data.bin",&dataBinStat);
+	int sizeOfFile = dataBinStat.st_size;*/
+
+	char* bufferTexto = malloc(programa->cantidadDeBytesOcupados);
+	int mov = programa->bloque * TAMANIODEBLOQUE;
+	fseek(dataBin,mov,SEEK_SET);
+	fread(bufferTexto,programa->cantidadDeBytesOcupados,1,dataBin);
+	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
+	char* strToSys = string_from_format("echo %s | .%s | sort -d - > %s", bufferTexto,programa->programa,programa->archivoTemporal);
+	system(strToSys);
+	return;
+}
+
+void realizarReduccionLocal(solicitudPrograma* programa){
+	char* strArchTemp = string_new();//string con archivos temporales
+	listaAstring(programa->ListaArchivosTemporales,programa->cantArchTempRL);
+	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, programa->programa, programa->archivoTemporal);
+	system(strToSys);
+	return;
+}
+
+void realizarReduccionGlobal(solicitudPrograma* programa){
+
+}
+
 void accionPadre(void* socketMaster){
 }
 
@@ -52,19 +94,28 @@ void accionHijo(void* socketM){
 			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
 			programa->bloque = ((solicitudPrograma*)paqueteArecibir->Payload)->bloque;
 			programa->cantidadDeBytesOcupados = ((solicitudPrograma*)paqueteArecibir->Payload)->cantidadDeBytesOcupados;
+			realizarTransformacion(programa);
 			break;
 		}
 		case REDLOCALWORKER:{
 			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
 			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
 			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;
+			programa->cantArchTempRL = ((solicitudPrograma*)paqueteArecibir->Payload)->cantArchTempRL; //TODO
+			realizarReduccionLocal(programa);
 			break;
 		}
 		case REDGLOBALWORKER:{
+/*
 			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
 			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
 			programa->workerEncargado = ((solicitudPrograma*)paqueteArecibir->Payload)->workerEncargado;
-			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;
+			if(string_equals_ignore_case(NOMBRE_NODO, programa->workerEncargado.nodo));
+			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;*/
+
+
+
+			realizarReduccionGlobal(programa);
 			break;
 		}
 		}

@@ -103,7 +103,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma));
 
 	datosParaTransformacion->programa = programaT;
-	datosParaTransformacion->worker = &((transformacionDatos*)paquete->Payload)->worker;
+	datosParaTransformacion->worker = ((transformacionDatos*)paquete->Payload)->worker;
 	datosParaTransformacion->archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
 	datosParaTransformacion->bloque = ((transformacionDatos*)paquete->Payload)->bloque;
 	datosParaTransformacion->cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
@@ -120,7 +120,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = *((reduccionLocalDatos*)paquete->Payload)->worker;
+	itemNuevo->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
 
 	datosParaReducLocal->programa = programaR;
 	datosParaReducLocal->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
@@ -137,7 +137,9 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = *((reduccionGlobalDatos*)paquete->Payload)->worker;
+	*itemNuevo->worker =
+
+	/*itemNuevo->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
 	solicitudPrograma* datosParaReducGlobal = malloc(sizeof(solicitudPrograma));
 
 	datosParaReducGlobal->programa = programaR;
@@ -148,7 +150,7 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	datosParaReducGlobal->header = REDUCCIONGLOBAL;
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducGlobal);
-	list_add(listaHilos, itemNuevo);
+	list_add(listaHilos, itemNuevo);*/
 
 }
 
