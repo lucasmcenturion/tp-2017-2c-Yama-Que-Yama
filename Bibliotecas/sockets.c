@@ -185,7 +185,7 @@ int StartServidor(char* MyIP, int MyPort) // obtener socket a la escucha
 	return SocketEscucha;
 }
 
-void EnviarPaquete(int socketCliente, Paquete* paquete) {
+bool EnviarPaquete(int socketCliente, Paquete* paquete) {
 	int cantAEnviar = sizeof(Header) + paquete->header.tamPayload;
 	void* datos = malloc(cantAEnviar);
 	memcpy(datos, &(paquete->header), TAMANIOHEADER);
@@ -196,22 +196,28 @@ void EnviarPaquete(int socketCliente, Paquete* paquete) {
 	//Paquete* punteroMsg = datos;
 	int enviado = 0; //bytes enviados
 	int totalEnviado = 0;
-
+	bool valor_retorno=true;
 	do {
 		enviado = send(socketCliente, datos + totalEnviado,
 				cantAEnviar - totalEnviado, 0);
 		//largo -= totalEnviado;
 		totalEnviado += enviado;
+		if(enviado==-1){
+			valor_retorno=false;
+			break;
+		}
 		//punteroMsg += enviado; //avanza la cant de bytes que ya mando
 	} while (totalEnviado != cantAEnviar);
 	free(datos);
+	return valor_retorno;
 }
 
-void EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, tipo tipoMensaje){
+bool EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, tipo tipoMensaje){
 	Paquete* paquete = malloc(sizeof(Paquete));
 	paquete->header.tipoMensaje = tipoMensaje;
 	strcpy(paquete->header.emisor, emisor);
 	uint32_t r = 0;
+	bool valor_retorno;
 	if(tamDatos<=0 || datos==NULL){
 		paquete->header.tamPayload = sizeof(uint32_t);
 		paquete->Payload = &r;
@@ -219,18 +225,17 @@ void EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, t
 		paquete->header.tamPayload = tamDatos;
 		paquete->Payload = datos;
 	}
-	EnviarPaquete(socketFD, paquete);
-
+	valor_retorno=EnviarPaquete(socketFD, paquete);
 	free(paquete);
+	return valor_retorno;
 }
-void EnviarMensaje(int socketFD, char* msg, char emisor[11]) {
+bool EnviarMensaje(int socketFD, char* msg, char emisor[11]) {
 	Paquete paquete;
 	strcpy(paquete.header.emisor, emisor);
 	paquete.header.tipoMensaje = ESSTRING;
 	paquete.header.tamPayload = string_length(msg) + 1;
 	paquete.Payload = msg;
-	EnviarPaquete(socketFD, &paquete);
-
+	return EnviarPaquete(socketFD, &paquete);
 }
 
 void EnviarHandshake(int socketFD, char emisor[11]) {
@@ -240,13 +245,13 @@ void EnviarHandshake(int socketFD, char emisor[11]) {
 	header.tamPayload = 0;
 	strcpy(header.emisor, emisor);
 	paquete->header = header;
-	EnviarPaquete(socketFD, paquete);
+	bool valor_retorno=EnviarPaquete(socketFD, paquete);
 
 	free(paquete);
 }
 
-void EnviarDatos(int socketFD, char emisor[11], void* datos, int tamDatos) {
-	EnviarDatosTipo(socketFD, emisor, datos, tamDatos, ESDATOS);
+bool EnviarDatos(int socketFD, char emisor[11], void* datos, int tamDatos) {
+	return EnviarDatosTipo(socketFD, emisor, datos, tamDatos, ESDATOS);
 }
 
 void RecibirHandshake(int socketFD, char emisor[11]) {

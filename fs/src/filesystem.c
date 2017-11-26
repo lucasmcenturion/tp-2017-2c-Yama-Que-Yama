@@ -910,7 +910,7 @@ t_list *obtener(t_list *lista,char*nombre){
 	t_list *aux=list_filter(lista,(void*) existe_nombre);
 	return aux;
 }
-t_datanode_a_enviar*disponibles(info_datanode*datanode){
+t_datanode_a_enviar*datanodes_disponibles(info_datanode*datanode){
 	t_datanode_a_enviar *nuevo=malloc(sizeof(t_datanode_a_enviar));
 	nuevo->nombre=malloc(100);
 	strcpy(nuevo->nombre,datanode->nodo);
@@ -971,7 +971,7 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 
 	t_list *datanodes_a_enviar=list_create;
 	t_list*disponibles=list_create();
-	datanodes_a_enviar=list_map(datanodes,(void*) disponibles);
+	datanodes_a_enviar=list_map(datanodes,(void*) datanodes_disponibles);
 	int cantidad_datanodes_a_enviar;
 	if(!(cantidad_datanodes_a_enviar=se_puede_enviar(datanodes_a_enviar,list_size(bloques_a_enviar)))){
 		printf("No hay lugar disponbile");
@@ -1097,8 +1097,9 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 				pthread_mutex_unlock(&mutex_archivos_actuales);
 			  }
 			}
-
-			EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+			bool valor_retorno;
+			valor_retorno=EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+			printf("asdasd");
 			//free(datos);ipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
 			//free(datos);
 			//free(ruta);

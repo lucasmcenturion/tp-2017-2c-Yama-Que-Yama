@@ -81,10 +81,10 @@ int StartServidor(char* MyIP, int MyPort);
 int ConectarAServidor(int puertoAConectar, char* ipAConectar, char servidor[11], char cliente[11],
 		void RecibirElHandshake(int socketFD, char emisor[11])); //Sobrecarga para Kernel
 
-void EnviarDatos(int socketFD, char emisor[11], void* datos, int tamDatos);
-void EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, tipo tipoMensaje);
-void EnviarMensaje(int socketFD, char* msg, char emisor[11]);
-void EnviarPaquete(int socketCliente, Paquete* paquete);
+bool EnviarDatos(int socketFD, char emisor[11], void* datos, int tamDatos);
+bool EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, tipo tipoMensaje);
+bool EnviarMensaje(int socketFD, char* msg, char emisor[11]);
+bool EnviarPaquete(int socketCliente, Paquete* paquete);
 void RecibirHandshake(int socketFD, char emisor[11]);
 int RecibirPaqueteServidor(int socketFD, char receptor[11], Paquete* paquete); //Responde al recibir un Handshake
 int RecibirPaqueteCliente(int socketFD, char receptor[11], Paquete* paquete); //No responde los Handshakes

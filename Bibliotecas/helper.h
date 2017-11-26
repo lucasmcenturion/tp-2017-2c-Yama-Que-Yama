@@ -32,6 +32,7 @@
 #include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <stdbool.h>
 
 #define true 1
 #define false 0
@@ -58,6 +59,20 @@ typedef struct {
 	char* archTemp;
 }__attribute__((packed))
 transformacionDatos;
+
+typedef struct {
+	int bloque_nodo;
+	char *nombre_nodo;
+}__attribute__((packed))
+t_copia;
+
+typedef struct {
+	int numero_archivo;
+	int tamanio;
+	t_copia primera;
+	t_copia segunda;
+}__attribute__((packed))
+t_bloque_yama;
 
 
 typedef struct {
