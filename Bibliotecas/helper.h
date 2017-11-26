@@ -113,6 +113,12 @@ typedef struct{
 }__attribute__((packed)) bloque;
 
 typedef struct{
+ char *nombre;
+ uint32_t cantidad;
+ uint32_t socket;
+}__attribute__((packed)) t_datanode_a_enviar;
+
+typedef struct{
  int index;
  char nombre[255];
  int padre;

@@ -21,47 +21,52 @@ size_t getFileSize(const char* filename) {
 
 void eliminar_ea_nodos(char*nombre){
 	t_config *nodos=config_create("/home/utnso/metadata/nodos.bin");
-	char *nodos_actuales=config_get_string_value(nodos,"NODOS");
+	char *nodos_actuales=malloc(100);
+	nodos_actuales=config_get_string_value(nodos,"NODOS");
+	nodos_actuales=realloc(nodos_actuales,strlen(nodos_actuales)+1);
 	char **separado_por_comas=string_split(nodos_actuales,",");
 	int cantidad_comas=0;
 	int i=0;
 	while(separado_por_comas[cantidad_comas]){
 		cantidad_comas++;
 	}
-	char *nuevos_nodos=string_new();
+	char *nuevos_nodos=malloc(100);
 	if(cantidad_comas==1){
 		//tiene un solo elemento
-		char *substring=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0])-2);
+		char *substring=malloc(100);
+		substring=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0])-2);
+		substring=realloc(substring,strlen(substring)+1);
 		if(strcmp(nombre,substring)==0){
 			config_set_value(nodos,"NODOS","");
 		}
 	}else{
 		//tiene mas de un elemento
 		while(i<cantidad_comas){
-			char * substring;
+			char * substring=malloc(100);
 			if(i==0){
 				substring=string_substring(separado_por_comas[i],1,strlen(separado_por_comas[i])-1);
+				substring=realloc(substring,strlen(substring)+1);
 				if(strcmp(nombre,substring)==0){
-					string_append(&nuevos_nodos,"[");
+					strcpy(nuevos_nodos,"[");
 				}else{
-					string_append(&nuevos_nodos,separado_por_comas[i]);
+					strcpy(nuevos_nodos,separado_por_comas[i]);
 				}
 			}else{
 				if(i==(cantidad_comas-1)){
 					substring=string_substring(separado_por_comas[i],0,strlen(separado_por_comas[i])-1);
 					if(strcmp(nombre,substring)==0){
-						string_append(&nuevos_nodos,"]");
+						strcat(nuevos_nodos,"]");
 					}else{
-						string_append(&nuevos_nodos,separado_por_comas[i]);
+						strcat(nuevos_nodos,separado_por_comas[i]);
 					}
 
 				}else{
 					substring=separado_por_comas[i];
 					if(strcmp(nombre,substring)==0){
-						string_append(&nuevos_nodos,",");
+						strcat(nuevos_nodos,",");
 					}else{
-						string_append(&nuevos_nodos,",");
-						string_append(&nuevos_nodos,separado_por_comas[i]);
+						strcat(nuevos_nodos,",");
+						strcat(nuevos_nodos,separado_por_comas[i]);
 					}
 				}
 			}
@@ -69,30 +74,30 @@ void eliminar_ea_nodos(char*nombre){
 		}
 	}
 	config_set_value(nodos,"NODOS",nuevos_nodos);
-	char *libre=string_new();
-	string_append(&libre,nombre);
-	string_append(&libre,"Libre");
+	char *libre=malloc(100);
+	strcpy(libre,nombre);
+	strcat(&libre,"Libre");
 	if(config_has_property(nodos,libre)){
 		int libre_nodo_a_eliminar=config_get_int_value(nodos,libre);
 		int libre_total=config_get_int_value(nodos,"LIBRE");
 		int libre_total_a_actualizar= libre_total>libre_nodo_a_eliminar ? libre_total-libre_nodo_a_eliminar : 0;
-		int nDigits = floor(log10(abs(libre_total_a_actualizar))) + 1;
-		char *string_libre_total_a_actualizar=malloc(nDigits*sizeof(char));
+		char *string_libre_total_a_actualizar=malloc(100);
 		sprintf(string_libre_total_a_actualizar,"%i",libre_total_a_actualizar);
+		string_libre_total_a_actualizar=realloc(string_libre_total_a_actualizar,strlen(string_libre_total_a_actualizar)+1);
 		config_set_value(nodos,"LIBRE",string_libre_total_a_actualizar);
 		config_set_value(nodos,libre,"0");
 		config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
 	}
-	char *total=string_new();
-	string_append(&total,nombre);
-	string_append(&total,"Total");
+	char *total=malloc(100);
+	strcpy(total,nombre);
+	strcat(total,"Total");
 	if(config_has_property(nodos,total)){
 		int total_nodo_a_eliminar=config_get_int_value(nodos,total);
 		int total_total=config_get_int_value(nodos,"TAMANIO");
 		int total_total_a_actualizar= total_total>total_nodo_a_eliminar ? total_total-total_nodo_a_eliminar : 0;
-		int nDigits = floor(log10(abs(total_total_a_actualizar))) + 1;
-		char *string_total_total_a_actualizar=malloc(nDigits*sizeof(char));
+		char *string_total_total_a_actualizar=malloc(100);
 		sprintf(string_total_total_a_actualizar,"%i",total_total_a_actualizar);
+		string_total_total_a_actualizar=realloc(string_total_total_a_actualizar,strlen(string_total_total_a_actualizar)+1);
 		config_set_value(nodos,total,"0");
 		config_set_value(nodos,"TAMANIO",string_total_total_a_actualizar);
 	}
