@@ -74,6 +74,18 @@ typedef struct {
 }__attribute__((packed))
 t_bloque_yama;
 
+typedef struct {
+	bool resultado;
+	int bloque;
+	char*nombre_nodo;
+}__attribute__((packed))
+t_resultado_envio;
+
+typedef struct {
+	int bloque;
+	char*nombre_nodo;
+}__attribute__((packed))
+t_bloque_enviado;
 
 typedef struct {
 	datosWorker worker;
