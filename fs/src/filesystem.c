@@ -12,12 +12,15 @@ t_list* listaHilos;
 t_list* datanodes;
 bool directorios_ocupados[100];
 t_dictionary *archivos_actuales;
+t_dictionary *archivos_erroneos;
+t_dictionary *archivos_terminados;
 int index_directorio=1;
 bool end;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_directorios_ocupados;
 pthread_mutex_t mutex_archivos_actuales;
+pthread_mutex_t mutex_archivos_erroneos;
 
 t_archivo_actual *obtener_elemento(t_list*lista,char*nombre_archivo){
 	bool nombre_igual(t_archivo_actual*elemento){
@@ -203,8 +206,7 @@ void sacar_datanode(int socket){
 		return datanode->socket!=socket;
 	}
 	pthread_mutex_lock(&mutex_datanodes);
-	t_list *aux=list_filter(datanodes,(void*) tiene_socket);
-	datanodes=aux;
+	datanodes=list_filter(datanodes,(void*) tiene_socket);
 	pthread_mutex_unlock(&mutex_datanodes);
 }
 
@@ -256,6 +258,16 @@ void crear_y_actualizar_archivo(int numero_bloque_enviado,int numero_bloque_data
 	}
 	tipo_archivo=realloc(tipo_archivo,strlen(tipo_archivo)+1);
 	config_set_value(archivo,"TIPO",tipo_archivo);
+}
+void eliminar_archivo(char*nombre){
+	t_list*lista=dictionary_get(archivos_actuales,nombre);
+	bool no_tiene_nombre(t_archivo_actual* archivo){
+		if(strcmp(archivo->nombre_archivo,nombre)!=0){
+			return true;
+		}
+		return false;
+	}
+	lista=list_filter(lista,(void*)no_tiene_nombre);
 }
 void accion(void* socket){
 	int socketFD = *(int*)socket;
@@ -383,13 +395,19 @@ void accion(void* socket){
 					datos+=strlen(nombre_archivo)+1;
 					t_list*archivos=dictionary_get(archivos_actuales,nombre_nodo);
 					t_archivo_actual *elemento=obtener_elemento(archivos,nombre_archivo);
-					if(resultado==1){
-						//escribir y crear directorio y archivo
-						elemento->total_bloques-=1;
-						crear_y_actualizar_archivo(numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+					if(dictionary_has_key(archivos_terminados,nombre_archivo)){
+						//termino el archivo,hay que eliminarlo y sacarlo de la lista de archivos actuales
+						eliminar_archivo(nombre_archivo);
+						dictionary_remove_and_destroy(archivos_terminados,nombre_archivo,free);
 					}else{
-						elemento->total_bloques=-1;
-						printf("No se pudo guardar la copia %i del bloque  %i en %s\n",numero_copia,numero_bloque_datanode,nombre_nodo);
+						if(resultado==1 &&  !(dictionary_has_key(archivos_erroneos,nombre_archivo))){
+							//escribir y crear directorio y archivo
+							elemento->total_bloques-=1;
+							crear_y_actualizar_archivo(numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+						}else{
+							elemento->total_bloques=-1;
+							printf("No se pudo guardar la copia %i del bloque  %i en %s\n",numero_copia,numero_bloque_datanode,nombre_nodo);
+						}
 					}
 				}
 				break;
@@ -786,8 +804,6 @@ void consola() {
 			munmap(data,archivo_stat.st_size);
 			close(archivo);
 			enviarBloques((t_list*)bloques_a_enviar,nombre_archivo,index_directorio_padre,tipo_archivo);
-			//TODO tambien destroy elements;
-			list_destroy(bloques_a_enviar);
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -1004,7 +1020,7 @@ void actualizar_archivos_actuales(char*nombre_nodo,int index_directorio_padre,in
 }
 t_resultado_envio* enviar_bloque(t_list *disponibles,t_list*bloques_a_enviar,int i_bloques_a_enviar,int index_copia,char *nombre_archivo, int index_directorio_padre,int tipo_archivo,int numero_copia){
 	char *nombre=malloc(100);
-	nombre=((info_datanode*)list_get(disponibles,index_copia))->nodo;
+	strcpy(nombre,((t_datanode_a_enviar*)list_get(disponibles,index_copia))->nombre);
 	nombre=realloc(nombre,strlen(nombre)+1);
 
 
@@ -1076,8 +1092,8 @@ t_resultado_envio* enviar_bloque(t_list *disponibles,t_list*bloques_a_enviar,int
 		//actualizo archivos actuales
 		actualizar_archivos_actuales(nombre,index_directorio_padre,tipo_archivo,nombre_archivo);
 		//enviamos datos
-		int socket=((info_datanode*)list_get(disponibles,index_copia))->socket;
-		t_resultado_envio*resultado=malloc(t_resultado_envio);
+		int socket=((t_datanode_a_enviar*)list_get(disponibles,index_copia))->socket;
+		t_resultado_envio*resultado=malloc(sizeof(t_resultado_envio));
 		resultado->bloque=numero_bloque;
 		resultado->nombre_nodo=malloc(100);
 		strcpy(resultado->nombre_nodo,nombre);
@@ -1130,9 +1146,11 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 	//TODO ----> ENVIAR BLOQUES
 
 	t_list *datanodes_a_enviar=list_create();
-	t_list*disponibles=list_create();
+	t_list *disponibles=list_create();
 	t_list *bloques_enviados=list_create();
+	pthread_mutex_lock(&mutex_datanodes);
 	datanodes_a_enviar=list_map(datanodes,(void*) datanodes_disponibles);
+	pthread_mutex_unlock(&mutex_datanodes);
 	int cantidad_datanodes_a_enviar;
 	if(!(cantidad_datanodes_a_enviar=se_puede_enviar(datanodes_a_enviar,list_size(bloques_a_enviar)))){
 		printf("No hay lugar disponbile");
@@ -1147,7 +1165,7 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 		//obtenemos datos del  datanode para enviarle la primer copia del bloque
 		//primer copia es i_lista_disponibles
 		int index_primer_copia=i_lista_disponibles;
-		int index_segunda_copia= i_lista_disponibles+1>(size_bloques-1) ? 0 : i_lista_disponibles+1;
+		int index_segunda_copia= i_lista_disponibles+1>(list_size(disponibles)-1) ? 0 : i_lista_disponibles+1;
 		t_resultado_envio*resultado_primer_copia;
 		t_resultado_envio*resultado_segunda_copia;
 		resultado_primer_copia=enviar_bloque(disponibles,bloques_a_enviar,i_bloques_a_enviar,index_primer_copia,nombre_archivo,index_directorio_padre,tipo_archivo,0);
@@ -1155,25 +1173,33 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 		if(!(resultado_primer_copia->resultado) || !(resultado_segunda_copia->resultado)){
 			//limpio todos los bloques enviados
 			limpiar_bitarrays(bloques_enviados);
+			//TODO HACER SEMAFOROS
+			pthread_mutex_lock(&mutex_archivos_erroneos);
+			archivos_erroneos=dictionary_create();
+			dictionary_put(archivos_erroneos,nombre_archivo,nombre_archivo);
+			pthread_mutex_unlock(&mutex_archivos_erroneos);
 			break;
 		}else{
 			//agrego resultado_primer_copia y resultado_segunda_copia
 			t_bloque_enviado*primer_copia=malloc(sizeof(t_bloque_enviado));
 			primer_copia->bloque=resultado_primer_copia->bloque;
 			primer_copia->nombre_nodo=malloc(100);
-			strpcy(primer_copia->nombre_nodo,resultado_primer_copia->nombre_nodo);
+			strcpy(primer_copia->nombre_nodo,resultado_primer_copia->nombre_nodo);
 			primer_copia->nombre_nodo=realloc(primer_copia->nombre_nodo,strlen(primer_copia->nombre_nodo)+1);
 			list_add(bloques_enviados,primer_copia);
 			t_bloque_enviado*segunda_copia=malloc(sizeof(t_bloque_enviado));
 			segunda_copia->bloque=resultado_segunda_copia->bloque;
 			segunda_copia->nombre_nodo=malloc(100);
-			strpcy(segunda_copia->nombre_nodo,resultado_segunda_copia->nombre_nodo);
+			strcpy(segunda_copia->nombre_nodo,resultado_segunda_copia->nombre_nodo);
 			segunda_copia->nombre_nodo=realloc(segunda_copia->nombre_nodo,strlen(segunda_copia->nombre_nodo)+1);
 			list_add(bloques_enviados,segunda_copia);
 		}
-		i_lista_disponibles++;
+		i_lista_disponibles=i_lista_disponibles+1>(list_size(disponibles)-1) ? 0 : i_lista_disponibles+1;
 		size_bloques--;
 		i_bloques_a_enviar++;
+		if(size_bloques<=0){
+			dictionary_put(archivos_terminados,nombre_archivo,nombre_archivo);
+		}
 	}
 	list_destroy(datanodes_a_enviar);
 	list_destroy(disponibles);
@@ -1245,6 +1271,7 @@ int main(){
 	pthread_mutex_init(&mutex_directorio,NULL);
 	pthread_mutex_init(&mutex_directorios_ocupados,NULL);
 	pthread_mutex_init(&mutex_archivos_actuales,NULL);
+	pthread_mutex_init(&mutex_archivos_erroneos,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);
