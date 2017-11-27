@@ -111,7 +111,7 @@ void getBloque(int numeroDeBloque){
 
 }
 
-int setBloque ( int numeroDeBloque, void * datosParaGrabar ){
+int setBloque ( int numeroDeBloque, void * datosParaGrabar,int tamano ){
 	int unFileDescriptor;
 	void * punteroDataBin;
 	bool error=false;
@@ -122,25 +122,24 @@ int setBloque ( int numeroDeBloque, void * datosParaGrabar ){
 		fflush(stdout);
 		close(unFileDescriptor);
 		error=true;
-	}
-	punteroDataBin = mmap(NULL, tamanioDataBin, PROT_WRITE | PROT_READ, MAP_SHARED, unFileDescriptor, 0);
-	if (punteroDataBin == MAP_FAILED) {
-				printf("Error al mapear a memoria: %s\n", strerror(errno));
-				fflush(stdout);
-				error=true;
-	}else memmove(punteroDataBin,datosParaGrabar,TAMBLOQUE);
-
-	int unmap=munmap(punteroDataBin,tamanioDataBin);
-	if(unmap==-1){
-		printf("Error en munmap de setBloque\n");
-		fflush(stdout);
-		error=true;
 	}else{
-
+		punteroDataBin = mmap(NULL, tamanioDataBin, PROT_WRITE | PROT_READ, MAP_SHARED, unFileDescriptor, numeroDeBloque*TAMBLOQUE);
+		if (punteroDataBin == MAP_FAILED) {
+					printf("Error al mapear a memoria: %s\n", strerror(errno));
+					fflush(stdout);
+					error=true;
+		}else{
+			memmove(punteroDataBin,datosParaGrabar,tamano);
+		}
+		int unmap=munmap(punteroDataBin,tamanioDataBin);
+		if(unmap==-1){
+			printf("Error en munmap de setBloque\n");
+			fflush(stdout);
+			error=true;
+		}
+		int resultado= !error ? 1 : -1;   // 1 resultado OK, -1 resultado ERRONEO
+		return resultado;
 	}
-
-	int resultado= !error ? 1 : -1;   // 1 resultado OK, -1 resultado ERRONEO
-	return resultado;
 }
 
 
@@ -206,8 +205,10 @@ int main(){
 	while (RecibirPaqueteCliente(socketFS, FILESYSTEM, &paquete)>0){
 		switch(paquete.header.tipoMensaje){
 		case GETBLOQUE:
+		{
 
-			break;
+		}
+		break;
 		case SETBLOQUE:
 			{
 
@@ -233,7 +234,7 @@ int main(){
 			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
 			datos+=strlen(nombre_archivo);
 			datos-=tamanio;
-			int resultado=setBloque(numero,bloque);
+			int resultado=setBloque(numero,bloque,tamano);
 
 			//enviamos respuesta a FS
 
@@ -256,9 +257,9 @@ int main(){
 			datos -= tamanio;
 
 			EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
-
-			break;
+			free(datos);
 			}
+		break;
 		}
 		if (paquete.Payload != NULL){
 			free(paquete.Payload);

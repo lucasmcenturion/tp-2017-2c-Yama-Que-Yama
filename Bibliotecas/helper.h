@@ -156,6 +156,7 @@ typedef struct{
  int total_bloques;
  int tipo;
  char *nombre_archivo;
+ pthread_mutex_t mutex;
 }__attribute__((packed)) t_archivo_actual;
 
 char* integer_to_string(int x);
