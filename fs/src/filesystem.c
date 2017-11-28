@@ -22,6 +22,7 @@ pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_directorios_ocupados;
 pthread_mutex_t mutex_archivos_actuales;
 pthread_mutex_t mutex_archivos_erroneos;
+pthread_mutex_t mutex_escribir_archivo;
 
 void eliminar_ea_nodos(char*nombre){
 	t_config *nodos=config_create(RUTA_NODOS);
@@ -292,15 +293,15 @@ void sacar_datanode(int socket){
 	pthread_mutex_unlock(&mutex_datanodes);
 }
 
-void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,
-		int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
+void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
 	//TODO CREAR Y ACTUALIZAR ARCHIVOS
+	//pthread_mutex_lock(&mutex_escribir_archivo);
 	struct stat mystat;
-	pthread_mutex_init(&(elemento->mutex),NULL);
-	pthread_mutex_lock(&(elemento->mutex));
+	//pthread_mutex_init(&elemento->mutex,NULL);
+	//pthread_mutex_lock(&elemento->mutex);
 	char *index_directorio_padre=malloc(100);
 	index_directorio_padre=integer_to_string(elemento->index_padre);
-	pthread_mutex_unlock(&mutex_archivos_actuales);
+	//pthread_mutex_unlock(&mutex_archivos_actuales);
 	index_directorio_padre=realloc(index_directorio_padre,strlen(index_directorio_padre)+1);
 	char *ruta_directorio=malloc(100);
 	strcpy(ruta_directorio,PUNTO_MONTAJE);
@@ -345,15 +346,17 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	strcpy(tamanio,"BLOQUE");
 	strcat(tamanio,integer_to_string(numero_bloque_enviado));
 	strcat(tamanio,"BYTES");
+	int tamanio_anterior=0;
 	if(!config_has_property(archivo,tamanio)){
+		tamanio_anterior=tamanio_bloque;
 		config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
 		config_save_in_file(archivo,ruta_directorio);
 	}
 	if(config_has_property(archivo,"TAMANIO")){
 		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
 		printf("Tamaño total %i,tamanio de bloque %i, bloque %i copia %i \n",tamanio_total,tamanio_bloque,numero_bloque_enviado,numero_copia);
-		tamanio_total+=tamanio_bloque;
-		printf("Tamaño total %i\ņ",tamanio_total);
+		tamanio_total+=tamanio_anterior;
+		printf("Tamaño total %i \n",tamanio_total);
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
 		config_save_in_file(archivo,ruta_directorio);
 	}else{
@@ -371,7 +374,8 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 		config_set_value(archivo,"TIPO",tipo_archivo);
 	}
 	config_save_in_file(archivo,ruta_directorio);
-	pthread_mutex_unlock(&(elemento->mutex));
+	//pthread_mutex_unlock(&elemento->mutex);
+	//pthread_mutex_unlock(&mutex_escribir_archivo);
 }
 void eliminar_archivo(char*nombre_nodo,char*nombre_archivo){
 	t_list*lista=dictionary_get(archivos_actuales,nombre_nodo);
@@ -525,7 +529,21 @@ void accion(void* socket){
 							//escribir y crear directorio y archivo
 							pthread_mutex_lock(&mutex_archivos_actuales);
 							elemento->total_bloques-=1;
+							/*if(numero_bloque_enviado==0 && numero_copia==0){
+								char*ruta=malloc(100);
+								strcpy(ruta,RUTA_ARCHIVOS);
+								strcat(ruta,"/");
+								strcat(ruta,integer_to_string(elemento->index_padre));
+								strcat(ruta,"/");
+								strcat(ruta,nombre_archivo);
+								if(access(ruta, F_OK ) != -1 ){
+									remove(ruta);
+								}
+								free(ruta);
+							}
+							*/
 							crear_y_actualizar_archivo(elemento,numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+							pthread_mutex_unlock(&mutex_archivos_actuales);
 						}else{
 							pthread_mutex_lock(&mutex_archivos_actuales);
 							elemento->total_bloques=-1;
@@ -1482,6 +1500,7 @@ int main(){
 	pthread_mutex_init(&mutex_directorios_ocupados,NULL);
 	pthread_mutex_init(&mutex_archivos_actuales,NULL);
 	pthread_mutex_init(&mutex_archivos_erroneos,NULL);
+	pthread_mutex_init(&mutex_escribir_archivo,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);
