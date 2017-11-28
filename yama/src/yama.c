@@ -3,10 +3,13 @@
 char *IP, *FS_IP, *ALGORITMO_BALANCEO;
 int PUERTO, FS_PUERTO, RETARDO_PLANIFICACION, BASE;
 int socketFS;
+t_list* listaMasters;
 t_list* listaWorkers;
 t_list* listaHilos;
+t_list* tablaDeEstados;
 datosWorker* punteroClock;
 bool end;
+int idsMaster=0;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("yamaCFG.txt");
@@ -81,11 +84,15 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 void CrearListas() {
 	listaWorkers = list_create();
 	listaHilos = list_create();
+	listaMasters = list_create();
+	tablaDeEstados = list_create();
 }
 
 void LiberarListas() {
 	list_destroy_and_destroy_elements(listaWorkers, free);
 	list_destroy_and_destroy_elements(listaHilos, free);
+	list_destroy_and_destroy_elements(listaMasters, free);
+	list_destroy_and_destroy_elements(tablaDeEstados, free);
 }
 
 void accion(void* socket){
@@ -102,6 +109,8 @@ void accion(void* socket){
 					//LE PIDO A FILESYSTEM LOS BLOQUES
 					//LOS RECIBO Y GUARDO
 				{
+					list_add(listaMasters, idsMaster);
+					idsMaster++;
 					t_list* listaBloques = list_create();
 					t_bloque_yama* bloque_0 = malloc(sizeof(t_bloque_yama));
 					bloque_0->primera.bloque_nodo = 3;
