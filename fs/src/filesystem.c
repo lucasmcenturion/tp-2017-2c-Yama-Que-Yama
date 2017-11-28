@@ -351,7 +351,9 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	}
 	if(config_has_property(archivo,"TAMANIO")){
 		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
+		printf("Tamaño total %i,tamanio de bloque %i, bloque %i copia %i \n",tamanio_total,tamanio_bloque,numero_bloque_enviado,numero_copia);
 		tamanio_total+=tamanio_bloque;
+		printf("Tamaño total %i\ņ",tamanio_total);
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
 		config_save_in_file(archivo,ruta_directorio);
 	}else{
