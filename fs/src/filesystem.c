@@ -314,7 +314,7 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	free(ruta_directorio);
 	ruta_directorio=calloc(1,100);
 	strcpy(ruta_directorio,PUNTO_MONTAJE);
-	strcat(ruta_directorio,"/archivos/");
+	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,index_directorio_padre);
 	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,nombre_archivo);
@@ -354,9 +354,7 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	}
 	if(config_has_property(archivo,"TAMANIO")){
 		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
-		printf("Tamaño total %i,tamanio de bloque %i, bloque %i copia %i \n",tamanio_total,tamanio_bloque,numero_bloque_enviado,numero_copia);
 		tamanio_total+=tamanio_anterior;
-		printf("Tamaño total %i \n",tamanio_total);
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
 		config_save_in_file(archivo,ruta_directorio);
 	}else{
@@ -1037,12 +1035,45 @@ void consola() {
 			if(!array_input[0] || !array_input[1]){
 				printf("Error, verificar parametros\n");
 				fflush(stdout);
-			}
-			if(!existe_ruta(array_input[1])){
-				printf("El directorio no existe, ingrese un directorio valido\n");
 			}else{
-				mostrar_directorios_hijos(array_input[1]);
+				if(!existe_ruta(array_input[1])){
+					printf("El directorio no existe,por favor ingrese un directorio válido \n");
+				}else{
+					t_directory **directorios=obtener_directorios();
+					t_directory *aux=(*directorios);
+					char **separado_por_barras=string_split(array_input[1],"/");
+					int iterador=0;
+					int padre_anterior=0;
+					int ultimo_index;
+					while(separado_por_barras[iterador]){
+						if(!(separado_por_barras[iterador+1])){
+							ultimo_index=obtener_index_directorio(separado_por_barras[iterador],padre_anterior,aux);
+						}else{
+							padre_anterior=obtener_index_directorio(separado_por_barras[iterador],padre_anterior,aux);
+						}
+						iterador++;
+					}
+					free((*directorios));
+					free(directorios);
+					char *ruta=malloc(100);
+					strcpy(ruta,RUTA_ARCHIVOS);
+					strcat(ruta,"/");
+					strcat(ruta,integer_to_string(ultimo_index));
+					ruta=realloc(ruta,strlen(ruta)+1);
+					DIR* dir = opendir(ruta);
+					struct dirent *ent;
+					if (dir){
+						while ((ent = readdir (dir)) != NULL) {
+							if(!(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0)){
+								printf ("%s\n", ent->d_name);
+							}
+						  }
+					    closedir(dir);
+					}
+
+				}
 			}
+
 		}
 		else if(!strncmp(linea, "info ", 5))
 			printf("info archivo\n");
