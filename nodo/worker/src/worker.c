@@ -37,14 +37,25 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-char* listaAstring(char** string, int n ){
+char* arrayAstring(char** string, int n ){
 	char* resultado = string_new();
 	int x;
 	for(x=0;x<n-1;x++){
-	string_append(&resultado, string[x]);
-	string_append(&resultado," ");
+		string_append(&resultado, string[x]);
+		string_append(&resultado," ");
 	}
 	string_append(&resultado,string[n-1]);
+	return resultado;
+}
+
+char* listaAstring(t_list* lista, int n ){
+	char* resultado = string_new();
+	int i;
+	for(i=1;i<n;i++){
+		string_append(&resultado,(char*)list_get(lista,i));
+		string_append(&resultado," ");
+	}
+	string_append(&resultado,(char*)list_get(lista,n));
 	return resultado;
 }
 
@@ -67,14 +78,18 @@ void realizarTransformacion(solicitudPrograma* programa){
 
 void realizarReduccionLocal(solicitudPrograma* programa){
 	char* strArchTemp = string_new();//string con archivos temporales
-	listaAstring(programa->ListaArchivosTemporales,programa->cantArchTempRL);
+	arrayAstring(programa->ListaArchivosTemporales,programa->cantArchTempRL);
 	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, programa->programa, programa->archivoTemporal);
 	system(strToSys);
 	return;
 }
 
-void realizarReduccionGlobal(solicitudPrograma* programa){
-
+void realizarReduccionGlobal(solicitudPrograma* programa, t_list* archivosTemporales){
+	int cantArchTemp = list_size(archivosTemporales);
+	char* strArchivosTemporales = listaAstring(archivosTemporales,cantArchTemp);
+	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchivosTemporales, programa->programa, programa->archivoTemporal);
+	system(strToSys);
+	return;
 }
 
 void accionPadre(void* socketMaster){
@@ -106,16 +121,8 @@ void accionHijo(void* socketM){
 			break;
 		}
 		case REDGLOBALWORKER:{
-/*
-			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
-			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
-			programa->workerEncargado = ((solicitudPrograma*)paqueteArecibir->Payload)->workerEncargado;
-			if(string_equals_ignore_case(NOMBRE_NODO, programa->workerEncargado.nodo));
-			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;*/
 
-
-
-			realizarReduccionGlobal(programa);
+			//realizarReduccionGlobal(programa);
 			break;
 		}
 		}
