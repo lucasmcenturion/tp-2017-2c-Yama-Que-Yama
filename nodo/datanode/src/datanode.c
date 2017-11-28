@@ -166,7 +166,7 @@ int main(){
 	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
 	fflush( stdout );
 
-	int tamanio = sizeof(uint32_t) * 5 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
+	int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
 	void* datos = malloc(tamanio);
 	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
 	datos += sizeof(uint32_t);
@@ -178,6 +178,8 @@ int main(){
 	datos += sizeof(uint32_t);
 	strcpy(datos, IP_NODO);
 	datos += strlen(IP_NODO) + 1;
+	*((uint32_t*)datos) = 0;
+	datos += sizeof(uint32_t);
 	*((uint32_t*)datos) = 0;
 	datos += sizeof(uint32_t);
 	*((uint32_t*)datos) = 0;
