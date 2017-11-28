@@ -5,6 +5,7 @@ char *IP;
 char *PUNTO_MONTAJE;
 char *RUTA_DIRECTORIOS;
 char *RUTA_NODOS;
+char *RUTA_ARCHIVOS;
 int PUERTO;
 int socketFS;
 int socketYAMA;
@@ -12,12 +13,100 @@ t_list* listaHilos;
 t_list* datanodes;
 bool directorios_ocupados[100];
 t_dictionary *archivos_actuales;
+t_dictionary *archivos_erroneos;
+t_dictionary *archivos_terminados;
 int index_directorio=1;
 bool end;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_directorios_ocupados;
 pthread_mutex_t mutex_archivos_actuales;
+pthread_mutex_t mutex_archivos_erroneos;
+
+void eliminar_ea_nodos(char*nombre){
+	t_config *nodos=config_create(RUTA_NODOS);
+	char *nodos_actuales=malloc(100);
+	nodos_actuales=config_get_string_value(nodos,"NODOS");
+	nodos_actuales=realloc(nodos_actuales,strlen(nodos_actuales)+1);
+	char **separado_por_comas=string_split(nodos_actuales,",");
+	int cantidad_comas=0;
+	int i=0;
+	while(separado_por_comas[cantidad_comas]){
+		cantidad_comas++;
+	}
+	char *nuevos_nodos=malloc(100);
+	if(cantidad_comas==1){
+		//tiene un solo elemento
+		char *substring=malloc(100);
+		substring=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0])-2);
+		substring=realloc(substring,strlen(substring)+1);
+		if(strcmp(nombre,substring)==0){
+			config_set_value(nodos,"NODOS","");
+		}
+	}else{
+		//tiene mas de un elemento
+		while(i<cantidad_comas){
+			char * substring=malloc(100);
+			if(i==0){
+				substring=string_substring(separado_por_comas[i],1,strlen(separado_por_comas[i])-1);
+				substring=realloc(substring,strlen(substring)+1);
+				if(strcmp(nombre,substring)==0){
+					strcpy(nuevos_nodos,"[");
+				}else{
+					strcpy(nuevos_nodos,separado_por_comas[i]);
+				}
+			}else{
+				if(i==(cantidad_comas-1)){
+					substring=string_substring(separado_por_comas[i],0,strlen(separado_por_comas[i])-1);
+					if(strcmp(nombre,substring)==0){
+						strcat(nuevos_nodos,"]");
+					}else{
+						strcat(nuevos_nodos,separado_por_comas[i]);
+					}
+
+				}else{
+					substring=separado_por_comas[i];
+					if(strcmp(nombre,substring)==0){
+						strcat(nuevos_nodos,",");
+					}else{
+						strcat(nuevos_nodos,",");
+						strcat(nuevos_nodos,separado_por_comas[i]);
+					}
+				}
+			}
+			i++;
+		}
+	}
+	config_set_value(nodos,"NODOS",nuevos_nodos);
+	char *libre=malloc(100);
+	strcpy(libre,nombre);
+	strcat(libre,"Libre");
+	if(config_has_property(nodos,libre)){
+		int libre_nodo_a_eliminar=config_get_int_value(nodos,libre);
+		int libre_total=config_get_int_value(nodos,"LIBRE");
+		int libre_total_a_actualizar= libre_total>libre_nodo_a_eliminar ? libre_total-libre_nodo_a_eliminar : 0;
+		char *string_libre_total_a_actualizar=malloc(100);
+		sprintf(string_libre_total_a_actualizar,"%i",libre_total_a_actualizar);
+		string_libre_total_a_actualizar=realloc(string_libre_total_a_actualizar,strlen(string_libre_total_a_actualizar)+1);
+		config_set_value(nodos,"LIBRE",string_libre_total_a_actualizar);
+		config_set_value(nodos,libre,"0");
+		config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
+	}
+	char *total=malloc(100);
+	strcpy(total,nombre);
+	strcat(total,"Total");
+	if(config_has_property(nodos,total)){
+		int total_nodo_a_eliminar=config_get_int_value(nodos,total);
+		int total_total=config_get_int_value(nodos,"TAMANIO");
+		int total_total_a_actualizar= total_total>total_nodo_a_eliminar ? total_total-total_nodo_a_eliminar : 0;
+		char *string_total_total_a_actualizar=malloc(100);
+		sprintf(string_total_total_a_actualizar,"%i",total_total_a_actualizar);
+		string_total_total_a_actualizar=realloc(string_total_total_a_actualizar,strlen(string_total_total_a_actualizar)+1);
+		config_set_value(nodos,total,"0");
+		config_set_value(nodos,"TAMANIO",string_total_total_a_actualizar);
+	}
+	config_save_in_file(nodos,"/home/utnso/metadata/nodos.bin");
+}
 
 t_archivo_actual *obtener_elemento(t_list*lista,char*nombre_archivo){
 	bool nombre_igual(t_archivo_actual*elemento){
@@ -26,7 +115,9 @@ t_archivo_actual *obtener_elemento(t_list*lista,char*nombre_archivo){
 		}
 		return false;
 	}
-	return list_find(lista,(void*) nombre_igual);
+	t_archivo_actual *elemento=malloc(sizeof(t_archivo_actual));
+	elemento=list_find(lista,(void*) nombre_igual);
+	return elemento;
 }
 void actualizar_nodos_bin(info_datanode *data){
 	char *ruta_nodos=malloc(100);
@@ -53,7 +144,6 @@ void actualizar_nodos_bin(info_datanode *data){
 	char *nodos_actuales=calloc(1,100);
 	nodos_actuales=config_get_string_value(nodos,"NODOS");
 	if(nodos_actuales){
-		nodos_actuales=realloc(nodos_actuales,strlen(nodos_actuales)+1);
 		char **separado_por_comas=string_split(nodos_actuales,",");
 		int cantidad_comas=0;
 		while(separado_por_comas[cantidad_comas]){
@@ -94,6 +184,7 @@ void actualizar_nodos_bin(info_datanode *data){
 			}
 			iterate++;
 		}
+		nodos_actuales=realloc(nodos_actuales,strlen(nodos_actuales)+1);
 		config_set_value(nodos,"NODOS",nuevos_nodos);
 		config_save_in_file(nodos,ruta_nodos);
 	}else{
@@ -122,12 +213,6 @@ void actualizar_nodos_bin(info_datanode *data){
 	string_bloques_libres=realloc(string_bloques_libres,strlen(string_bloques_libres)+1);
 	config_set_value(nodos,nodo_actual_libre,string_bloques_libres);
 	config_save_in_file(nodos,ruta_nodos);
-	free(nodo_actual_total);
-	free(string_bloques_totales);
-	free(string_bloques_libres);
-	free(nodo_actual_libre);
-	free(string_libre);
-	free(string_tamanio_actual);
 }
 t_directory **obtener_directorios(){
 	int fd_directorio = open(RUTA_DIRECTORIOS,O_RDWR);
@@ -203,31 +288,42 @@ void sacar_datanode(int socket){
 		return datanode->socket!=socket;
 	}
 	pthread_mutex_lock(&mutex_datanodes);
-	t_list *aux=list_filter(datanodes,(void*) tiene_socket);
-	datanodes=aux;
+	datanodes=list_filter(datanodes,(void*) tiene_socket);
 	pthread_mutex_unlock(&mutex_datanodes);
 }
 
-void crear_y_actualizar_archivo(int numero_bloque_enviado,int numero_bloque_datanode,int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
+void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,
+		int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
+	//TODO CREAR Y ACTUALIZAR ARCHIVOS
 	struct stat mystat;
-	t_list*archivos=dictionary_get(archivos_actuales,nombre_nodo);
-	t_archivo_actual *elemento=obtener_elemento(archivos,nombre_archivo);
+	pthread_mutex_init(&(elemento->mutex),NULL);
+	pthread_mutex_lock(&(elemento->mutex));
 	char *index_directorio_padre=malloc(100);
 	index_directorio_padre=integer_to_string(elemento->index_padre);
+	pthread_mutex_unlock(&mutex_archivos_actuales);
 	index_directorio_padre=realloc(index_directorio_padre,strlen(index_directorio_padre)+1);
 	char *ruta_directorio=malloc(100);
 	strcpy(ruta_directorio,PUNTO_MONTAJE);
-	strcat(ruta_directorio,"/");
+	strcat(ruta_directorio,"/archivos/");
 	strcat(ruta_directorio,index_directorio_padre);
+	ruta_directorio=realloc(ruta_directorio,strlen(ruta_directorio)+1);
 	if (stat(ruta_directorio, &mystat) == -1) {
 	    mkdir(ruta_directorio, 0700);
 	}
+	free(ruta_directorio);
+	ruta_directorio=calloc(1,100);
+	strcpy(ruta_directorio,PUNTO_MONTAJE);
+	strcat(ruta_directorio,"/archivos/");
+	strcat(ruta_directorio,index_directorio_padre);
+	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,nombre_archivo);
 	ruta_directorio=realloc(ruta_directorio,strlen(ruta_directorio)+1);
+	bool primera_vez=false;
 	if(access(ruta_directorio, F_OK ) == -1 ){
 		//no existe el archivo, se lo crea
 		FILE *f=fopen(ruta_directorio,"w");
 		fclose(f);
+		primera_vez=true;
 	}
 	t_config *archivo=config_create(ruta_directorio);
 	char *key=malloc(100);
@@ -241,21 +337,52 @@ void crear_y_actualizar_archivo(int numero_bloque_enviado,int numero_bloque_data
 	strcat(value,nombre_nodo);
 	strcat(value,",");
 	strcat(value,integer_to_string(numero_bloque_datanode));
+	strcat(value,"]");
 	value=realloc(value,strlen(value)+1);
 	config_set_value(archivo,key,value);
+	config_save_in_file(archivo,ruta_directorio);
 	char *tamanio=malloc(100);
 	strcpy(tamanio,"BLOQUE");
 	strcat(tamanio,integer_to_string(numero_bloque_enviado));
 	strcat(tamanio,"BYTES");
-	config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
-	char *tipo_archivo=malloc(20);
-	if(elemento->tipo==0){
-		strcpy(tipo_archivo,"TEXTO");
-	}else{
-		strcpy(tipo_archivo,"BINARIO");
+	if(!config_has_property(archivo,tamanio)){
+		config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
+		config_save_in_file(archivo,ruta_directorio);
 	}
-	tipo_archivo=realloc(tipo_archivo,strlen(tipo_archivo)+1);
-	config_set_value(archivo,"TIPO",tipo_archivo);
+	if(config_has_property(archivo,"TAMANIO")){
+		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
+		tamanio_total+=tamanio_bloque;
+		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
+		config_save_in_file(archivo,ruta_directorio);
+	}else{
+		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_bloque));
+		config_save_in_file(archivo,ruta_directorio);
+	}
+	char *tipo_archivo=malloc(20);
+	if(primera_vez){
+		if(elemento->tipo==0){
+			strcpy(tipo_archivo,"TEXTO");
+		}else{
+			strcpy(tipo_archivo,"BINARIO");
+		}
+		tipo_archivo=realloc(tipo_archivo,strlen(tipo_archivo)+1);
+		config_set_value(archivo,"TIPO",tipo_archivo);
+	}
+	config_save_in_file(archivo,ruta_directorio);
+	pthread_mutex_unlock(&(elemento->mutex));
+}
+void eliminar_archivo(char*nombre_nodo,char*nombre_archivo){
+	t_list*lista=dictionary_get(archivos_actuales,nombre_nodo);
+	bool tiene_nombre(t_archivo_actual* archivo){
+		if(strcmp(archivo->nombre_archivo,nombre_archivo)==0){
+			return true;
+		}
+		return false;
+	}
+	t_archivo_actual *archivo=malloc(sizeof(t_archivo_actual));
+	archivo=list_remove_by_condition(lista,(void*) tiene_nombre);
+	//free(archivo);
+	dictionary_put(archivos_actuales,nombre_nodo,lista);
 }
 void accion(void* socket){
 	int socketFD = *(int*)socket;
@@ -381,15 +508,28 @@ void accion(void* socket){
 					strcpy(nombre_archivo,datos);
 					nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
 					datos+=strlen(nombre_archivo)+1;
+					pthread_mutex_lock(&mutex_archivos_actuales);
 					t_list*archivos=dictionary_get(archivos_actuales,nombre_nodo);
 					t_archivo_actual *elemento=obtener_elemento(archivos,nombre_archivo);
-					if(resultado==1){
-						//escribir y crear directorio y archivo
-						elemento->total_bloques-=1;
-						crear_y_actualizar_archivo(numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+					pthread_mutex_unlock(&mutex_archivos_actuales);
+					if(dictionary_has_key(archivos_terminados,nombre_archivo)){
+						//termino el archivo,hay que eliminarlo y sacarlo de la lista de archivos actuales
+						//TODO ELIMINAR ARCHIVOS DE ARCHIVOS ACTUALES PORQUE YA TERMINO
+						pthread_mutex_lock(&mutex_archivos_actuales);
+						eliminar_archivo(nombre_nodo,nombre_archivo);
+						pthread_mutex_unlock(&mutex_archivos_actuales);
 					}else{
-						elemento->total_bloques=-1;
-						printf("No se pudo guardar la copia %i del bloque  %i en %s\n",numero_copia,numero_bloque_datanode,nombre_nodo);
+						if(resultado==1 &&  !dictionary_has_key(archivos_erroneos,nombre_archivo)){
+							//escribir y crear directorio y archivo
+							pthread_mutex_lock(&mutex_archivos_actuales);
+							elemento->total_bloques-=1;
+							crear_y_actualizar_archivo(elemento,numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+						}else{
+							pthread_mutex_lock(&mutex_archivos_actuales);
+							elemento->total_bloques=-1;
+							pthread_mutex_unlock(&mutex_archivos_actuales);
+							//eliminar lo que se hizo en el archivo
+						}
 					}
 				}
 				break;
@@ -584,14 +724,90 @@ bool existe_ruta(char *ruta_fs){
 		}
 	}
 }
+bool existe_archivo(char *nombre_archivo,int index_directorio_padre){
+	char*ruta=malloc(200);
+	strcpy(ruta,PUNTO_MONTAJE);
+	strcat(ruta,"/archivos/");
+	strcat(ruta,integer_to_string(index_directorio_padre));
+	strcat(ruta,"/");
+	strcat(ruta,nombre_archivo);
+	ruta=realloc(ruta,strlen(ruta)+1);
+	if(access(ruta, F_OK ) != -1 ){
+		free(ruta);
+		return true;
+	}
+	free(ruta);
+	return false;
+}
+void rmtree(const char path[]){
+    size_t path_len;
+    char *full_path;
+    DIR *dir;
+    struct stat stat_path, stat_entry;
+    struct dirent *entry;
+    stat(path, &stat_path);
+    // if path does not exists or is not dir - exit with status -1
+    if (S_ISDIR(stat_path.st_mode) == 0) {
+        fprintf(stderr, "%s: %s\n", "Is not directory", path);
+        exit(-1);
+    }
+    // if not possible to read the directory for this user
+    if ((dir = opendir(path)) == NULL) {
+        fprintf(stderr, "%s: %s\n", "Can`t open directory", path);
+        exit(-1);
+    }
+    // the length of the path
+    path_len = strlen(path);
+    // iteration through entries in the directory
+    while ((entry = readdir(dir)) != NULL) {
+        // skip entries "." and ".."
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        // determinate a full path of an entry
+        full_path = calloc(path_len + strlen(entry->d_name) + 1, sizeof(char));
+        strcpy(full_path, path);
+        strcat(full_path, "/");
+        strcat(full_path, entry->d_name);
+        // stat for the entry
+        stat(full_path, &stat_entry);
+        // recursively remove a nested directory
+        if (S_ISDIR(stat_entry.st_mode) != 0) {
+            rmtree(full_path);
+            continue;
+        }
+        // remove a file object
+        unlink(full_path);
+        rmdir(path) ;
+        /*if (unlink(full_path) == 0)
+            printf("Removed a file: %s\n", full_path);
+        else
+            printf("Can`t remove a file: %s\n", full_path);
+         */
+    }
+    // remove the devastated directory and close the object of it
+    /*if (rmdir(path) == 0)
+        printf("Removed a directory: %s\n", path);
+    else
+        printf("Can`t remove a directory: %s\n", path);
+	*/
+    closedir(dir);
+}
 void consola() {
 	char * linea;
 	while(true) {
 		linea = readline(">> ");
 		if(linea)
 		  add_history(linea);
-		if(!strcmp(linea, "format"))
-			printf("logica de format\n");
+		if(!strcmp(linea, "format")){
+			if(access(RUTA_DIRECTORIOS, F_OK ) == -1 ){
+				FILE *f=fopen(RUTA_DIRECTORIOS,"w");
+				fclose(f);
+			}
+			crear_directorio();
+			setear_directorio(0,0,"root",-1);
+			rmtree(RUTA_ARCHIVOS);
+			mkdir(RUTA_ARCHIVOS,0700);
+		}
 		else if(!strncmp(linea, "rm ", 3))
 		{
 			linea += 3;
@@ -785,9 +1001,9 @@ void consola() {
 			}
 			munmap(data,archivo_stat.st_size);
 			close(archivo);
-			enviarBloques((t_list*)bloques_a_enviar,nombre_archivo,index_directorio_padre,tipo_archivo);
-			//TODO tambien destroy elements;
-			list_destroy(bloques_a_enviar);
+			if(!(enviarBloques((t_list*)bloques_a_enviar,nombre_archivo,index_directorio_padre,tipo_archivo))){
+				break;
+			}
 		}
 		else if(!strncmp(linea, "cpto ", 5))
 			printf("copiando a\n");
@@ -951,7 +1167,7 @@ int se_puede_enviar(t_list*datanodes,int bloques_a_enviar){
 		return 0;
 	}
 }
-obtener_disponibles(t_list*datanodes_a_enviar,int cantidad_datanodes,int cantidad_bloques){
+t_list*obtener_disponibles(t_list*datanodes_a_enviar,int cantidad_datanodes,int cantidad_bloques){
 	t_list *lista=list_create();
 	bool verificar_disponibilidad(t_datanode_a_enviar*elemento){
 		if(elemento->cantidad>=ceilDivision(cantidad_bloques,cantidad_datanodes)){
@@ -963,43 +1179,142 @@ obtener_disponibles(t_list*datanodes_a_enviar,int cantidad_datanodes,int cantida
 	lista=list_filter(datanodes_a_enviar,(void*) verificar_disponibilidad);
 	return lista;
 }
-void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_directorio_padre,int tipo_archivo){
-	//filtramos los que tengan bloques libres
-	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
-	//una vez obtenidos,los enviamos
-	//TODO ----> ENVIAR BLOQUES
+void actualizar_archivos_actuales(char*nombre_nodo,int index_directorio_padre,int tipo_archivo,char*nombre_archivo){
 
-	t_list *datanodes_a_enviar=list_create;
-	t_list*disponibles=list_create();
-	datanodes_a_enviar=list_map(datanodes,(void*) datanodes_disponibles);
-	int cantidad_datanodes_a_enviar;
-	if(!(cantidad_datanodes_a_enviar=se_puede_enviar(datanodes_a_enviar,list_size(bloques_a_enviar)))){
-		printf("No hay lugar disponbile");
+	if(!dictionary_has_key(archivos_actuales,nombre_nodo)){
+	  //primera vez que se manda un archivo a este nodo
+	  t_list*lista_archivos=list_create();
+	  t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
+	  un_archivo->index_padre=index_directorio_padre;
+	  un_archivo->total_bloques=1;
+	  un_archivo->tipo=tipo_archivo;
+	  un_archivo->nombre_archivo=malloc(100);
+	  strcpy(un_archivo->nombre_archivo,nombre_archivo);
+	  un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
+	  pthread_mutex_lock(&mutex_archivos_actuales);
+	  list_add(lista_archivos,un_archivo);
+	  dictionary_put(archivos_actuales,nombre_nodo,lista_archivos);
+	  pthread_mutex_unlock(&mutex_archivos_actuales);
 	}else{
-		//datanodes que tengo que enviar
-		disponibles=obtener_disponibles(datanodes_a_enviar,cantidad_datanodes_a_enviar,list_size(bloques_a_enviar)*2);
+	  //ya existe la lista, y tiene algun archivo
+		pthread_mutex_lock(&mutex_archivos_actuales);
+	  t_list *archivos=dictionary_get(archivos_actuales,nombre_nodo);
+	  if(verificar_existencia_lista_archivos(archivos,nombre_archivo)){
+		//existe el archivo, hay que aumentar el numero de bloque
+		t_archivo_actual*un_archivo=obtener_elemento(archivos,nombre_archivo);
+		un_archivo->total_bloques+=1;
+		pthread_mutex_unlock(&mutex_archivos_actuales);
+	  }else{
+		//no existe el archivo, lo creamos
+		t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
+		un_archivo->index_padre=index_directorio_padre;
+		un_archivo->total_bloques=1;
+		un_archivo->nombre_archivo=malloc(100);
+		strcpy(un_archivo->nombre_archivo,nombre_archivo);
+		un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
+		list_add(archivos,un_archivo);
+		pthread_mutex_unlock(&mutex_archivos_actuales);
+	  }
 	}
-	int size_bloques=list_size(bloques_a_enviar);
-	int i_lista_disponibles=0;
-	int i_bloques_a_enviar=0;
-	while(size_bloques){
-		//obtenemos datos del  datanode para enviarle la primer copia del bloque
-		//primer copia es i_lista_disponibles
-		int index_primer_copia=i_lista_disponibles;
-		int index_segunda_copia= i_lista_disponibles+1>(size_bloques-1) ? 0 : i_lista_disponibles+1;
-		char *nombre=malloc(100);
-		nombre=((info_datanode*)list_get(datanodes,index_primer_copia))->nodo;
-		nombre=realloc(nombre,strlen(nombre)+1);
+}
+t_resultado_envio* enviar_bloque(t_list *disponibles,t_list*bloques_a_enviar,int i_bloques_a_enviar,int index_copia,char *nombre_archivo, int index_directorio_padre,int tipo_archivo,int numero_copia){
+	char *nombre=malloc(100);
+	strcpy(nombre,((t_datanode_a_enviar*)list_get(disponibles,index_copia))->nombre);
+	nombre=realloc(nombre,strlen(nombre)+1);
+
+
+	//Se obtiene el numero de bloque del datanode
+	char *ruta=malloc(100);
+	strcpy(ruta,PUNTO_MONTAJE);
+	strcat(ruta,"/bitmaps/");
+	strcat(ruta, nombre);
+	strcat(ruta,".dat");
+	ruta=realloc(ruta,strlen(ruta)+1);
+	t_config *nodos=config_create(RUTA_NODOS);
+	int total;
+	char *nombre_total=malloc(100);
+	strcpy(nombre_total,nombre);
+	strcat(nombre_total,"Total");
+	nombre_total=realloc(nombre_total,strlen(nombre_total)+1);
+	total=config_get_int_value(nodos,nombre_total);
+	int bitmap = open(ruta,O_RDWR);
+	struct stat mystat;
+	void *bmap;
+	if (fstat(bitmap, &mystat) < 0) {
+	  printf("Error al establecer fstat\n");
+	  close(bitmap);
+	}else{
+	  bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+	  if (bmap == MAP_FAILED){
+			printf("Error al mapear a memoria: %s\n", strerror(errno));
+	  }else{
+		int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
+		t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
+		int j;
+		for (j=0; j < total; j++) {
+		  if(bitarray_test_bit(bitarray,j)==0){
+			bitarray_set_bit(bitarray,j);
+			break;
+		  }
+		}
+		int numero_bloque=j;
+		munmap(bmap,mystat.st_size);
+		close(bitmap);
+
+
+		//creamos tipo de dato a enviar y lo inicializamos
+		bloque *primer_bloque=malloc(sizeof(bloque));
+		primer_bloque=list_get(bloques_a_enviar,i_bloques_a_enviar);
+		primer_bloque->numero=numero_bloque;
+		primer_bloque->copia=numero_copia;
+		primer_bloque->nombre_archivo=malloc(100);
+		strcpy(primer_bloque->nombre_archivo,nombre_archivo);
+		primer_bloque->nombre_archivo=realloc(primer_bloque->nombre_archivo,strlen(primer_bloque->nombre_archivo)+1);
+
+
+		//enviamos al datanode el bloque y el tamaño de bloque
+		int tamanio = sizeof(uint32_t) * 4  + primer_bloque->tamanio + sizeof(char)*strlen(primer_bloque->nombre_archivo)+1;
+		void *datos = malloc(tamanio);
+		*((uint32_t*)datos) = primer_bloque->numero;
+		datos += sizeof(uint32_t);
+		*((uint32_t*)datos) = primer_bloque->copia;
+		datos += sizeof(uint32_t);
+		*((uint32_t*)datos) = primer_bloque->tamanio;
+		datos += sizeof(uint32_t);
+		*((uint32_t*)datos) = i_bloques_a_enviar;
+		datos += sizeof(uint32_t);
+		memmove(datos,primer_bloque->datos,primer_bloque->tamanio);
+		datos += primer_bloque->tamanio;
+		strcpy(datos, primer_bloque->nombre_archivo);
+		datos +=  strlen(primer_bloque->nombre_archivo) + 1;
+		datos -= tamanio;
+		//actualizo archivos actuales
+		actualizar_archivos_actuales(nombre,index_directorio_padre,tipo_archivo,nombre_archivo);
+		//enviamos datos
+		int socket=((t_datanode_a_enviar*)list_get(disponibles,index_copia))->socket;
+		t_resultado_envio*resultado=malloc(sizeof(t_resultado_envio));
+		resultado->bloque=numero_bloque;
+		resultado->nombre_nodo=malloc(100);
+		strcpy(resultado->nombre_nodo,nombre);
+		resultado->nombre_nodo=realloc(resultado->nombre_nodo,strlen(resultado->nombre_nodo)+1);
+		resultado->resultado=EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
+		return resultado;
+	  }
+	}
+}
+void limpiar_bitarrays(t_list*lista){
+	int var;
+	for (var = 0; var < list_size(lista); ++var) {
 		char *ruta=malloc(100);
 		strcpy(ruta,PUNTO_MONTAJE);
 		strcat(ruta,"/bitmaps/");
-		strcat(ruta, nombre);
+		strcat(ruta, ((t_bloque_enviado*)list_get(lista,var))->nombre_nodo);
 		strcat(ruta,".dat");
 		ruta=realloc(ruta,strlen(ruta)+1);
 		t_config *nodos=config_create(RUTA_NODOS);
 		int total;
 		char *nombre_total=malloc(100);
-		strcpy(nombre_total,nombre);
+		strcpy(nombre_total,((t_bloque_enviado*)list_get(lista,var))->nombre_nodo);
 		strcat(nombre_total,"Total");
 		nombre_total=realloc(nombre_total,strlen(nombre_total)+1);
 		total=config_get_int_value(nodos,nombre_total);
@@ -1011,213 +1326,94 @@ void enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_direc
 		  close(bitmap);
 		}else{
 		  bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
-		  if (bmap == MAP_FAILED) {
+		  if (bmap == MAP_FAILED){
 				printf("Error al mapear a memoria: %s\n", strerror(errno));
 		  }else{
 			int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
 			t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
-			int j;
-			for (j=0; j < total; j++) {
-			  if(bitarray_test_bit(bitarray,j)==0){
-				bitarray_set_bit(bitarray,j);
-				break;
-			  }
-			}
-			int numero_bloque;
-			if(j==total){
-			  printf("El %s no tiene mas lugar",nombre);
-			  numero_bloque=-1;
-			}else{
-			  numero_bloque=j;
-			}
-			bloque *primer_bloque=malloc(sizeof(bloque));
-			primer_bloque=list_get(bloques_a_enviar,i_bloques_a_enviar);
-			primer_bloque->numero=numero_bloque;
-			primer_bloque->copia=0;
-			primer_bloque->nombre_archivo=malloc(100);
-			strcpy(primer_bloque->nombre_archivo,nombre_archivo);
-			primer_bloque->nombre_archivo=realloc(primer_bloque->nombre_archivo,strlen(primer_bloque->nombre_archivo)+1);
-			//enviamos al datanode el bloque y el tamaño de bloque
-			int tamanio = sizeof(uint32_t) * 4  + primer_bloque->tamanio + sizeof(char)*strlen(primer_bloque->nombre_archivo)+1;
-			void *datos = malloc(tamanio);
-			*((uint32_t*)datos) = primer_bloque->numero;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = primer_bloque->copia;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = primer_bloque->tamanio;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = i_bloques_a_enviar;
-			datos += sizeof(uint32_t);
-			memmove(datos,primer_bloque->datos,primer_bloque->tamanio);
-			datos += primer_bloque->tamanio;
-			strcpy(datos, primer_bloque->nombre_archivo);
-			datos +=  strlen(primer_bloque->nombre_archivo) + 1;
-			datos -= tamanio;
-			//aca envias
-			pthread_mutex_lock(&mutex_datanodes);
-			int socket=((info_datanode*)list_get(datanodes,index_primer_copia))->socket;
-			pthread_mutex_unlock(&mutex_datanodes);
+			bitarray_clean_bit(bitarray,((t_bloque_enviado*)list_get(lista,var))->bloque);
 			munmap(bmap,mystat.st_size);
 			close(bitmap);
-
-			//actualizo archivos actuales
-			if(!dictionary_has_key(archivos_actuales,nombre)){
-			  //primera vez que se manda un archivo a este nodo
-			  t_list*lista_archivos=list_create();
-			  t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
-			  un_archivo->index_padre=index_directorio_padre;
-			  un_archivo->total_bloques=1;
-			  un_archivo->tipo=tipo_archivo;
-			  un_archivo->nombre_archivo=malloc(100);
-			  strcpy(un_archivo->nombre_archivo,nombre_archivo);
-			  un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
-			  pthread_mutex_lock(&mutex_archivos_actuales);
-			  list_add(lista_archivos,un_archivo);
-			  dictionary_put(archivos_actuales,nombre,lista_archivos);
-			  pthread_mutex_unlock(&mutex_archivos_actuales);
-			}else{
-			  //ya existe la lista, y tiene algun archivo
-			  t_list *archivos=dictionary_get(archivos_actuales,nombre);
-			  if(verificar_existencia_lista_archivos(archivos,nombre_archivo)){
-				//existe el archivo, hay que aumentar el numero de bloque
-				pthread_mutex_lock(&mutex_archivos_actuales);
-				t_archivo_actual*un_archivo=obtener_elemento(archivos,nombre_archivo);
-				un_archivo->total_bloques+=1;
-				pthread_mutex_unlock(&mutex_archivos_actuales);
-			  }else{
-				//no existe el archivo, lo creamos
-				t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
-				un_archivo->index_padre=index_directorio_padre;
-				un_archivo->total_bloques=1;
-				un_archivo->nombre_archivo=malloc(100);
-				strcpy(un_archivo->nombre_archivo,nombre_archivo);
-				un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
-				pthread_mutex_lock(&mutex_archivos_actuales);
-				list_add(archivos,un_archivo);
-				pthread_mutex_unlock(&mutex_archivos_actuales);
-			  }
-			}
-			bool valor_retorno;
-			valor_retorno=EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
-			printf("asdasd");
-			//free(datos);ipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
-			//free(datos);
-			//free(ruta);
-
-
 		  }
 		}
-
-		//obtenemos datos del  datanode para enviarle la segunda copia del bloque
-		free(nombre_total);
-		config_destroy(nodos);
-		pthread_mutex_lock(&mutex_datanodes);
-		nombre=malloc(100);
-		nombre=((info_datanode*)list_get(datanodes,index_segunda_copia))->nodo;
-		nombre=realloc(nombre,strlen(nombre)+1);
-		pthread_mutex_unlock(&mutex_datanodes);
-		ruta=malloc(100);
-		strcpy(ruta,PUNTO_MONTAJE);
-		strcat(ruta,"/bitmaps/");
-		strcat(ruta, nombre);
-		strcat(ruta,".dat");
-		ruta=realloc(ruta,strlen(ruta)+1);
-		nodos=config_create(RUTA_NODOS);
-		nombre_total=malloc(100);
-		strcpy(nombre_total,nombre);
-		strcat(nombre_total,"Total");
-		nombre_total=realloc(nombre_total,strlen(nombre_total)+1);
-		total=config_get_int_value(nodos,nombre_total);
-		bitmap = open(ruta,O_RDWR);
-		//struct stat mystat;
-		//void *bmap;
-		if (fstat(bitmap, &mystat) < 0) {
-		  printf("Error al establecer fstat\n");
-		  close(bitmap);
-		}else{
-		  bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
-		  if (bmap == MAP_FAILED) {
-				printf("Error al mapear a memoria: %s\n", strerror(errno));
-		  }else{
-			int size_bitarray=total%8>0 ? ((int)(total/8))+1 : (int)(total/8);
-			t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
-			int j;
-			for (j=0; j < total; j++) {
-			  if(bitarray_test_bit(bitarray,j)==0){
-				bitarray_set_bit(bitarray,j);
-				break;
-			  }
-			}
-			int numero_bloque=j;
-			bloque *primer_bloque=malloc(sizeof(bloque));
-			primer_bloque=list_get(bloques_a_enviar,i_bloques_a_enviar);
-			primer_bloque->numero=numero_bloque;
-			primer_bloque->copia=1;
-			strcpy(primer_bloque->nombre_archivo,nombre_archivo);
-			//enviamos al datanode el bloque y el tamaño de bloque
-			int tamanio = sizeof(uint32_t) * 4  + primer_bloque->tamanio + sizeof(char)*strlen(primer_bloque->nombre_archivo)+1;
-			void *datos = malloc(tamanio);
-			*((uint32_t*)datos) = primer_bloque->numero;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = primer_bloque->copia;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = primer_bloque->tamanio;
-			datos += sizeof(uint32_t);
-			*((uint32_t*)datos) = i_bloques_a_enviar;
-			datos += sizeof(uint32_t);
-			memmove(datos,primer_bloque->datos,primer_bloque->tamanio);
-			datos += primer_bloque->tamanio;
-			strcpy(datos, primer_bloque->nombre_archivo);
-			datos +=  strlen(primer_bloque->nombre_archivo) + 1;
-			datos -= tamanio;
-			//aca envias
-			pthread_mutex_lock(&mutex_datanodes);
-			int socket=((info_datanode*)list_get(datanodes,index_segunda_copia))->socket;
-			pthread_mutex_unlock(&mutex_datanodes);
-
-			if(!dictionary_has_key(archivos_actuales,nombre)){
-			//primera vez que se manda un archivo a este nodo
-			t_list*lista_archivos=list_create();
-			t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
-			un_archivo->index_padre=index_directorio_padre;
-			un_archivo->total_bloques=1;
-			un_archivo->nombre_archivo=malloc(100);
-			strcpy(un_archivo->nombre_archivo,nombre_archivo);
-			un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
-			list_add(lista_archivos,un_archivo);
-			dictionary_put(archivos_actuales,nombre,lista_archivos);
-		  }else{
-			//ya existe la lista, y tiene algun archivo
-			t_list *archivos=dictionary_get(archivos_actuales,nombre);
-			if(verificar_existencia_lista_archivos(archivos,nombre_archivo)){
-			  //existe el archivo, hay que aumentar el numero de bloque
-			  t_list *lista_de_archivo_unico=obtener(archivos,nombre_archivo);
-			  t_archivo_actual *un_archivo=list_get(lista_de_archivo_unico,0);
-			  un_archivo->total_bloques+=1;
-			}else{
-			  //no existe el archivo, lo creamos
-			  t_archivo_actual *un_archivo=malloc(sizeof(t_archivo_actual));
-			  un_archivo->index_padre=index_directorio_padre;
-			  un_archivo->total_bloques=1;
-			  un_archivo->nombre_archivo=malloc(100);
-			  strcpy(un_archivo->nombre_archivo,nombre_archivo);
-			  un_archivo->nombre_archivo=realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo)+1);
-			  list_add(archivos,un_archivo);
-			}
-		  }
-			EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SETBLOQUE);
-			//free(datos);
-			//free(ruta);
-		  }
-		}
-
-		free(nombre_total);
-		config_destroy(nodos);
-		i_lista_disponibles++;
-		size_bloques--;
-		i_bloques_a_enviar++;
 	}
+}
+int enviarBloques(t_list *bloques_a_enviar,char *nombre_archivo,int index_directorio_padre,int tipo_archivo){
+	//filtramos los que tengan bloques libres
+	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
+	//una vez obtenidos,los enviamos
+	//TODO ----> ENVIAR BLOQUES
+
+	t_list *datanodes_a_enviar=list_create();
+	t_list *disponibles=list_create();
+	t_list *bloques_enviados=list_create();
+	pthread_mutex_lock(&mutex_datanodes);
+	datanodes_a_enviar=list_map(datanodes,(void*) datanodes_disponibles);
+	pthread_mutex_unlock(&mutex_datanodes);
+	int cantidad_datanodes_a_enviar;
+	bool error=false;
+	if(!(cantidad_datanodes_a_enviar=se_puede_enviar(datanodes_a_enviar,list_size(bloques_a_enviar)))){
+		printf("No hay lugar disponbile\n");
+		fflush(stdout);
+		error=true;
+
+	}else{
+		//datanodes que tengo que enviar
+		disponibles=obtener_disponibles(datanodes_a_enviar,cantidad_datanodes_a_enviar,list_size(bloques_a_enviar)*2);
+	}
+	int size_bloques=list_size(bloques_a_enviar);
+	int i_lista_disponibles=0;
+	int i_bloques_a_enviar=0;
+	if(!error){
+		while(size_bloques){
+			//obtenemos datos del  datanode para enviarle la primer copia del bloque
+			//primer copia es i_lista_disponibles
+			int index_primer_copia=i_lista_disponibles;
+			int index_segunda_copia= i_lista_disponibles+1>(list_size(disponibles)-1) ? 0 : i_lista_disponibles+1;
+			t_resultado_envio*resultado_primer_copia;
+			t_resultado_envio*resultado_segunda_copia;
+			resultado_primer_copia=enviar_bloque(disponibles,bloques_a_enviar,i_bloques_a_enviar,index_primer_copia,nombre_archivo,index_directorio_padre,tipo_archivo,0);
+			resultado_segunda_copia=enviar_bloque(disponibles,bloques_a_enviar,i_bloques_a_enviar,index_segunda_copia,nombre_archivo,index_directorio_padre,tipo_archivo,1);
+			if(!(resultado_primer_copia->resultado) || !(resultado_segunda_copia->resultado)){
+				//limpio todos los bloques enviados
+				limpiar_bitarrays(bloques_enviados);
+				//TODO HACER SEMAFOROS
+				pthread_mutex_lock(&mutex_archivos_erroneos);
+				dictionary_put(archivos_erroneos,nombre_archivo,nombre_archivo);
+				pthread_mutex_unlock(&mutex_archivos_erroneos);
+				break;
+			}else{
+				//agrego resultado_primer_copia y resultado_segunda_copia
+				t_bloque_enviado*primer_copia=malloc(sizeof(t_bloque_enviado));
+				primer_copia->bloque=resultado_primer_copia->bloque;
+				primer_copia->nombre_nodo=malloc(100);
+				strcpy(primer_copia->nombre_nodo,resultado_primer_copia->nombre_nodo);
+				primer_copia->nombre_nodo=realloc(primer_copia->nombre_nodo,strlen(primer_copia->nombre_nodo)+1);
+				list_add(bloques_enviados,primer_copia);
+				t_bloque_enviado*segunda_copia=malloc(sizeof(t_bloque_enviado));
+				segunda_copia->bloque=resultado_segunda_copia->bloque;
+				segunda_copia->nombre_nodo=malloc(100);
+				strcpy(segunda_copia->nombre_nodo,resultado_segunda_copia->nombre_nodo);
+				segunda_copia->nombre_nodo=realloc(segunda_copia->nombre_nodo,strlen(segunda_copia->nombre_nodo)+1);
+				list_add(bloques_enviados,segunda_copia);
+			}
+			i_lista_disponibles=i_lista_disponibles+1>(list_size(disponibles)-1) ? 0 : i_lista_disponibles+1;
+			size_bloques--;
+			i_bloques_a_enviar++;
+			if(size_bloques<=0){
+				dictionary_put(archivos_terminados,nombre_archivo,nombre_archivo);
+			}
+		}
+	}
+	list_destroy(datanodes_a_enviar);
 	list_destroy(disponibles);
+	list_destroy(bloques_enviados);
+	list_destroy_and_destroy_elements(bloques_a_enviar,free);
+	if(error){
+		return -1;
+	}else{
+		return 1;
+	}
 }
 
 void crear_directorio(){
@@ -1261,6 +1457,9 @@ int main(){
 	RUTA_NODOS=malloc(strlen(PUNTO_MONTAJE)+strlen("/nodos.bin")+1);
 	strcpy(RUTA_NODOS,PUNTO_MONTAJE);
 	strcat(RUTA_NODOS,"/nodos.bin");
+	RUTA_ARCHIVOS=malloc(strlen(PUNTO_MONTAJE)+strlen("/archivos")+1);
+	strcpy(RUTA_ARCHIVOS,PUNTO_MONTAJE);
+	strcat(RUTA_ARCHIVOS,"/archivos");
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
 	/*
 	t_directory **directorios=obtener_directorios();
@@ -1271,19 +1470,16 @@ int main(){
 	}
 	return 0;
 	 */
-	if(access(RUTA_DIRECTORIOS, F_OK ) == -1 ){
-		FILE *f=fopen(RUTA_DIRECTORIOS,"w");
-		fclose(f);
-		crear_directorio();
-		setear_directorio(0,0,"root",-1);
-	}
 	datanodes=list_create();
 	archivos_actuales=dictionary_create();
+	archivos_terminados=dictionary_create();
+	archivos_erroneos=dictionary_create();
 	pthread_t hiloConsola;
 	pthread_mutex_init(&mutex_datanodes,NULL);
 	pthread_mutex_init(&mutex_directorio,NULL);
 	pthread_mutex_init(&mutex_directorios_ocupados,NULL);
 	pthread_mutex_init(&mutex_archivos_actuales,NULL);
+	pthread_mutex_init(&mutex_archivos_erroneos,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);

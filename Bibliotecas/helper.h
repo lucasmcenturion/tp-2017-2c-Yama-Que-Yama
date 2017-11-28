@@ -74,6 +74,18 @@ typedef struct {
 }__attribute__((packed))
 t_bloque_yama;
 
+typedef struct {
+	bool resultado;
+	int bloque;
+	char*nombre_nodo;
+}__attribute__((packed))
+t_resultado_envio;
+
+typedef struct {
+	int bloque;
+	char*nombre_nodo;
+}__attribute__((packed))
+t_bloque_enviado;
 
 typedef struct {
 	datosWorker worker;
@@ -144,6 +156,7 @@ typedef struct{
  int total_bloques;
  int tipo;
  char *nombre_archivo;
+ pthread_mutex_t mutex;
 }__attribute__((packed)) t_archivo_actual;
 
 char* integer_to_string(int x);
