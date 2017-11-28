@@ -38,6 +38,21 @@
 #define false 0
 #define NULL ((void *) 0)
 
+typedef enum { TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL} etapa;
+typedef enum { ENPROCESO, ERROR, FINALIZADOOK} estado;
+
+typedef struct{
+	int job;
+	int socketMaster;
+	int bloque;
+	char* nodo;
+	char* archivoTemporal;
+	etapa etapa;
+	estado estado;
+}
+__attribute__((packed))
+tablaDeEstadosReg;
+
 typedef struct{
 	char* nodo;
 	char* ip;
@@ -67,7 +82,7 @@ typedef struct {
 t_copia;
 
 typedef struct {
-	int numero_archivo;
+	int numero_bloque;
 	int tamanio;
 	t_copia primera;
 	t_copia segunda;

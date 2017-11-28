@@ -1,17 +1,15 @@
 #include "sockets.h"
 
-
-typedef struct
-{
-	datosWorker worker;
-}
-clock;
-
 char *IP, *FS_IP, *ALGORITMO_BALANCEO;
 int PUERTO, FS_PUERTO, RETARDO_PLANIFICACION, BASE;
 int socketFS;
+t_list* listaMasters;
 t_list* listaWorkers;
-clock clock;
+t_list* listaHilos;
+t_list* tablaDeEstados;
+datosWorker* punteroClock;
+bool end;
+int idsMaster=0;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("yamaCFG.txt");
@@ -21,7 +19,7 @@ void obtenerValoresArchivoConfiguracion() {
 	FS_PUERTO = config_get_int_value(arch, "FS_PUERTO");
 	RETARDO_PLANIFICACION = config_get_int_value(arch, "RETARDO_PLANIFICACION");
 	ALGORITMO_BALANCEO = string_duplicate(config_get_string_value(arch, "ALGORITMO_BALANCEO"));
-	PUERTO = config_get_int_value(arch, "BASE");
+	BASE = config_get_int_value(arch, "BASE");
 	config_destroy(arch);
 }
 
@@ -85,32 +83,75 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 
 void CrearListas() {
 	listaWorkers = list_create();
+	listaHilos = list_create();
+	listaMasters = list_create();
+	tablaDeEstados = list_create();
 }
 
 void LiberarListas() {
 	list_destroy_and_destroy_elements(listaWorkers, free);
+	list_destroy_and_destroy_elements(listaHilos, free);
+	list_destroy_and_destroy_elements(listaMasters, free);
+	list_destroy_and_destroy_elements(tablaDeEstados, free);
 }
 
-void accion(Paquete* paquete, int socket){
-	if(!strcmp(paquete.header.emisor, MASTER))
+void accion(void* socket){
+	int socketFD = *(int*)socket;
+	Paquete paquete;
+	while (RecibirPaqueteServidor(socketFD, YAMA, &paquete) > 0)
 	{
-		switch (paquete.header.tipoMensaje)
+		if(!strcmp(paquete.header.emisor, MASTER))
 		{
-			case tipo:
+			switch (paquete.header.tipoMensaje)
 			{
+				case ESHANDSHAKE://TRANSFORMACION:
+					//AGARRO LOS DATOS
+					//LE PIDO A FILESYSTEM LOS BLOQUES
+					//LOS RECIBO Y GUARDO
+				{
+					list_add(listaMasters, idsMaster);
+					idsMaster++;
+					t_list* listaBloques = list_create();
+					t_bloque_yama* bloque_0 = malloc(sizeof(t_bloque_yama));
+					bloque_0->primera.bloque_nodo = 3;
+					bloque_0->primera.nombre_nodo = "NODO1";
+					bloque_0->segunda.bloque_nodo = 4;
+					bloque_0->segunda.nombre_nodo="NODO2";
+					bloque_0->tamanio=1024;
+					bloque_0->numero_bloque= 0;
+					t_bloque_yama* bloque_1 = malloc(sizeof(t_bloque_yama));
+					bloque_1->primera.bloque_nodo = 3;
+					bloque_1->primera.nombre_nodo = "NODO2";
+					bloque_1->segunda.bloque_nodo = 4;
+					bloque_1->segunda.nombre_nodo="NODO1";
+					bloque_1->tamanio=1024;
+					bloque_1->numero_bloque= 1;
+					t_bloque_yama* bloque_2 = malloc(sizeof(t_bloque_yama));
+					bloque_2->primera.bloque_nodo = 1;
+					bloque_2->primera.nombre_nodo = "NODO1";
+					bloque_2->segunda.bloque_nodo = 2;
+					bloque_2->segunda.nombre_nodo="NODO2";
+					bloque_2->tamanio=1024;
+					bloque_2->numero_bloque= 2;
+					list_add(listaBloques, bloque_0);
+					list_add(listaBloques, bloque_1);
+					list_add(listaBloques, bloque_2);
 
+					planificacion(listaBloques);
+				}
+					break;
+				//case TERMINOWORKER
 			}
-				break;
-			case ESDATOS:
-				break;
+
 		}
+		else
+			perror("No es MASTER");
+
+		if (paquete.Payload != NULL)
+			free(paquete.Payload);
 
 	}
-	else
-		perror("No es MASTER");
-
-	if (paquete.Payload != NULL)
-		free(paquete.Payload);
+	close(socketFD);
 
 }
 
@@ -131,7 +172,21 @@ void availability(datosWorker* worker){
 		perror("El algortimo no es ni Clock ni W-Clock");
 }
 
-void planificacion(){
+
+void calcularDisponibilidad(){
+	list_iterate(listaWorkers,LAMBDA(void _(void* item) { availability(item);}));
+}
+
+bool bloqueAAsignarEsta(datosWorker* w){
+
+	if (w->disponibilidad > 0)
+		return true;
+	else
+		return false;
+}
+
+
+void planificacion(t_list* bloques){
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad();
 	//ordena por disponibilidad de mayor a menor
@@ -143,14 +198,14 @@ void planificacion(){
 	//ordena por cantidad tareas realizadas de menor a mayor
 	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
 	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
-	clock = list_get(disponibles, 0);
+	punteroClock = list_get(disponibles, 0);
 	list_destroy(disponibles);
-}
 
-void calcularDisponibilidad(){
-	list_iterate(listaWorkers,LAMBDA(void _(void* item) { availability(item);}));
-}
 
+	//HASTA ACA TIENE SENTIDO
+	bloqueAAsignarEsta(punteroClock);
+
+}
 
 int main(){
 	obtenerValoresArchivoConfiguracion();
@@ -160,7 +215,8 @@ int main(){
 	Paquete* paquete = malloc(sizeof(Paquete));
 	pthread_t conexionFilesystem;
 	pthread_create(&conexionFilesystem, NULL, (void*)RecibirPaqueteFilesystem,paquete);
-	Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteServidor);
+	ServidorConcurrente(IP, PUERTO, YAMA, &listaHilos, &end ,accion);
+	//Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteServidor);
 	pthread_join(conexionFilesystem, NULL);
 	free(paquete);
 	LiberarListas();
