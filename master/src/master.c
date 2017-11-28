@@ -137,7 +137,7 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	*itemNuevo->worker =
+	//*itemNuevo->worker =
 
 	/*itemNuevo->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
 	solicitudPrograma* datosParaReducGlobal = malloc(sizeof(solicitudPrograma));

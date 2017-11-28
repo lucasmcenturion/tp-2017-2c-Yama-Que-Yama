@@ -269,7 +269,7 @@ void accion(void* socket){
 					{
 						void* datos = paquete.Payload;
 						int tamanio = paquete.header.tamPayload;
-						//EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
+						EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio, NUEVOWORKER);
 					}
 					break;
 				case IDENTIFICACIONDATANODE:

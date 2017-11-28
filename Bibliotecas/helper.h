@@ -67,7 +67,7 @@ typedef struct {
 t_copia;
 
 typedef struct {
-	int numero_archivo;
+	int numero_bloque;
 	int tamanio;
 	t_copia primera;
 	t_copia segunda;
