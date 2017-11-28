@@ -292,7 +292,8 @@ void sacar_datanode(int socket){
 	pthread_mutex_unlock(&mutex_datanodes);
 }
 
-void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
+void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,
+		int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
 	//TODO CREAR Y ACTUALIZAR ARCHIVOS
 	struct stat mystat;
 	pthread_mutex_init(&(elemento->mutex),NULL);
@@ -344,23 +345,16 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	strcpy(tamanio,"BLOQUE");
 	strcat(tamanio,integer_to_string(numero_bloque_enviado));
 	strcat(tamanio,"BYTES");
-	if(config_has_property(archivo,"TAMANIO")){
-		if(!config_has_property(archivo,tamanio)){
-			config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
-			config_save_in_file(archivo,ruta_directorio);
-			if(numero_copia==0){
-				char*tamanio_total=malloc(20);
-				int tamanio_total_numero=config_get_int_value(archivo,"TAMANIO");
-				tamanio_total_numero+=tamanio_bloque;
-				strcpy(tamanio_total,integer_to_string(tamanio_total_numero));
-				tamanio_total=realloc(tamanio_total,strlen(tamanio_total)+1);
-				config_set_value(archivo,"TAMANIO",tamanio_total);
-				config_save_in_file(archivo,ruta_directorio);
-			}
-		}
-	}else{
+	if(!config_has_property(archivo,tamanio)){
 		config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
 		config_save_in_file(archivo,ruta_directorio);
+	}
+	if(config_has_property(archivo,"TAMANIO")){
+		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
+		tamanio_total+=tamanio_bloque;
+		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
+		config_save_in_file(archivo,ruta_directorio);
+	}else{
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_bloque));
 		config_save_in_file(archivo,ruta_directorio);
 	}
