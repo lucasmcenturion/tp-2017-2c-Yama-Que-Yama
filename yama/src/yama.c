@@ -109,7 +109,10 @@ void accion(void* socket){
 					//LE PIDO A FILESYSTEM LOS BLOQUES
 					//LOS RECIBO Y GUARDO
 				{
-					list_add(listaMasters, idsMaster);
+					master* m = malloc(sizeof(master));
+					m->id = idsMaster;
+					m->socket = socketFD;
+					list_add(listaMasters, m);
 					idsMaster++;
 					t_list* listaBloques = list_create();
 					t_bloque_yama* bloque_0 = malloc(sizeof(t_bloque_yama));
@@ -177,33 +180,51 @@ void calcularDisponibilidad(){
 	list_iterate(listaWorkers,LAMBDA(void _(void* item) { availability(item);}));
 }
 
-bool bloqueAAsignarEsta(datosWorker* w){
-
+bool bloqueAAsignarEsta(datosWorker* w, t_bloque_yama* bloque){
 	if (w->disponibilidad > 0)
-		return true;
-	else
+	{
+		if (!strcmp(bloque->primera.nombre_nodo, w->nodo)){
+			return true;
+		}
+		else if (!strcmp(bloque->segunda.nombre_nodo, w->nodo)){
+			return true;
+		}
+		else{
+			return false;
+		}
+	}
+	else{
 		return false;
+	}
+
 }
 
 
 void planificacion(t_list* bloques){
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad();
+
 	//ordena por disponibilidad de mayor a menor
-	list_sort(listaWorkers, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
-	//obtiene la mayor disponibilidad
-	uint32_t disp = ((datosWorker*)list_get(listaWorkers, 0))->disponibilidad;
-	//obtiene los elementos que poseen la mayor disponibilidad
-	t_list* disponibles = list_filter(listaWorkers,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
-	//ordena por cantidad tareas realizadas de menor a mayor
-	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
-	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
-	punteroClock = list_get(disponibles, 0);
-	list_destroy(disponibles);
+	for(int i = 0; i < list_size(bloques); i++ )
+	{
+		//Se obtiene el bloque actual
+		t_bloque_yama* bloqueAAsignar = list_get(bloques, i);
+		t_list* lista = listaWorkers;
+		list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
+		//obtiene la mayor disponibilidad
+		uint32_t disp = ((datosWorker*)list_get(listaWorkers, 0))->disponibilidad;
+		//obtiene los elementos que poseen la mayor disponibilidad
+		t_list* disponibles = list_filter(listaWorkers,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
+		//ordena por cantidad tareas realizadas de menor a mayor
+		list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
+		//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
+		punteroClock = list_get(disponibles, 0);
+		list_destroy(disponibles);
+		//se fija si está el bloque a asignar
+		bloqueAAsignarEsta(punteroClock, bloqueAAsignar);
 
 
-	//HASTA ACA TIENE SENTIDO
-	bloqueAAsignarEsta(punteroClock);
+	}
 
 }
 

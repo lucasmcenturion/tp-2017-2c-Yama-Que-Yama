@@ -64,6 +64,13 @@ typedef struct{
 __attribute__((packed))
 datosWorker;
 
+typedef struct{
+	int id;
+	int socket;
+}
+__attribute__((packed))
+master;
+
 typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
 
 typedef struct {
