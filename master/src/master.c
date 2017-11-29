@@ -99,17 +99,18 @@ void accionHilo(solicitudPrograma* solicitud){
 void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = ((transformacionDatos*)paquete->Payload)->worker;
-	solicitudPrograma* datosParaTransformacion = malloc(sizeof(solicitudPrograma));
 
-	datosParaTransformacion->programa = programaT;
+	itemNuevo->worker = ((nodoT*)paquete->Payload)->worker;
+	nodoT* datosParaTransformacion = malloc(sizeof(paquete->header.tamPayload));
+
+	datosParaTransformacion->programaT = programaT;
 	datosParaTransformacion->worker = ((transformacionDatos*)paquete->Payload)->worker;
 	datosParaTransformacion->archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
 	datosParaTransformacion->bloque = ((transformacionDatos*)paquete->Payload)->bloque;
-	datosParaTransformacion->cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+	//datosParaTransformacion->cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
 
 
-	datosParaTransformacion->header = REDUCCIONLOCAL;
+	//datosParaTransformacion->header = REDUCCIONLOCAL;
 		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
 		list_add(listaHilos, itemNuevo);
 

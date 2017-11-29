@@ -22,6 +22,7 @@ pthread_mutex_t mutex_directorio;
 pthread_mutex_t mutex_directorios_ocupados;
 pthread_mutex_t mutex_archivos_actuales;
 pthread_mutex_t mutex_archivos_erroneos;
+pthread_mutex_t mutex_escribir_archivo;
 
 void eliminar_ea_nodos(char*nombre){
 	t_config *nodos=config_create(RUTA_NODOS);
@@ -292,19 +293,14 @@ void sacar_datanode(int socket){
 	pthread_mutex_unlock(&mutex_datanodes);
 }
 
-void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,
-		int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
-	//TODO CREAR Y ACTUALIZAR ARCHIVOS
+void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_enviado,int numero_bloque_datanode,int tamanio_bloque,int numero_copia,char*nombre_nodo,char*nombre_archivo){
 	struct stat mystat;
-	pthread_mutex_init(&(elemento->mutex),NULL);
-	pthread_mutex_lock(&(elemento->mutex));
 	char *index_directorio_padre=malloc(100);
 	index_directorio_padre=integer_to_string(elemento->index_padre);
-	pthread_mutex_unlock(&mutex_archivos_actuales);
 	index_directorio_padre=realloc(index_directorio_padre,strlen(index_directorio_padre)+1);
 	char *ruta_directorio=malloc(100);
-	strcpy(ruta_directorio,PUNTO_MONTAJE);
-	strcat(ruta_directorio,"/archivos/");
+	strcpy(ruta_directorio,RUTA_ARCHIVOS);
+	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,index_directorio_padre);
 	ruta_directorio=realloc(ruta_directorio,strlen(ruta_directorio)+1);
 	if (stat(ruta_directorio, &mystat) == -1) {
@@ -312,8 +308,8 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	}
 	free(ruta_directorio);
 	ruta_directorio=calloc(1,100);
-	strcpy(ruta_directorio,PUNTO_MONTAJE);
-	strcat(ruta_directorio,"/archivos/");
+	strcpy(ruta_directorio,RUTA_ARCHIVOS);
+	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,index_directorio_padre);
 	strcat(ruta_directorio,"/");
 	strcat(ruta_directorio,nombre_archivo);
@@ -340,25 +336,25 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	strcat(value,"]");
 	value=realloc(value,strlen(value)+1);
 	config_set_value(archivo,key,value);
-	config_save_in_file(archivo,ruta_directorio);
+	config_save(archivo);
 	char *tamanio=malloc(100);
 	strcpy(tamanio,"BLOQUE");
 	strcat(tamanio,integer_to_string(numero_bloque_enviado));
 	strcat(tamanio,"BYTES");
+	int tamanio_anterior=0;
 	if(!config_has_property(archivo,tamanio)){
+		tamanio_anterior=tamanio_bloque;
 		config_set_value(archivo,tamanio,integer_to_string(tamanio_bloque));
-		config_save_in_file(archivo,ruta_directorio);
+		config_save(archivo);
 	}
 	if(config_has_property(archivo,"TAMANIO")){
 		int tamanio_total=config_get_int_value(archivo,"TAMANIO");
-		printf("Tamaño total %i,tamanio de bloque %i, bloque %i copia %i \n",tamanio_total,tamanio_bloque,numero_bloque_enviado,numero_copia);
-		tamanio_total+=tamanio_bloque;
-		printf("Tamaño total %i\ņ",tamanio_total);
+		tamanio_total+=tamanio_anterior;
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_total));
-		config_save_in_file(archivo,ruta_directorio);
+		config_save(archivo);
 	}else{
 		config_set_value(archivo,"TAMANIO",integer_to_string(tamanio_bloque));
-		config_save_in_file(archivo,ruta_directorio);
+		config_save(archivo);
 	}
 	char *tipo_archivo=malloc(20);
 	if(primera_vez){
@@ -369,9 +365,9 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 		}
 		tipo_archivo=realloc(tipo_archivo,strlen(tipo_archivo)+1);
 		config_set_value(archivo,"TIPO",tipo_archivo);
+		config_save(archivo);
 	}
 	config_save_in_file(archivo,ruta_directorio);
-	pthread_mutex_unlock(&(elemento->mutex));
 }
 void eliminar_archivo(char*nombre_nodo,char*nombre_archivo){
 	t_list*lista=dictionary_get(archivos_actuales,nombre_nodo);
@@ -526,6 +522,7 @@ void accion(void* socket){
 							pthread_mutex_lock(&mutex_archivos_actuales);
 							elemento->total_bloques-=1;
 							crear_y_actualizar_archivo(elemento,numero_bloque_enviado,numero_bloque_datanode,tamanio_bloque,numero_copia,nombre_nodo,nombre_archivo);
+							pthread_mutex_unlock(&mutex_archivos_actuales);
 						}else{
 							pthread_mutex_lock(&mutex_archivos_actuales);
 							elemento->total_bloques=-1;
@@ -825,13 +822,44 @@ void consola() {
 		else if(!strncmp(linea, "rename ", 7)){
 			char **array_input=string_split(linea," ");
 			//TODO rename
-			if(!array_input[0] || !array_input[1] || !array_input[2]){
+			if(!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3]){
 				printf("Error, verificar parametros\n");
 				fflush(stdout);
 			}else{
-				char **separado_por_puntos=string_split(array_input[1],".");
-				if(separado_por_puntos[1]){
+				char **separado_por_barras=string_split(array_input[1],"/");
+				if(atoi(array_input[3])==0){
 					//es un archivo
+					int cantidad=0;
+					while(separado_por_barras[cantidad]){
+						cantidad++;
+					}
+					cantidad--;
+					t_directory **directorios=obtener_directorios();
+					t_directory *aux=(*directorios);
+					int i;
+					int padre_anterior=0;
+					for (i = 0; i <cantidad; ++i) {
+						padre_anterior=obtener_index_directorio(separado_por_barras[i],padre_anterior,aux);
+					}
+					free((*directorios));
+					free(directorios);
+					char *ruta_vieja=malloc(100);
+					strcpy(ruta_vieja,RUTA_ARCHIVOS);
+					strcat(ruta_vieja,"/");
+					strcat(ruta_vieja,integer_to_string(padre_anterior));
+					strcat(ruta_vieja,"/");
+					strcat(ruta_vieja,separado_por_barras[cantidad]);
+					ruta_vieja=realloc(ruta_vieja,strlen(ruta_vieja)+1);
+					char *ruta_nueva=malloc(100);
+					strcpy(ruta_nueva,RUTA_ARCHIVOS);
+					strcat(ruta_nueva,"/");
+					strcat(ruta_nueva,integer_to_string(padre_anterior));
+					strcat(ruta_nueva,"/");
+					strcat(ruta_nueva,array_input[2]);
+					ruta_nueva=realloc(ruta_nueva,strlen(ruta_nueva)+1);
+					rename(ruta_vieja,ruta_nueva);
+					free(ruta_vieja);
+					free(ruta_nueva);
 				}else{
 					//es un directorio
 					if(!existe_ruta(array_input[1])){
@@ -840,7 +868,6 @@ void consola() {
 					}else{
 						t_directory **directorios=obtener_directorios();
 						t_directory *aux=(*directorios);
-						char **separado_por_barras=string_split(array_input[1],"/");
 						int i=0;
 						int padre_anterior=0;
 						int index_ultimo_directorio;
@@ -860,8 +887,6 @@ void consola() {
 							}
 						}
 						guardar_directorios(directorios);
-						free((*directorios));
-						free(directorios);
 					}
 				}
 			}
@@ -1019,12 +1044,45 @@ void consola() {
 			if(!array_input[0] || !array_input[1]){
 				printf("Error, verificar parametros\n");
 				fflush(stdout);
-			}
-			if(!existe_ruta(array_input[1])){
-				printf("El directorio no existe, ingrese un directorio valido\n");
 			}else{
-				mostrar_directorios_hijos(array_input[1]);
+				if(!existe_ruta(array_input[1])){
+					printf("El directorio no existe,por favor ingrese un directorio válido \n");
+				}else{
+					t_directory **directorios=obtener_directorios();
+					t_directory *aux=(*directorios);
+					char **separado_por_barras=string_split(array_input[1],"/");
+					int iterador=0;
+					int padre_anterior=0;
+					int ultimo_index;
+					while(separado_por_barras[iterador]){
+						if(!(separado_por_barras[iterador+1])){
+							ultimo_index=obtener_index_directorio(separado_por_barras[iterador],padre_anterior,aux);
+						}else{
+							padre_anterior=obtener_index_directorio(separado_por_barras[iterador],padre_anterior,aux);
+						}
+						iterador++;
+					}
+					free((*directorios));
+					free(directorios);
+					char *ruta=malloc(100);
+					strcpy(ruta,RUTA_ARCHIVOS);
+					strcat(ruta,"/");
+					strcat(ruta,integer_to_string(ultimo_index));
+					ruta=realloc(ruta,strlen(ruta)+1);
+					DIR* dir = opendir(ruta);
+					struct dirent *ent;
+					if (dir){
+						while ((ent = readdir (dir)) != NULL) {
+							if(!(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0)){
+								printf ("%s\n", ent->d_name);
+							}
+						  }
+					    closedir(dir);
+					}
+
+				}
 			}
+
 		}
 		else if(!strncmp(linea, "info ", 5))
 			printf("info archivo\n");
@@ -1482,6 +1540,7 @@ int main(){
 	pthread_mutex_init(&mutex_directorios_ocupados,NULL);
 	pthread_mutex_init(&mutex_archivos_actuales,NULL);
 	pthread_mutex_init(&mutex_archivos_erroneos,NULL);
+	pthread_mutex_init(&mutex_escribir_archivo,NULL);
 	pthread_create(&hiloConsola, NULL, (void*)consola,NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);
