@@ -64,6 +64,12 @@ typedef struct{
 __attribute__((packed))
 datosWorker;
 
+typedef struct{
+	int id;
+	int socket;
+}
+__attribute__((packed))
+master;
 
 typedef struct {
 	datosWorker worker;
