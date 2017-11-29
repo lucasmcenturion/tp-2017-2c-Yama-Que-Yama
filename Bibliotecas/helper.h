@@ -41,7 +41,6 @@
 typedef enum { TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL} etapa;
 typedef enum { ENPROCESO, ERROR, FINALIZADOOK} estado;
 typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
-
 typedef struct{
 	int job;
 	int socketMaster;

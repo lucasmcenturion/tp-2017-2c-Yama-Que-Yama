@@ -188,9 +188,9 @@ int StartServidor(char* MyIP, int MyPort) // obtener socket a la escucha
 bool EnviarPaquete(int socketCliente, Paquete* paquete) {
 	int cantAEnviar = sizeof(Header) + paquete->header.tamPayload;
 	void* datos = malloc(cantAEnviar);
-	memcpy(datos, &(paquete->header), TAMANIOHEADER);
+	memmove(datos, &(paquete->header), TAMANIOHEADER);
 	if (paquete->header.tamPayload > 0) //No sea handshake
-		memcpy(datos + TAMANIOHEADER, (paquete->Payload),
+		memmove(datos + TAMANIOHEADER, (paquete->Payload),
 				paquete->header.tamPayload);
 
 	//Paquete* punteroMsg = datos;
@@ -214,6 +214,7 @@ bool EnviarPaquete(int socketCliente, Paquete* paquete) {
 
 bool EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, tipo tipoMensaje){
 	Paquete* paquete = malloc(sizeof(Paquete));
+	//paquete->Payload=malloc(tamDatos);
 	paquete->header.tipoMensaje = tipoMensaje;
 	strcpy(paquete->header.emisor, emisor);
 	uint32_t r = 0;
@@ -223,9 +224,11 @@ bool EnviarDatosTipo(int socketFD, char emisor[11], void* datos, int tamDatos, t
 		paquete->Payload = &r;
 	} else {
 		paquete->header.tamPayload = tamDatos;
-		paquete->Payload = datos;
+		//memmove(paquete->Payload,datos,tamDatos);
+		paquete->Payload=datos;
 	}
 	valor_retorno=EnviarPaquete(socketFD, paquete);
+	//free(paquete->Payload);
 	free(paquete);
 	return valor_retorno;
 }

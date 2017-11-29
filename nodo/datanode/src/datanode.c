@@ -81,33 +81,26 @@ void obtenerStatusDataBin(){
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void getBloque(int numeroDeBloque){
+void* getBloque(int numeroDeBloque,int tamanio){
 	int unFileDescriptor;
 	void * punteroDataBin;
-	punteroDataBin= (void *) malloc (TAMBLOQUE);
-
+	void *datos_a_enviar=malloc(tamanio);
 	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {
 		printf("ERROR en el Open() de getBloque()");
-	}
-	if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1)){
-		printf("ERROR en el mmap() de getBloque()");
 	}else{
-			  void *datos_a_enviar=calloc(1,TAMBLOQUE);
-			  memmove(datos_a_enviar,punteroDataBin,TAMBLOQUE);
-			  EnviarDatosTipo(socketFS, DATANODE, datos_a_enviar, TAMBLOQUE, BLOQUEOBTENIDO);
-
-			  printf("funco bien mmap de getbloque\n");
-			  fflush(stdout);
-			  printf("%s\n",(char*)datos_a_enviar);
-			  fflush(stdout);
-			  free(datos_a_enviar);
+		if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMBLOQUE)) == (caddr_t)(-1)){
+			printf("ERROR en el mmap() de getBloque()");
+		}else{
+				  memmove(datos_a_enviar,punteroDataBin,tamanio);
+		}
 	}
 	int unmap=munmap(punteroDataBin,tamanioDataBin);
 	if(unmap==-1){
 		printf("Error en munmap de getBloque\n");
 		fflush(stdout);
-		free(punteroDataBin);
-	}else free(punteroDataBin);
+	}else{
+		return datos_a_enviar;
+	}
 
 }
 
@@ -188,8 +181,8 @@ int main(){
 
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
 
-	//getBloque(3);
-	//setBloque(2,"1");
+	free(datos);
+
 	//escribirEnArchivoLog("operacion",&LogDatanode);
 	tamanio = sizeof(uint32_t) * 1  + sizeof(char) * strlen(NOMBRE_NODO) + 1;
 	datos = malloc(tamanio);
@@ -199,20 +192,69 @@ int main(){
 	datos +=  strlen(NOMBRE_NODO) + 1;
 	datos -= tamanio;
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
-	free(datos);
-	fflush( stdout );
-	printf("Me voy a quedar lupeando chiks\n");
-	fflush( stdout );
+
 	Paquete paquete;
+	void *datos_solicitud;
+	free(datos);
+	int bloque_archivo;
 	while (RecibirPaqueteCliente(socketFS, FILESYSTEM, &paquete)>0){
 		switch(paquete.header.tipoMensaje){
-		case GETBLOQUE:
+		case SOLICITUDBLOQUE:
 		{
+			datos_solicitud=paquete.Payload;
+			bloque_archivo = *((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int bloque_nodo = *((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int bloques_totales=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int index_directorio=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int tamanio_bloque=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int tamanio_archivo=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			char*nombre_archivo=malloc(100);
+			strcpy(nombre_archivo,datos_solicitud);
+			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+			datos_solicitud+=strlen(nombre_archivo)+1;
+
+			void *bloque=getBloque(bloque_nodo,tamanio_bloque);
+			//bloque=getBloque(bloque_nodo,tamanio_bloque);
+			//memmove(bloque,getBloque(bloque_nodo,tamanio_bloque),tamanio_bloque);
+			//printf((char*)bloque);
+			int tamanio_a_enviar = sizeof(uint32_t) * 5  + sizeof(char)*strlen(nombre_archivo)+1+tamanio_bloque;
+
+			datos_solicitud = calloc(1,tamanio_a_enviar);
+
+			*((uint32_t*)datos_solicitud) = bloque_archivo;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = bloques_totales;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = index_directorio;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = tamanio_bloque;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = tamanio_archivo;
+			datos_solicitud += sizeof(uint32_t);
+			strcpy(datos_solicitud, nombre_archivo);
+			datos_solicitud +=  strlen(nombre_archivo) + 1;
+			memmove(datos_solicitud,bloque,tamanio_bloque);
+			datos_solicitud+=tamanio_bloque;
+			datos_solicitud -= tamanio_a_enviar;
+
+			EnviarDatosTipo(socketFS,DATANODE,datos_solicitud,tamanio_a_enviar,RESPUESTASOLICITUD);
+
+			free(bloque);
 
 		}
 		break;
+		case GETBLOQUE:
+		{
+		}
+		break;
 		case SETBLOQUE:
-			{
+		{
 
 
 			//recibimos los datos
@@ -226,7 +268,7 @@ int main(){
 			datos+=sizeof(uint32_t);
 			int tamano=*((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
-			int bloque_archivo=*((uint32_t*)datos);
+			bloque_archivo=*((uint32_t*)datos);
 			datos+=sizeof(uint32_t);
 			void *bloque=calloc(1,tamano);
 			memmove(bloque,datos,tamano);
@@ -260,7 +302,7 @@ int main(){
 
 			EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
 			free(datos);
-			}
+		}
 		break;
 		}
 		if (paquete.Payload != NULL){

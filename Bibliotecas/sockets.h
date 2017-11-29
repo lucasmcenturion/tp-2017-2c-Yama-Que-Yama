@@ -21,7 +21,9 @@
 #define DATANODE "Datanode  "
 #define YAMA "YAMA      "
 
-typedef enum { ESHANDSHAKE, ESDATOS, ESSTRING, ESARCHIVO, ESINT, ESERROR, NUEVOWORKER, TRANSFWORKER, VALIDACIONWORKER, REDLOCALWORKER, REDGLOBALWORKER, VALIDACIONYAMA,ESNOMBRE,IDENTIFICACIONDATANODE,ESBLOQUE,GETBLOQUE,SETBLOQUE,RESULOPERACION,BLOQUEOBTENIDO} tipo;
+typedef enum { ESHANDSHAKE, ESDATOS, ESSTRING, ESARCHIVO, ESINT, ESERROR, NUEVOWORKER, TRANSFWORKER, VALIDACIONWORKER,
+	REDLOCALWORKER, REDGLOBALWORKER, VALIDACIONYAMA,ESNOMBRE,IDENTIFICACIONDATANODE,ESBLOQUE,GETBLOQUE,SETBLOQUE,
+	RESULOPERACION,BLOQUEOBTENIDO, SOLICITUDBLOQUE , RESPUESTASOLICITUD, NODODESCONECTADO} tipo;
 typedef enum { FORMATEAR, REMOVER, RENOMBRAR, MOVER, MOSTRAR, CREARDIR, CPFROM, CPTO, CPBLOCK, MD5, LISTAR, INFO} accionesFilesystem;
 
 typedef struct{
@@ -69,6 +71,17 @@ typedef struct {
 	uint32_t tamPayload;
 	char emisor[11];
 }__attribute__((packed)) Header;
+
+
+typedef struct {
+	int bloques_totales;
+	int bloque_nodo;
+	int bloque_archivo;
+	int tamanio_bloque;
+	int index_directorio;
+	char* nombre_archivo;
+	char* nombre_nodo;
+}__attribute__((packed)) t_solicitud_bloque;
 
 typedef struct {
 	Header header;
