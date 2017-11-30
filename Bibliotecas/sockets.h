@@ -39,18 +39,21 @@ typedef struct{
 }__attribute__((packed)) solicitudPrograma;
 
 typedef struct{
-datosWorker worker;
-char* archTempRL;
-bool encargado;
+	etapa header; //No se si es necesaria, ahora lo chequeo.
+	datosWorker worker;
+	char* archTempRL;
+	bool encargado;
 }__attribute__((packed)) nodoRG;
 
 typedef struct{
+	etapa header;
 	nodoRG* nodos;
 	char* archRG; //Archivo destino
 	char* programaR;
 }__attribute__((packed)) solicitudRG;
 
 typedef struct{
+	etapa header;
 	datosWorker worker;
 	int bloque;
 	int bytesOcupados;
@@ -59,6 +62,7 @@ typedef struct{
 }__attribute__((packed)) nodoT; //Recibo/Envias una lista de nodos (o array)
 
 typedef struct{
+	etapa header;
 	datosWorker worker;
 	char** listaArchivosTemporales; //Puede ser un t_list
 	char* archivoTemporal; //Destino

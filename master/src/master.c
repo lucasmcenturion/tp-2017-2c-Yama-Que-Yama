@@ -10,6 +10,26 @@ typedef struct{
 	datosWorker worker;
 } hiloWorker;
 
+void* serializacionT(nodoT* nodoDeT){
+	int mov = 0;
+	int size = sizeof(int)*3+strlen(nodoDeT->programaT)+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo);
+	void* result = malloc(size);
+	memcpy(result,&nodoDeT->bloque,sizeof(int));
+	mov += sizeof(int);
+	memcpy(result+mov,&nodoDeT->bytesOcupados,sizeof(int));
+	mov += sizeof(int);
+	memcpy(result+mov,nodoDeT->programaT,strlen(nodoDeT->programaT));
+	mov+=strlen(nodoDeT->programaT);
+	memcpy(result+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal));
+	mov+=strlen(nodoDeT->archivoTemporal);
+	memcpy(result+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
+	mov+=strlen(nodoDeT->worker.ip);
+	memcpy(result+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo));
+	mov+=strlen(nodoDeT->worker.nodo);
+	memcpy(result+mov,&nodoDeT->worker.puerto,sizeof(int));
+
+	return result;
+}
 
 
 
@@ -31,7 +51,7 @@ void imprimirArchivoConfiguracion(){
 }
 
 
-void accionHilo(solicitudPrograma* solicitud){
+void accionHilo(void* solicitud){
 	datosWorker* worker = &solicitud->worker;
 
 	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);
@@ -103,16 +123,16 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 	itemNuevo->worker = ((nodoT*)paquete->Payload)->worker;
 	nodoT* datosParaTransformacion = malloc(sizeof(paquete->header.tamPayload));
 
+
+	//Aca vendria la deserializacion
 	datosParaTransformacion->programaT = programaT;
-	datosParaTransformacion->worker = ((transformacionDatos*)paquete->Payload)->worker;
-	datosParaTransformacion->archivoTemporal = ((transformacionDatos*)paquete->Payload)->archTemp;
-	datosParaTransformacion->bloque = ((transformacionDatos*)paquete->Payload)->bloque;
-	//datosParaTransformacion->cantidadDeBytesOcupados = ((transformacionDatos*)paquete->Payload)->bytesOcupados;
+	datosParaTransformacion->worker = ((nodoT*)paquete->Payload)->worker;
+	datosParaTransformacion->archivoTemporal = ((nodoT*)paquete->Payload)->archivoTemporal;
+	datosParaTransformacion->bloque = ((nodoT*)paquete->Payload)->bloque;
+	datosParaTransformacion->bytesOcupados = ((nodoT*)paquete->Payload)->bytesOcupados;
 
-
-	//datosParaTransformacion->header = REDUCCIONLOCAL;
-		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
-		list_add(listaHilos, itemNuevo);
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
+	list_add(listaHilos, itemNuevo);
 
 }
 
