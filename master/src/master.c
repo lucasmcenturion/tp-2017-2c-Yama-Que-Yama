@@ -20,7 +20,7 @@ int obtenerSizeListdeString(t_list* lista){
 	int tamLista = list_size(lista);
 	int i=0;
 	for(i=0;i<tamLista;i++){
-		size+= strlen(list_get(lista,i));
+		size+= strlen(list_get(lista,i))+1;
 	}
 	return size;
 }
@@ -29,23 +29,24 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 //Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
 	int mov = 0;
 	int sizeAux;
-	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+sizeof(int)+strlen(nodoDeT->archivoTemporal);//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
+	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1;//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
 	void* datos = malloc(size);
 
 	memcpy(datos,&nodoDeT->bloque,sizeof(int));
 	mov += sizeof(int);
 	memcpy(datos+mov,&nodoDeT->bytesOcupados,sizeof(int));
 	mov += sizeof(int);
-	sizeAux = strlen(nodoDeT->programaT);
+	sizeAux = strlen(nodoDeT->programaT)+1;
 	memcpy(datos+mov, &sizeAux,sizeof(int));
 	mov += sizeof(int);
-	memcpy(datos+mov,nodoDeT->programaT,strlen(nodoDeT->programaT));
-	mov+=strlen(nodoDeT->programaT);
-	sizeAux = strlen(nodoDeT->archivoTemporal);
+	memcpy(datos+mov,nodoDeT->programaT,strlen(nodoDeT->programaT)+1);
+	mov+=strlen(nodoDeT->programaT)+1;
+	sizeAux = strlen(nodoDeT->archivoTemporal)+1;
 	memcpy(datos+mov,&sizeAux,sizeof(int));
 	mov += sizeof(int);
-	memcpy(datos+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal));
-	mov+=strlen(nodoDeT->archivoTemporal);
+	memcpy(datos+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal)+1);
+	mov+=strlen(nodoDeT->archivoTemporal)+1;
+
 	/*memcpy(datos+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
 	mov+=strlen(nodoDeT->worker.ip);
 	memcpy(datos+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo));
@@ -61,32 +62,105 @@ void serializacionRLyEnvio(nodoRL* nodoDeRL, int socketWorker){
 	int mov=0;
 	int sizeAux;
 	int sizeList = obtenerSizeListdeString(nodoDeRL->listaArchivosTemporales);
-	int size = sizeof(int)+strlen(nodoDeRL->programaR)+sizeof(int)+strlen(nodoDeRL->archivoTemporal)+list_size(nodoDeRL->listaArchivosTemporales)*sizeof(int)+sizeList;
+	int size = sizeof(int)+strlen(nodoDeRL->programaR)+1+sizeof(int)+strlen(nodoDeRL->archivoTemporal)+1+sizeof(int)+list_size(nodoDeRL->listaArchivosTemporales)*sizeof(int)+sizeList;
 
 	void* datos = malloc(size);
 
-	sizeAux = strlen(nodoDeRL->programaR);
+	sizeAux = strlen(nodoDeRL->programaR)+1;
 	memcpy(datos,&sizeAux,sizeof(int));
 	mov+=sizeof(int);
-	memcpy(datos+mov,nodoDeRL->programaR,strlen(nodoDeRL->programaR));
-	mov+=strlen(nodoDeRL->programaR);
-	sizeAux = strlen(nodoDeRL->archivoTemporal);
+	memcpy(datos+mov,nodoDeRL->programaR,strlen(nodoDeRL->programaR)+1);
+	mov+=strlen(nodoDeRL->programaR)+1;
+	sizeAux = strlen(nodoDeRL->archivoTemporal)+1;
 	memcpy(datos+mov,&sizeAux,sizeof(int));
 	mov+=sizeof(int);
-	memcpy(datos+mov,nodoDeRL->archivoTemporal,strlen(nodoDeRL->archivoTemporal));
-	mov+=strlen(nodoDeRL->archivoTemporal);
+	memcpy(datos+mov,nodoDeRL->archivoTemporal,strlen(nodoDeRL->archivoTemporal)+1);
+	mov+=strlen(nodoDeRL->archivoTemporal)+1;
+	sizeAux = list_size(nodoDeRL->listaArchivosTemporales);
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+
 
 	int i;
 	for(i=0;i<list_size(nodoDeRL->listaArchivosTemporales);i++){
-		sizeAux = strlen(list_get(nodoDeRL->listaArchivosTemporales,i));
+		sizeAux = strlen(list_get(nodoDeRL->listaArchivosTemporales,i)+1);
 		memcpy(datos+mov,&sizeAux,sizeof(int));
 		mov+=sizeof(int);
-		memcpy(datos+mov,list_get(nodoDeRL->listaArchivosTemporales,i),strlen(list_get(nodoDeRL->listaArchivosTemporales,i)));
-		mov+=strlen(list_get(nodoDeRL->listaArchivosTemporales,i));
+		memcpy(datos+mov,list_get(nodoDeRL->listaArchivosTemporales,i),strlen(list_get(nodoDeRL->listaArchivosTemporales,i))+1);
+		mov+=strlen(list_get(nodoDeRL->listaArchivosTemporales,i))+1;
 	}
 
 	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, REDLOCALWORKER))) perror("Error al enviar datosRL al worker");
 	return;
+}
+
+int obtenerSizeListNodoRG(t_list* lista){
+	int size = 0;
+	int tamList = list_size(lista);
+	int i = 0;
+	for(i=0;i<tamList;i++){
+		nodoRG* nodoEvaluado = list_get(lista,i);
+		size += strlen(nodoEvaluado->archTempRL)+1;
+		size += sizeof(bool);
+		size += strlen(nodoEvaluado->worker.ip)+1;
+		size += strlen(nodoEvaluado->worker.nodo)+1;
+		size += sizeof(int);
+	}
+	return size;
+}
+
+void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
+//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
+	int mov = 0;
+	int sizeAux;
+	bool boolAux;
+	int sizeList = obtenerSizeListNodoRG(solRG->nodos);
+	int size = sizeof(int)+strlen(solRG->archRG)+1+sizeof(int)+strlen(solRG->programaR)+1+sizeof(int)+sizeof(int)*3*list_size(solRG->nodos)+sizeList;
+
+	void* datos = malloc(size);
+
+	sizeAux = strlen(solRG->archRG)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,solRG->archRG,strlen(solRG->archRG)+1);
+	mov += strlen(solRG->archRG)+1;
+	sizeAux = strlen(solRG->programaR)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,solRG->programaR,strlen(solRG->programaR)+1);
+	mov += strlen(solRG->programaR)+1;
+	sizeAux = list_size(solRG->nodos);
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+
+	int i;
+	for(i=0;i<list_size(solRG->nodos);i++){
+		nodoRG* nodoAcopiar = list_get(solRG->nodos,i);
+
+		sizeAux = strlen(nodoAcopiar->archTempRL)+1;
+		memcpy(datos+mov,&sizeAux,sizeof(int));
+		mov += sizeof(int);
+		memcpy(datos+mov,nodoAcopiar->archTempRL,strlen(nodoAcopiar->archTempRL)+1);
+		mov += strlen(nodoAcopiar->archTempRL)+1;
+		boolAux = nodoAcopiar->encargado;
+		memcpy(datos+mov,&boolAux,sizeof(bool));
+		mov += sizeof(bool);
+		sizeAux = strlen(nodoAcopiar->worker.nodo)+1;
+		memcpy(datos+mov,&sizeAux,sizeof(int));
+		mov += sizeof(int);
+		memcpy(datos+mov,nodoAcopiar->worker.nodo,strlen(nodoAcopiar->worker.nodo)+1);
+		mov += strlen(nodoAcopiar->worker.nodo)+1;
+		sizeAux = strlen(nodoAcopiar->worker.ip)+1;
+		memcpy(datos+mov,&sizeAux,sizeof(int));
+		mov += sizeof(int);
+		memcpy(datos+mov,nodoAcopiar->worker.ip,strlen(nodoAcopiar->worker.ip)+1);
+		mov += strlen(nodoAcopiar->worker.ip)+1;
+		sizeAux = nodoAcopiar->worker.puerto;
+		memcpy(datos+mov,&sizeAux,sizeof(int));
+		mov += sizeof(int);
+	}
+
+	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, REDGLOBALWORKER))) perror("Error al enviar datosRL al worker");
 }
 
 
@@ -110,9 +184,6 @@ void imprimirArchivoConfiguracion(){
 
 
 void accionHilo(void* solicitud){
-	datosWorker worker = ((nodoT*)solicitud)->worker;
-
-	int socketWorker = ConectarAServidor(worker.puerto, worker.ip, WORKER, MASTER, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));
 	switch (((nodoT*)solicitud)->header)
 	{
@@ -128,7 +199,7 @@ void accionHilo(void* solicitud){
 		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
 		serializacionTyEnvio(datosT,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) perror("Error: No se recibio validacion del worker");//TODO manejo desconexion
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) perror("Error: No se recibio validacion del worker en T");//TODO manejo desconexion
 		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paquete->Payload) {
 				bool* ok = true;
@@ -159,7 +230,7 @@ void accionHilo(void* solicitud){
 
 		serializacionRLyEnvio(datosRL,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: No se recibio validacion del worker"); //TODO manejo desconexion
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: No se recibio validacion del worker en RL"); //TODO manejo desconexion
 		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paquete->Payload) {
 				bool* ok = true;
@@ -192,10 +263,9 @@ void accionHilo(void* solicitud){
 
 		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
 
-		//TODO serializar y enviar datos
+		serializacionRGyEnvio(datosRG,socketWorker);
 
-		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), REDGLOBALWORKER);
-		RecibirPaqueteCliente(socketWorker, MASTER, paquete);
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: no se recibio validacion del worker en RG");//TODO manejo desconexion
 		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paquete->Payload) {
 				bool* ok = true;

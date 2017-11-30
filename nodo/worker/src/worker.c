@@ -37,57 +37,170 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-char* arrayAstring(char** string, int n ){
+char* listAsString(t_list* lista){
 	char* resultado = string_new();
-	int x;
-	for(x=0;x<n-1;x++){
-		string_append(&resultado, string[x]);
-		string_append(&resultado," ");
-	}
-	string_append(&resultado,string[n-1]);
-	return resultado;
-}
-
-char* listaAstring(t_list* lista, int n ){
-	char* resultado = string_new();
+	int tamLista = list_size(lista);
 	int i;
-	for(i=1;i<n;i++){
+	for(i=0;i<tamLista-1;i++){
 		string_append(&resultado,(char*)list_get(lista,i));
-		string_append(&resultado," ");
+		string_append(&resultado, " ");
 	}
-	string_append(&resultado,(char*)list_get(lista,n));
+	string_append(&resultado,(char*) list_get(lista,tamLista-1));
 	return resultado;
 }
 
-void realizarTransformacion(solicitudPrograma* programa){
+char* listaAstringRG(t_list* lista){
+	char* resultado = string_new();
+	int tamLista = list_size(lista);
+	int i;
+	for(i=0;i<tamLista;i++){
+		nodoRG* elem = list_get(lista,i);
+		string_append(&resultado,elem->archTempRL);
+		string_append(&resultado," ");
+	}
+	nodoRG* elem = list_get(lista, tamLista-1);
+	string_append(&resultado,elem->archTempRL);
+	return resultado;
+}
+
+nodoT* deserializacionT(void* payload){
+//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
+	int mov = 0;
+	int aux;
+	nodoT* datosT = malloc(sizeof(nodoT));
+
+	memcpy(&datosT->bloque,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	memcpy(&datosT->bytesOcupados,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	memcpy(&aux,payload+mov,sizeof(int)); //Aux contiene el tamanio del string de programaT
+	mov += sizeof(int);
+	datosT->programaT = malloc(aux);
+	memcpy(datosT->programaT,payload+mov,aux);
+	mov += aux;
+	memcpy(&aux,payload+mov,sizeof(int)); //Aux contiene el tamanio del string de archivoTemp
+	mov += sizeof(int);
+	datosT->archivoTemporal = malloc(aux);
+	memcpy(datosT->archivoTemporal,payload+mov,aux);
+
+	return datosT;
+}
+
+nodoRL* deserializacionRL(void* payload){
+//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
+	int mov = 0;
+	int tamList;
+	int aux;
+	nodoRL* datosRL = malloc(sizeof(nodoRL));
+
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datosRL->programaR = malloc(aux); //Aux contiene el tamanio de string de programaR
+	memcpy(datosRL->programaR,payload+mov,aux);
+	mov += aux;
+	memcpy(&aux,payload+mov,sizeof(int)); //Aux contiene el tamanio de string de archivoTemporal
+	mov += sizeof(int);
+	datosRL->archivoTemporal = malloc(aux);
+	memcpy(datosRL->archivoTemporal,payload+mov,aux);
+	mov += aux;
+	memcpy(&tamList,payload+mov,sizeof(int));
+	mov += sizeof(int);
+
+	datosRL->listaArchivosTemporales = list_create();
+	int i;
+	for(i=0;i<tamList;i++){
+		memcpy(&aux,payload+mov,sizeof(int));
+		mov += sizeof(int);
+		char* elemento = malloc(aux);
+		memcpy(elemento,payload+mov,aux);
+		mov += aux;
+		list_add(datosRL->listaArchivosTemporales,elemento);
+	}
+
+	return datosRL;
+
+}
+
+solicitudRG* deserializacionRG(void* payload){
+//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
+	int mov = 0;
+	int aux;
+	int tamList;
+	bool boolAux;
+	solicitudRG* datosRG = malloc(sizeof(solicitudRG));
+
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datosRG->archRG = malloc(aux); //Aux contiene el tamanio de ArchRG
+	memcpy(datosRG->archRG,payload+mov,aux);
+	mov += aux;
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datosRG->programaR = malloc(aux); //Aux contiene el tamanio de programaRG
+	memcpy(datosRG->programaR,payload+mov,aux);
+	mov += aux;
+	memcpy(&tamList,payload+mov,sizeof(int));
+	mov += sizeof(int);
+
+	datosRG->nodos = list_create();
+	int i;
+	for(i=0;i<tamList;i++){
+		nodoRG* nodoAgregar = malloc(sizeof(nodoRG));
+
+		memcpy(&aux,payload+mov,sizeof(int));
+		mov += sizeof(int);
+		nodoAgregar->archTempRL = malloc(aux); //Aux contiene tamanio ArchTempRL
+		memcpy(nodoAgregar->archTempRL,payload+mov,aux);
+		mov += aux;
+		memcpy(&nodoAgregar->encargado,payload+mov,sizeof(bool));
+		mov += sizeof(bool);
+		memcpy(&aux,payload+mov,sizeof(int));
+		mov += sizeof(int);
+		nodoAgregar->worker.nodo = malloc(aux); //Aux contiene tamanio nodo
+		memcpy(nodoAgregar->worker.nodo,payload+mov,aux);
+		mov += aux;
+		memcpy(&aux,payload+mov,sizeof(int));
+		mov += sizeof(int);
+		nodoAgregar->worker.ip = malloc(aux); //Aux contiene tamanio ip
+		memcpy(nodoAgregar->worker.ip,payload+mov,aux);
+		mov += aux;
+		memcpy(&(nodoAgregar->worker.puerto),payload+mov,sizeof(int));
+		mov += sizeof(int);
+
+		list_add(datosRG->nodos,nodoAgregar);
+
+	}
+return datosRG;
+
+}
+
+
+void realizarTransformacion(nodoT* data){
 	FILE* dataBin = fopen("/home/utnso/workspace/nodo/archivos/nodo1/data.bin","r");
 
-	/*struct stat dataBinStat;
-	stat("/home/utnso/workspace/nodo/archivos/nodo1/data.bin",&dataBinStat);
-	int sizeOfFile = dataBinStat.st_size;*/
-
-	char* bufferTexto = malloc(programa->cantidadDeBytesOcupados);
-	int mov = programa->bloque * TAMANIODEBLOQUE;
+	char* bufferTexto = malloc(data->bytesOcupados);
+	int mov = data->bloque * TAMANIODEBLOQUE;
 	fseek(dataBin,mov,SEEK_SET);
-	fread(bufferTexto,programa->cantidadDeBytesOcupados,1,dataBin);
+	fread(bufferTexto,data->bytesOcupados,1,dataBin);
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
-	char* strToSys = string_from_format("echo %s | .%s | sort -d - > %s", bufferTexto,programa->programa,programa->archivoTemporal);
+	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	char* strToSys = string_from_format("echo %s | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	system(strToSys);
 	return;
 }
 
-void realizarReduccionLocal(solicitudPrograma* programa){
-	char* strArchTemp = string_new();//string con archivos temporales
-	arrayAstring(programa->ListaArchivosTemporales,programa->cantArchTempRL);
-	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, programa->programa, programa->archivoTemporal);
+void realizarReduccionLocal(nodoRL* data){
+	char* strArchTemp = listAsString(data->listaArchivosTemporales);
+	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
 	system(strToSys);
 	return;
 }
 
-void realizarReduccionGlobal(solicitudPrograma* programa, t_list* archivosTemporales){
-	int cantArchTemp = list_size(archivosTemporales);
-	char* strArchivosTemporales = listaAstring(archivosTemporales,cantArchTemp);
-	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchivosTemporales, programa->programa, programa->archivoTemporal);
+void realizarReduccionGlobal(solicitudRG* data){
+	char* strArchivosTemporales = listaAstringRG(data->nodos);
+	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchivosTemporales, data->programaR, data->archRG);
 	system(strToSys);
 	return;
 }
@@ -98,31 +211,45 @@ void accionPadre(void* socketMaster){
 void accionHijo(void* socketM){
 
 	int socketMaster = *(int*) socketM;
-	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-	RecibirPaqueteCliente(socketMaster, WORKER, paqueteArecibir);
-	if(!strcmp(paqueteArecibir->header.emisor, MASTER)){ //Posible error en el !
+	Paquete* paquete = malloc(sizeof(Paquete));
 
-		solicitudPrograma* programa = malloc(paqueteArecibir->header.tamPayload);
-		switch(paqueteArecibir->header.tipoMensaje){
+	if(RecibirPaqueteCliente(socketMaster, WORKER, paquete)<0) perror("Error: No se recibieron los datos de Master");
+	if(!strcmp(paquete->header.emisor, MASTER)){ //Posible error en el !
+
+		switch(paquete->header.tipoMensaje){
 		case TRANSFWORKER:{
-			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
-			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
-			programa->bloque = ((solicitudPrograma*)paqueteArecibir->Payload)->bloque;
-			programa->cantidadDeBytesOcupados = ((solicitudPrograma*)paqueteArecibir->Payload)->cantidadDeBytesOcupados;
-			realizarTransformacion(programa);
+			nodoT* datosT = deserializacionT(paquete->Payload);
+			realizarTransformacion(datosT);
 			break;
 		}
 		case REDLOCALWORKER:{
-			programa->programa = ((solicitudPrograma*)paqueteArecibir->Payload)->programa;
-			programa->archivoTemporal = ((solicitudPrograma*)paqueteArecibir->Payload)->archivoTemporal;
-			programa->ListaArchivosTemporales = ((solicitudPrograma*)paqueteArecibir->Payload)->ListaArchivosTemporales;
-			programa->cantArchTempRL = ((solicitudPrograma*)paqueteArecibir->Payload)->cantArchTempRL; //TODO
-			realizarReduccionLocal(programa);
+			nodoRL* datosRL = deserializacionRL(paquete->Payload);
+			realizarReduccionLocal(datosRL);
 			break;
 		}
 		case REDGLOBALWORKER:{
+			solicitudRG* datosRG = deserializacionRG(paquete->Payload);
+			bool obtenerEncargado(nodoRG* elemento){
+				return elemento->encargado;
+			}
+			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 
-			//realizarReduccionGlobal(programa);
+			//if es encargado, se conecta a cada uno para obtener los archivos temporales
+			if(strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
+				realizarReduccionGlobal(datosRG);
+			}
+			else{//else espera conexion y manda archivo temporal
+				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
+			}
+
+
+
+
+
+
+
+
+
 			break;
 		}
 		}
