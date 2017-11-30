@@ -213,7 +213,13 @@ bool bloqueAAsignarEsta(datosWorker* w, t_bloque_yama* bloque){
 	}
 
 }
-
+datosWorker* proximoWorkerDisponible(datosWorker* actual){
+	void* worker = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice > actual->indice ;}));
+	if (worker == NULL)
+		return list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice < actual->indice ;}));
+	else
+		return worker;
+}
 
 void planificacion(t_list* bloques){
 	//calcula la disponibilidad por cada worker y la actualiza
@@ -286,13 +292,7 @@ void planificacion(t_list* bloques){
 	}
 
 }
-datosWorker* proximoWorkerDisponible(datosWorker* actual){
-	void* worker = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice > actual->indice ;}));
-	if (worker == NULL)
-		return list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice < actual->indice ;}));
-	else
-		return worker;
-}
+
 
 void avanzarPuntero(datosWorker* puntero){
 	//si el puntero está en el ultimo, lo pongo en el primero. Sino, en el siguiente
@@ -305,6 +305,7 @@ void avanzarPuntero(datosWorker* puntero){
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
+
 	CrearListas();
 	socketFS = ConectarAServidor(FS_PUERTO, FS_IP, FILESYSTEM, YAMA, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));

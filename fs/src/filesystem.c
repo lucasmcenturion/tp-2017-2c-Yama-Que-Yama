@@ -211,10 +211,7 @@ void actualizar_nodos_bin(info_datanode *data) {
 	t_config *nodos = config_create(ruta_nodos);
 	int tamanio_actual;
 	tamanio_actual = config_get_int_value(nodos, "TAMANIO");
-	tamanio_actual =
-			tamanio_actual == 0 ?
-					data->bloques_totales :
-					tamanio_actual + data->bloques_totales;
+	tamanio_actual =tamanio_actual == 0 ?data->bloques_totales :tamanio_actual + data->bloques_totales;
 	char *string_tamanio_actual = malloc(100);
 	sprintf(string_tamanio_actual, "%i", tamanio_actual);
 	string_tamanio_actual = realloc(string_tamanio_actual,
@@ -500,6 +497,41 @@ void escribir_archivo_temporal(int tamanio_archivo, int numero_bloque,
 		}
 	}
 }
+t_list*obtener_lista_bloques(char*ruta_archivo){
+	t_config*archivo=config_create(ruta_archivo);
+	t_list *bloques=list_create();
+	bool existe=true;
+	int i=0;
+	while(existe){
+		char*bytes=malloc(100);
+		strcpy(bytes,"BLOQUE");
+		strcat(bytes,integer_to_string(i));
+		strcat(bytes,"BYTES");
+		bytes=realloc(bytes,strlen(bytes)+1);
+		char *primera_copia=malloc(100);
+		strcpy(primera_copia,"BLOQUE");
+		strcat(primera_copia,integer_to_string(i));
+		strcat(primera_copia,"COPIA0");
+		char *segunda_copia=malloc(100);
+		strcpy(segunda_copia,"BLOQUE");
+		strcat(segunda_copia,integer_to_string(i));
+		strcat(segunda_copia,"COPIA1");
+		if(config_has_property(archivo,bytes)){
+			t_bloque_yama *un_bloque=malloc(sizeof(t_bloque_yama));
+			un_bloque->numero_bloque=i;
+			un_bloque->tamanio=config_get_int_value(archivo,bytes);
+			char **primera_copia_array=config_get_array_value(archivo,primera_copia);
+			strcpy(un_bloque->primera.nombre_nodo,primera_copia_array[0]);
+			un_bloque->primera.bloque_nodo=atoi(primera_copia_array[1]);
+			char **segunda_copia_array=config_get_array_value(archivo,segunda_copia);
+			strcpy(un_bloque->segunda.nombre_nodo,segunda_copia_array[0]);
+			un_bloque->segunda.bloque_nodo=atoi(segunda_copia_array[1]);
+			list_add(bloques,un_bloque);
+		}else{
+			existe=false;
+		}
+	}
+}
 void accion(void* socket) {
 	int socketFD = *(int*) socket;
 	Paquete paquete;
@@ -534,8 +566,38 @@ void accion(void* socket) {
 				strcat(ruta_archivo_en_metadata,"/");
 				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
 				t_list*lista_bloques=list_create();
-				lista_bloques=obtener_lista_bloques(ruta_archivo);
+				lista_bloques=obtener_lista_bloques(ruta_archivo_en_metadata);
+				//la funcion obtener_lista_bloques me carga la lista
+				int var;
+				for (var = 0; var < list_size(lista_bloques); ++var) {
+					t_bloque_yama *bloque=list_get(lista_bloques,var);
+					printf("Tamanio: %i,Numero: %i ,Primera copia: Nodo: %s, Bloque:%i,Segunda copia copia: Nodo: %s, Bloque:%i",
+							bloque->tamanio,bloque->numero_bloque,bloque->primera.bloque_nodo,
+							bloque->primera.bloque_nodo,bloque->segunda.nombre_nodo,bloque->segunda.bloque_nodo);
+				}
+				/*void *datos_enviar;
+				int tamanio=sizeof(uint32_t) +list_size(lista_bloques)*sizeof(t_bloque_yama);
+				for (var = 0; var < list_size(lista_bloques); ++var) {
+					t_bloque_yama *bloque=list_get(lista_bloques,var);
+					*((uint32_t*)datos_enviar)=list_size(lista_bloques);
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->numero_bloque;
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->tamanio;
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->primera.bloque_nodo;
+					datos_enviar += sizeof(uint32_t);
+					strcpy(datos_enviar,bloque->primera.nombre_nodo);
+					datos_enviar+=strlen(bloque->primera.nombre_nodo)+1;
+					*((uint32_t*)datos_enviar)=bloque->segunda.bloque_nodo;
+					datos_enviar += sizeof(uint32_t);
+					strcpy(datos_enviar,bloque->segunda.nombre_nodo);
+					datos_enviar+=strlen(bloque->segunda.nombre_nodo)+1;
 
+				}
+				datos_enviar-=tamanio;
+				 	*/
+				//serializar datos
 
 			}
 			break;
@@ -588,11 +650,7 @@ void accion(void* socket) {
 					//no tiene un bitmap,es archivo nuevo
 					FILE *f = fopen(path, "w");
 					fclose(f);
-					int size_bitarray =
-							(int) (size_databin / TAMBLOQUE) % 8 > 0 ?
-									((int) ((int) (size_databin / TAMBLOQUE) / 8))
-											+ 1 :
-									(int) (size_databin / TAMBLOQUE);
+					int size_bitarray =(int) (size_databin / TAMBLOQUE) % 8 > 0 ?((int) ((int) (size_databin / TAMBLOQUE) / 8))+ 1 :(int) (size_databin / TAMBLOQUE);
 					truncate(path, size_bitarray);
 					int bitmap = open(path, O_RDWR);
 					struct stat mystat;
@@ -601,8 +659,7 @@ void accion(void* socket) {
 						printf("Error al establecer fstat\n");
 						close(bitmap);
 					} else {
-						bmap = mmap(NULL, mystat.st_size,
-								PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+						bmap = mmap(NULL, mystat.st_size,PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
 						if (bmap == MAP_FAILED) {
 							printf("Error al mapear a memoria: %s\n",
 									strerror(errno));
@@ -613,10 +670,8 @@ void accion(void* socket) {
 							munmap(bmap, mystat.st_size);
 							close(bitmap);
 							bitarray_destroy(bitarray);
-							data->bloques_libres = (int) (size_databin
-									/ TAMBLOQUE);
-							data->bloques_totales = (int) (size_databin
-									/ TAMBLOQUE);
+							data->bloques_libres = (int) (size_databin/ TAMBLOQUE);
+							data->bloques_totales = (int) (size_databin/ TAMBLOQUE);
 						}
 					}
 				} else {
@@ -634,13 +689,8 @@ void accion(void* socket) {
 							printf("Error al mapear a memoria: %s\n",
 									strerror(errno));
 						} else {
-							int size_bitarray =
-									(int) (size_databin / TAMBLOQUE) % 8 > 0 ?
-											((int) ((int) (size_databin
-													/ TAMBLOQUE) / 8)) + 1 :
-											(int) (size_databin / TAMBLOQUE);
-							t_bitarray *bitarray = bitarray_create_with_mode(
-									bmap, size_bitarray, MSB_FIRST);
+							int size_bitarray =(int) (size_databin / TAMBLOQUE) % 8 > 0 ?((int) ((int) (size_databin/ TAMBLOQUE) / 8)) + 1 :(int) (size_databin / TAMBLOQUE);
+							t_bitarray *bitarray = bitarray_create_with_mode(bmap, size_bitarray, MSB_FIRST);
 							int i;
 							int bloques_ocupados = 0;
 							for (i = 0; i < (int) (size_databin / TAMBLOQUE);
@@ -649,10 +699,8 @@ void accion(void* socket) {
 									bloques_ocupados++;
 								}
 							}
-							data->bloques_totales = (int) (size_databin
-									/ TAMBLOQUE);
-							data->bloques_libres = data->bloques_totales
-									- bloques_ocupados;
+							data->bloques_totales = (int) (size_databin/ TAMBLOQUE);
+							data->bloques_libres = data->bloques_totales- bloques_ocupados;
 							munmap(bmap, mystat.st_size);
 							close(bitmap);
 						}
@@ -742,8 +790,62 @@ void accion(void* socket) {
 				//break;
 				//}
 				break;
-			}
+			case ESHANDSHAKE:{
+				//TODO SOLICITUDBLOQUESYAMA
+				datos=paquete.Payload;
+				//char*ruta_archivo=malloc(100);
+				//strcpy(ruta_archivo,datos);
+				//ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
+				int index_padre=index_ultimo_directorio("/julian/so/yama_que_yama/test.dat","a");
+				char**separado_por_barras=string_split("/julian/so/yama_que_yama/test.dat","/");
+				int i=0;
+				while(separado_por_barras[i]){
+					i++;
+				}
+				i--;
+				char*ruta_archivo_en_metadata=malloc(100);
+				strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
+				strcat(ruta_archivo_en_metadata,"/");
+				strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
+				strcat(ruta_archivo_en_metadata,"/");
+				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
+				t_list*lista_bloques=list_create();
+				lista_bloques=obtener_lista_bloques(ruta_archivo_en_metadata);
+				//la funcion obtener_lista_bloques me carga la lista
+				int var;
+				for (var = 0; var < list_size(lista_bloques); ++var) {
+					t_bloque_yama *bloque=list_get(lista_bloques,var);
+					printf("Tamanio: %i,Numero: %i ,Primera copia: Nodo: %s, Bloque:%i,Segunda copia copia: Nodo: %s, Bloque:%i",
+							bloque->tamanio,bloque->numero_bloque,bloque->primera.bloque_nodo,
+							bloque->primera.bloque_nodo,bloque->segunda.nombre_nodo,bloque->segunda.bloque_nodo);
+				}
+				/*void *datos_enviar;
+				int tamanio=sizeof(uint32_t) +list_size(lista_bloques)*sizeof(t_bloque_yama);
+				for (var = 0; var < list_size(lista_bloques); ++var) {
+					t_bloque_yama *bloque=list_get(lista_bloques,var);
+					*((uint32_t*)datos_enviar)=list_size(lista_bloques);
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->numero_bloque;
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->tamanio;
+					datos_enviar += sizeof(uint32_t);
+					*((uint32_t*)datos_enviar)=bloque->primera.bloque_nodo;
+					datos_enviar += sizeof(uint32_t);
+					strcpy(datos_enviar,bloque->primera.nombre_nodo);
+					datos_enviar+=strlen(bloque->primera.nombre_nodo)+1;
+					*((uint32_t*)datos_enviar)=bloque->segunda.bloque_nodo;
+					datos_enviar += sizeof(uint32_t);
+					strcpy(datos_enviar,bloque->segunda.nombre_nodo);
+					datos_enviar+=strlen(bloque->segunda.nombre_nodo)+1;
 
+				}
+				datos_enviar-=tamanio;
+					*/
+				//serializar datos
+
+			}
+			break;
+		}
 		} else if (!strcmp(paquete.header.emisor, WORKER)) {
 
 			switch (paquete.header.tipoMensaje) {
@@ -762,9 +864,10 @@ void accion(void* socket) {
 	}
 	close(socketFD);
 	sacar_datanode(socketFD);
-	datos=malloc(strlen(nodo_desconectado)+1);
-	strcpy(datos,nodo_desconectado);
-	EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,strlen(nodo_desconectado)+1,NODODESCONECTADO);
+	void *datos_datanode;
+	datos_datanode=malloc(strlen(nodo_desconectado)+1);
+	strcpy(datos_datanode,nodo_desconectado);
+	EnviarDatosTipo(socketYAMA,FILESYSTEM,datos_datanode,strlen(nodo_desconectado)+1,NODODESCONECTADO);
 
 
 }
@@ -2059,6 +2162,7 @@ void setear_directorio(int index_array, int index, char *nombre, int padre) {
 }
 
 int main() {
+
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	RUTA_DIRECTORIOS = malloc(strlen(PUNTO_MONTAJE) + strlen("/directorios.dat") + 1);
