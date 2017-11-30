@@ -738,7 +738,6 @@ void accion(void* socket) {
 	sacar_datanode(socketFD);
 	datos=malloc(strlen(nodo_desconectado)+1);
 	strcpy(datos,nodo_desconectado);
-	datos-=(strlen(nodo_desconectado)+1);
 	EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,strlen(nodo_desconectado)+1,NODODESCONECTADO);
 
 
