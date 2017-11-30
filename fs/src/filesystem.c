@@ -7,6 +7,7 @@ char *RUTA_DIRECTORIOS;
 char *RUTA_NODOS;
 char *RUTA_ARCHIVOS;
 char *ruta_a_guardar;
+char *RUTA_BITMAPS;
 int PUERTO;
 int socketFS;
 int socketYAMA;
@@ -512,7 +513,32 @@ void accion(void* socket) {
 				EnviarDatosTipo(socketYAMA, FILESYSTEM, datos, tamanio,
 						NUEVOWORKER);
 			}
-				break;
+			break;
+			case SOLICITUDBLOQUESYAMA:{
+				//TODO SOLICITUDBLOQUESYAMA
+				datos=paquete.Payload;
+				char*ruta_archivo=malloc(100);
+				strcpy(ruta_archivo,datos);
+				ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
+				int index_padre=index_ultimo_directorio(ruta_archivo,"a");
+				char**separado_por_barras=string_split(ruta_archivo,"/");
+				int i=0;
+				while(separado_por_barras[i]){
+					i++;
+				}
+				i--;
+				char*ruta_archivo_en_metadata=malloc(100);
+				strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
+				strcat(ruta_archivo_en_metadata,"/");
+				strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
+				strcat(ruta_archivo_en_metadata,"/");
+				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
+				t_list*lista_bloques=list_create();
+				lista_bloques=obtener_lista_bloques(ruta_archivo);
+
+
+			}
+			break;
 			case RESPUESTASOLICITUD: {
 				datos = paquete.Payload;
 				int bloque_archivo = *((uint32_t*) datos);
@@ -1137,6 +1163,61 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	}
 
 }
+char *obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
+	int tamanio_nodo;
+	char*total_nodo=malloc(100);
+	strcpy(total_nodo,nombre_archivo);
+	total_nodo=strtok(total_nodo,".");
+	strcat(total_nodo,"Total");
+	total_nodo=realloc(total_nodo,strlen(total_nodo)+1);
+	t_config*nodos=config_create(RUTA_NODOS);
+	tamanio_nodo=config_get_int_value(nodos,total_nodo);
+	char*libre_nodo=malloc(100);
+	strcpy(libre_nodo,nombre_archivo);
+	libre_nodo=strtok(libre_nodo,".");
+	strcat(libre_nodo,"Libre");
+	libre_nodo=realloc(libre_nodo,strlen(libre_nodo)+1);
+	config_set_value(nodos,libre_nodo,total_nodo);
+	if(primera_vez){
+		config_set_value(nodos,"LIBRE",tamanio_nodo);
+	}else{
+		int tamanio_anterior=config_get_int_value(nodos,"LIBRE");
+		tamanio_anterior+=tamanio_nodo;
+		config_set_value(nodos,"LIBRE",tamanio_anterior);
+	}
+	config_save(nodos);
+	config_save_in_file(nodos,RUTA_NODOS);
+	free(total_nodo);
+	free(libre_nodo);
+	return tamanio_nodo;
+}
+void formatear_bitarray(char*nombre_archivo,bool primera_vez){
+	int size_databin=obtener_total_y_formatear_nodos_bin(nombre_archivo,primera_vez);
+	int size_bitarray =size_databin % 8 > 0 ? ((int) (size_databin / 8)) + 1 : (int) (size_databin / 8);
+	char*ruta=malloc(100);
+	strcpy(ruta,RUTA_BITMAPS);
+	strcat(ruta,"/");
+	strcat(ruta,nombre_archivo);
+	ruta=realloc(ruta,strlen(ruta)+1);
+	int bitmap = open(ruta, O_RDWR);
+	struct stat mystat;
+	void *bmap;
+	if (fstat(bitmap, &mystat) < 0) {
+		printf("Error al establecer fstat\n");
+		close(bitmap);
+	} else {
+		bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED,bitmap, 0);
+		if (bmap == MAP_FAILED) {
+			printf("Error al mapear a memoria: %s\n", strerror(errno));
+		} else {
+			t_bitarray *bitarray=bitarray_create(bmap,size_bitarray);
+			int var;
+			for (var = 0; var < size_databin; ++var) {
+				bitarray_clean_bit(bitarray,var);
+			}
+		}
+	}
+}
 void consola() {
 	char * linea;
 	while (true) {
@@ -1152,7 +1233,26 @@ void consola() {
 			setear_directorio(0, 0, "root", -1);
 			rmtree(RUTA_ARCHIVOS);
 			mkdir(RUTA_ARCHIVOS, 0700);
-		} else if (!strncmp(linea, "rm ", 3)) {
+			DIR*d;
+			struct dirent *dir;
+			d = opendir(RUTA_BITMAPS);
+			bool primera_vez=true;
+			int i=0;
+			if (d){
+				while ((dir = readdir(d)) != NULL)
+				{
+					if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
+						if(i!=0){
+							primera_vez=false;
+						}
+						formatear_bitarray(dir->d_name,primera_vez);
+					}
+					i++;
+				}
+				closedir(d);
+			}
+		}
+		else if (!strncmp(linea, "rm ", 3)) {
 			linea += 3;
 			if (!strncmp(linea, "-d", 2)) {
 
@@ -1970,6 +2070,9 @@ int main() {
 	RUTA_ARCHIVOS = malloc(strlen(PUNTO_MONTAJE) + strlen("/archivos") + 1);
 	strcpy(RUTA_ARCHIVOS, PUNTO_MONTAJE);
 	strcat(RUTA_ARCHIVOS, "/archivos");
+	RUTA_BITMAPS = malloc(strlen(PUNTO_MONTAJE) + strlen("/bitmaps") + 1);
+	strcpy(RUTA_BITMAPS, PUNTO_MONTAJE);
+	strcat(RUTA_BITMAPS, "/bitmaps");
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
 	/*
 	 t_directory **directorios=obtener_directorios();
