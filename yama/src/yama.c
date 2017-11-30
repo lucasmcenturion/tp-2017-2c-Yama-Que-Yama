@@ -10,6 +10,7 @@ t_list* tablaDeEstados;
 datosWorker* punteroClock;
 bool end;
 int idsMaster=0;
+int indiceWorker=0;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("yamaCFG.txt");
@@ -73,10 +74,24 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 			worker->contTareasRealizadas = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
 			datos -= tamanio;
+			worker->indice = indiceWorker;
+			indiceWorker++;
 			list_add(listaWorkers,worker);
 		}
-		else
+		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
+			char* nodoAEliminar = string_new();
+			strcpy(nodoAEliminar,paquete->Payload);
+			int indiceEliminado = ((datosWorker*)list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);})))->indice;
+			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}), free);
+			void actualizarIndice(datosWorker* worker){
+				if (worker->indice > indiceEliminado)
+					worker->indice--;
+			}
+			list_iterate(listaWorkers,actualizarIndice);
+			indiceWorker--;
+
+
 		}
 	}
 }
@@ -176,8 +191,8 @@ void availability(datosWorker* worker){
 }
 
 
-void calcularDisponibilidad(){
-	list_iterate(listaWorkers,LAMBDA(void _(void* item) { availability(item);}));
+void calcularDisponibilidad(t_list* list){
+	list_iterate(list,availability);
 }
 
 bool bloqueAAsignarEsta(datosWorker* w, t_bloque_yama* bloque){
@@ -202,30 +217,89 @@ bool bloqueAAsignarEsta(datosWorker* w, t_bloque_yama* bloque){
 
 void planificacion(t_list* bloques){
 	//calcula la disponibilidad por cada worker y la actualiza
-	calcularDisponibilidad();
-
+	calcularDisponibilidad(listaWorkers);
+	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	//ordena por disponibilidad de mayor a menor
-	for(int i = 0; i < list_size(bloques); i++ )
+	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
+	//obtiene la mayor disponibilidad
+	uint32_t disp = ((datosWorker*)list_get(lista, 0))->disponibilidad;
+	//obtiene los elementos que poseen la mayor disponibilidad
+	t_list* disponibles = list_filter(lista,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
+	//ordena por cantidad tareas realizadas de menor a mayor
+	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
+	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
+	punteroClock = list_get(disponibles, 0);
+	list_destroy(disponibles);
+	int i;
+	for(i = 0; i < list_size(bloques); i++)
 	{
 		//Se obtiene el bloque actual
 		t_bloque_yama* bloqueAAsignar = list_get(bloques, i);
-		t_list* lista = listaWorkers;
-		list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
-		//obtiene la mayor disponibilidad
-		uint32_t disp = ((datosWorker*)list_get(listaWorkers, 0))->disponibilidad;
-		//obtiene los elementos que poseen la mayor disponibilidad
-		t_list* disponibles = list_filter(listaWorkers,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
-		//ordena por cantidad tareas realizadas de menor a mayor
-		list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
-		//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
-		punteroClock = list_get(disponibles, 0);
-		list_destroy(disponibles);
-		//se fija si está el bloque a asignar
-		bloqueAAsignarEsta(punteroClock, bloqueAAsignar);
 
-
+		//loopea hasta que se logre asignar el bloque y recien ahi avanza al proximo
+		bool salio = false;
+		do
+		{
+			//se fija si está el bloque a asignar
+			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar))
+			{
+				//si está se reduce el valor de disponibilidad
+				punteroClock->disponibilidad--;
+				//y se avanza el clock al siguiente worker
+				avanzarPuntero(punteroClock);
+				//si el valor del punteroClock ahora es 0, se debe restaurar su disponibilidad a la base y avanzar el puntero
+				if (punteroClock->disponibilidad == 0){
+					punteroClock->disponibilidad = BASE;
+					avanzarPuntero(punteroClock);
+				}
+				salio = true;
+			}
+			//si no está
+			else
+			{
+				//se queda loopeando hasta encontrar el proximo worker con disponibilidad mayor a 0 que posea el bloque a asignar
+				//o hasta haber dado una vuelta sin encontrar uno disponible
+				datosWorker* punteroAux = proximoWorkerDisponible(punteroClock);
+				do {
+					if (bloqueAAsignarEsta(punteroAux, bloqueAAsignar))
+					{
+						//si está se reduce el valor de disponibilidad
+						punteroAux->disponibilidad--;
+						break;
+					}
+					punteroAux = proximoWorkerDisponible(punteroClock);
+				}
+				while(punteroAux != punteroClock);
+				//si dio la vuelta y no encontró ninguno se re-calculan los valores de disponibilidad de los que tienen 0 como al principio
+				if (punteroAux == punteroClock)
+				{
+					t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
+					calcularDisponibilidad(listaAux);
+				}
+				else
+				{
+					salio = true;
+					break;
+				}
+			}
+		}while(!salio);
 	}
 
+}
+datosWorker* proximoWorkerDisponible(datosWorker* actual){
+	void* worker = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice > actual->indice ;}));
+	if (worker == NULL)
+		return list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad > 0 && ((datosWorker*)item1)->indice < actual->indice ;}));
+	else
+		return worker;
+}
+
+void avanzarPuntero(datosWorker* puntero){
+	//si el puntero está en el ultimo, lo pongo en el primero. Sino, en el siguiente
+	if (puntero->indice == (list_size(listaWorkers) - 1))
+		puntero = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == 0;}));
+	else
+		puntero = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
 }
 
 int main(){

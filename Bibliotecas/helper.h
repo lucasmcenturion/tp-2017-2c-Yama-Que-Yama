@@ -60,6 +60,7 @@ typedef struct{
 	uint32_t cargaDeTrabajo;
 	uint32_t disponibilidad;
 	uint32_t contTareasRealizadas;
+	uint32_t indice;
 }
 __attribute__((packed))
 datosWorker;
