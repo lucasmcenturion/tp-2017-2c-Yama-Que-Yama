@@ -160,7 +160,6 @@ void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
 		mov += sizeof(int);
 	}
 
-	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, REDGLOBALWORKER))) perror("Error al enviar datosRL al worker");
 }
 
 

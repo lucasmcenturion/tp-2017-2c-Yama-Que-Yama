@@ -232,14 +232,21 @@ void accionHijo(void* socketM){
 			bool obtenerEncargado(nodoRG* elemento){
 				return elemento->encargado;
 			}
+			bool obtenerActual(nodoRG* elemento){
+				if (strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
+				else false;
+			}
 			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
-
+			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
 			//if es encargado, se conecta a cada uno para obtener los archivos temporales
 			if(strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
+
 				realizarReduccionGlobal(datosRG);
 			}
 			else{//else espera conexion y manda archivo temporal
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
+				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,workerActual->archTempRL, strlen(workerActual->archTempRL)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+
 			}
 
 
