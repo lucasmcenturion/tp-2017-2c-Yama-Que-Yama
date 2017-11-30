@@ -47,7 +47,7 @@ typedef struct{
 
 typedef struct{
 	etapa header;
-	nodoRG* nodos;
+	t_list* nodos;
 	char* archRG; //Archivo destino
 	char* programaR;
 }__attribute__((packed)) solicitudRG;
@@ -64,7 +64,7 @@ typedef struct{
 typedef struct{
 	etapa header;
 	datosWorker worker;
-	char** listaArchivosTemporales; //Puede ser un t_list
+	t_list* listaArchivosTemporales;
 	char* archivoTemporal; //Destino
 	char* programaR;
 }__attribute__((packed)) nodoRL; //Recibo/Envias una lista de nodos (o array)

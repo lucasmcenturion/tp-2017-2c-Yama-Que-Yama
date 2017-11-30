@@ -10,25 +10,83 @@ typedef struct{
 	datosWorker worker;
 } hiloWorker;
 
-void* serializacionT(nodoT* nodoDeT){
-	int mov = 0;
-	int size = sizeof(int)*3+strlen(nodoDeT->programaT)+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo);
-	void* result = malloc(size);
-	memcpy(result,&nodoDeT->bloque,sizeof(int));
-	mov += sizeof(int);
-	memcpy(result+mov,&nodoDeT->bytesOcupados,sizeof(int));
-	mov += sizeof(int);
-	memcpy(result+mov,nodoDeT->programaT,strlen(nodoDeT->programaT));
-	mov+=strlen(nodoDeT->programaT);
-	memcpy(result+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal));
-	mov+=strlen(nodoDeT->archivoTemporal);
-	memcpy(result+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
-	mov+=strlen(nodoDeT->worker.ip);
-	memcpy(result+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo));
-	mov+=strlen(nodoDeT->worker.nodo);
-	memcpy(result+mov,&nodoDeT->worker.puerto,sizeof(int));
+typedef struct{
+	void* result;
+	int size;
+} serialized;
 
-	return result;
+int obtenerSizeListdeString(t_list* lista){
+	int size=0;
+	int tamLista = list_size(lista);
+	int i=0;
+	for(i=0;i<tamLista;i++){
+		size+= strlen(list_get(lista,i));
+	}
+	return size;
+}
+
+void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
+//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
+	int mov = 0;
+	int sizeAux;
+	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+sizeof(int)+strlen(nodoDeT->archivoTemporal);//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
+	void* datos = malloc(size);
+
+	memcpy(datos,&nodoDeT->bloque,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,&nodoDeT->bytesOcupados,sizeof(int));
+	mov += sizeof(int);
+	sizeAux = strlen(nodoDeT->programaT);
+	memcpy(datos+mov, &sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,nodoDeT->programaT,strlen(nodoDeT->programaT));
+	mov+=strlen(nodoDeT->programaT);
+	sizeAux = strlen(nodoDeT->archivoTemporal);
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal));
+	mov+=strlen(nodoDeT->archivoTemporal);
+	/*memcpy(datos+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
+	mov+=strlen(nodoDeT->worker.ip);
+	memcpy(datos+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo));
+	mov+=strlen(nodoDeT->worker.nodo);
+	memcpy(datos+mov,&nodoDeT->worker.puerto,sizeof(int));*/
+
+	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, TRANSFWORKER))) perror("Error al enviar datosT al worker");
+	return;
+}
+
+void serializacionRLyEnvio(nodoRL* nodoDeRL, int socketWorker){
+//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
+	int mov=0;
+	int sizeAux;
+	int sizeList = obtenerSizeListdeString(nodoDeRL->listaArchivosTemporales);
+	int size = sizeof(int)+strlen(nodoDeRL->programaR)+sizeof(int)+strlen(nodoDeRL->archivoTemporal)+list_size(nodoDeRL->listaArchivosTemporales)*sizeof(int)+sizeList;
+
+	void* datos = malloc(size);
+
+	sizeAux = strlen(nodoDeRL->programaR);
+	memcpy(datos,&sizeAux,sizeof(int));
+	mov+=sizeof(int);
+	memcpy(datos+mov,nodoDeRL->programaR,strlen(nodoDeRL->programaR));
+	mov+=strlen(nodoDeRL->programaR);
+	sizeAux = strlen(nodoDeRL->archivoTemporal);
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov+=sizeof(int);
+	memcpy(datos+mov,nodoDeRL->archivoTemporal,strlen(nodoDeRL->archivoTemporal));
+	mov+=strlen(nodoDeRL->archivoTemporal);
+
+	int i;
+	for(i=0;i<list_size(nodoDeRL->listaArchivosTemporales);i++){
+		sizeAux = strlen(list_get(nodoDeRL->listaArchivosTemporales,i));
+		memcpy(datos+mov,&sizeAux,sizeof(int));
+		mov+=sizeof(int);
+		memcpy(datos+mov,list_get(nodoDeRL->listaArchivosTemporales,i),strlen(list_get(nodoDeRL->listaArchivosTemporales,i)));
+		mov+=strlen(list_get(nodoDeRL->listaArchivosTemporales,i));
+	}
+
+	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, REDLOCALWORKER))) perror("Error al enviar datosRL al worker");
+	return;
 }
 
 
@@ -52,18 +110,27 @@ void imprimirArchivoConfiguracion(){
 
 
 void accionHilo(void* solicitud){
-	datosWorker* worker = &solicitud->worker;
+	datosWorker worker = ((nodoT*)solicitud)->worker;
 
-	int socketWorker = ConectarAServidor(worker->puerto, worker->ip, WORKER, MASTER, RecibirHandshake);
-	Paquete* paqueteArecibir = malloc(sizeof(Paquete));
-	switch (solicitud->header)
+	int socketWorker = ConectarAServidor(worker.puerto, worker.ip, WORKER, MASTER, RecibirHandshake);
+	Paquete* paquete = malloc(sizeof(Paquete));
+	switch (((nodoT*)solicitud)->header)
 	{
 
-	case TRANSFORMACION:
-		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), TRANSFWORKER);
-		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
-		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paqueteArecibir->Payload) {
+	case TRANSFORMACION:{
+		nodoT* datosT = malloc(sizeof(nodoT));
+		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
+		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
+		*datosT = *(nodoT*)solicitud;
+
+		solicitud=NULL; //solicitud ya no la vamos a usar, para simplificar uso de tipos
+
+		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
+		serializacionTyEnvio(datosT,socketWorker);
+
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) perror("Error: No se recibio validacion del worker");//TODO manejo desconexion
+		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paquete->Payload) {
 				bool* ok = true;
 				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
@@ -74,14 +141,27 @@ void accionHilo(void* solicitud){
 		else {
 			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
+
 		break;
+	}
 
+	case REDUCCIONLOCAL:{
+		nodoRL* datosRL = malloc(sizeof(nodoRL));
+		datosRL->archivoTemporal = malloc(strlen(((nodoRL*)solicitud)->archivoTemporal));
+		datosRL->programaR = malloc(strlen(((nodoRL*)solicitud)->programaR));
+		datosRL->listaArchivosTemporales = list_create();
 
-	case REDUCCIONLOCAL:
-		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), REDLOCALWORKER);
-		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
-		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paqueteArecibir->Payload) {
+		*datosRL = *(nodoRL*)solicitud;
+
+		solicitud=NULL;
+
+		int socketWorker = ConectarAServidor(datosRL->worker.puerto, datosRL->worker.ip, WORKER, MASTER, RecibirHandshake);
+
+		serializacionRLyEnvio(datosRL,socketWorker);
+
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: No se recibio validacion del worker"); //TODO manejo desconexion
+		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paquete->Payload) {
 				bool* ok = true;
 				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
@@ -93,13 +173,31 @@ void accionHilo(void* solicitud){
 			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
 		break;
+	}
 
+	case REDUCCIONGLOBAL:{
+		solicitudRG* datosRG = malloc(sizeof(solicitudRG));
+		datosRG->programaR = malloc(strlen(((solicitudRG*)solicitud)->programaR));
+		datosRG->archRG = malloc(strlen(((solicitudRG*)solicitud)->archRG));
+		datosRG->nodos = list_create();
 
-	case REDUCCIONGLOBAL:
+		*datosRG = *(solicitudRG*)solicitud;
+
+		solicitud=NULL;
+
+		bool obtenerEncargado(nodoRG* elemento){
+			return elemento->encargado;
+		}
+		nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
+
+		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
+
+		//TODO serializar y enviar datos
+
 		EnviarDatosTipo(socketWorker, MASTER , solicitud, sizeof(solicitud), REDGLOBALWORKER);
-		RecibirPaqueteCliente(socketWorker, MASTER, paqueteArecibir);
-		if(paqueteArecibir->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paqueteArecibir->Payload) {
+		RecibirPaqueteCliente(socketWorker, MASTER, paquete);
+		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paquete->Payload) {
 				bool* ok = true;
 				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
 			}
@@ -111,6 +209,7 @@ void accionHilo(void* solicitud){
 		else{
 			perror("Error en el header, se esperaba VALIDACIONWORKER");
 		}
+	}
 	}
 
 }
@@ -124,7 +223,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 	nodoT* datosParaTransformacion = malloc(sizeof(paquete->header.tamPayload));
 
 
-	//Aca vendria la deserializacion
+	//Aca vendria la deserializacion de lo que me da YAMA
 	datosParaTransformacion->programaT = programaT;
 	datosParaTransformacion->worker = ((nodoT*)paquete->Payload)->worker;
 	datosParaTransformacion->archivoTemporal = ((nodoT*)paquete->Payload)->archivoTemporal;
