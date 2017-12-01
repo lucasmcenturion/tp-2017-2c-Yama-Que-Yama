@@ -126,33 +126,6 @@ void accion(void* socket){
 					m->socket = socketFD;
 					list_add(listaMasters, m);
 					idsMaster++;
-					t_list* listaBloques = list_create();
-					t_bloque_yama* bloque_0 = malloc(sizeof(t_bloque_yama));
-					bloque_0->primera.bloque_nodo = 3;
-					bloque_0->primera.nombre_nodo = "NODO1";
-					bloque_0->segunda.bloque_nodo = 4;
-					bloque_0->segunda.nombre_nodo="NODO2";
-					bloque_0->tamanio=1024;
-					bloque_0->numero_bloque= 0;
-					t_bloque_yama* bloque_1 = malloc(sizeof(t_bloque_yama));
-					bloque_1->primera.bloque_nodo = 3;
-					bloque_1->primera.nombre_nodo = "NODO2";
-					bloque_1->segunda.bloque_nodo = 4;
-					bloque_1->segunda.nombre_nodo="NODO1";
-					bloque_1->tamanio=1024;
-					bloque_1->numero_bloque= 1;
-					t_bloque_yama* bloque_2 = malloc(sizeof(t_bloque_yama));
-					bloque_2->primera.bloque_nodo = 1;
-					bloque_2->primera.nombre_nodo = "NODO1";
-					bloque_2->segunda.bloque_nodo = 2;
-					bloque_2->segunda.nombre_nodo="NODO2";
-					bloque_2->tamanio=1024;
-					bloque_2->numero_bloque= 2;
-					list_add(listaBloques, bloque_0);
-					list_add(listaBloques, bloque_1);
-					list_add(listaBloques, bloque_2);
-
-					planificacion(listaBloques);
 				}
 					break;
 				case SOLICITUDTRANSFORMACION:
@@ -187,6 +160,7 @@ void accion(void* socket){
 						list_add(listaBloques,bloque);
 					}
 					list_size(listaBloques);
+					planificacion(listaBloques);
 
 				}
 				break;
