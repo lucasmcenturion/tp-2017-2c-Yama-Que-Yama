@@ -825,6 +825,7 @@ void accion(void* socket) {
 					datos -= tamanioAEnviar;
 					datos = realloc(datos, tamanioAEnviar+tam);
 					datos += tamanioAEnviar;
+					tamanioAEnviar+=tam;
 					//serializacion elemento
 					((uint32_t*)datos)[0] = bloque->numero_bloque;
 					((uint32_t*)datos)[1] = bloque->tamanio;
