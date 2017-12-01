@@ -837,7 +837,7 @@ void accion(void* socket) {
 					strcpy(datos,bloque->segunda.nombre_nodo);
 					datos+=strlen(bloque->primera.nombre_nodo)+1;
 				}
-
+				datos -= tamanioAEnviar;
 				EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar,SOLICITUDBLOQUESYAMA);
 
 			}
