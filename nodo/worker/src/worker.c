@@ -1,12 +1,15 @@
 #include "sockets.h"
 
 #define TAMANIODEBLOQUE 1024;
+#define BUFFERSIZE 1024
 
 char *IP_NODO, *IP_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
 int socketFS;
 t_list* listaDeProcesos;
 bool end;
+t_list* listaDeArchivosTempRG;
+
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("../nodoCFG.txt");
@@ -35,6 +38,13 @@ void imprimirArchivoConfiguracion(){
 				PUERTO_WORKER,
 				RUTA_DATABIN
 				);
+}
+
+void accionSelect(Paquete* paquete, int socketFD){
+	char* bufferTexto = malloc(sizeof(paquete->header.tamPayload));
+	strcpy(bufferTexto,paquete->Payload);
+	list_add(listaDeArchivosTempRG,bufferTexto);
+	return;
 }
 
 char* listAsString(t_list* lista){
@@ -176,16 +186,17 @@ return datosRG;
 
 
 void realizarTransformacion(nodoT* data){
-	FILE* dataBin = fopen("/home/utnso/workspace/nodo/archivos/nodo1/data.bin","r");
-
+	FILE* dataBin = fopen(RUTA_DATABIN,"r");
 	char* bufferTexto = malloc(data->bytesOcupados);
 	int mov = data->bloque * TAMANIODEBLOQUE;
 	fseek(dataBin,mov,SEEK_SET);
 	fread(bufferTexto,data->bytesOcupados,1,dataBin);
+
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	char* strToSys = string_from_format("echo %s | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	system(strToSys);
+	fclose(dataBin);
 	return;
 }
 
@@ -241,22 +252,21 @@ void accionHijo(void* socketM){
 			//if es encargado, se conecta a cada uno para obtener los archivos temporales
 			if(strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
 
+				//Servidor(IP_NODO,PUERTO_WORKER,WORKER,accionSelect,RecibirHandshake); preguntar centu
 				realizarReduccionGlobal(datosRG);
 			}
 			else{//else espera conexion y manda archivo temporal
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
-				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,workerActual->archTempRL, strlen(workerActual->archTempRL)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+				FILE* archTemp = fopen(workerActual->archTempRL,"r");
+				char str[BUFFERSIZE];
 
+				while( fgets(str, BUFFERSIZE, archTemp)!=NULL ) {
+					if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+				   } else {
+					   if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
+				   }
+				   fclose(archTemp);
 			}
-
-
-
-
-
-
-
-
-
 			break;
 		}
 		}

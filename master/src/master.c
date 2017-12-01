@@ -349,10 +349,13 @@ int main(int argc, char* argv[]){
 	listaHilos = list_create();
 	char* programaTrans = argv[1];
 	char* programaReduc = argv[2];
+	char* archivoParaYAMA = argv[3];
+	char* archivoFinal = argv[4];
 
 	//FALTA: Mandar mensaje a Yama de que comience transformacion
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
+	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, TRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
 
 	while(true){
