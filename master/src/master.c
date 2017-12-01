@@ -357,6 +357,7 @@ int main(int argc, char* argv[]){
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
+
 	while(true){
 		while (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)){
 			switch(paquete->header.tipoMensaje){

@@ -8,8 +8,7 @@ int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
 int socketFS;
 t_list* listaDeProcesos;
 bool end;
-t_list* listaDeArchivosTempRG;
-
+nodoRG* workerEncargado;
 
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch = config_create("../nodoCFG.txt");
@@ -40,12 +39,23 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-void accionSelect(Paquete* paquete, int socketFD){
-	char* bufferTexto = malloc(sizeof(paquete->header.tamPayload));
-	strcpy(bufferTexto,paquete->Payload);
-	list_add(listaDeArchivosTempRG,bufferTexto);
-	return;
+void accionSelect(Paquete* paquete, int socketFD){ //TODO
+	if(strcmp(paquete->header.emisor,WORKER)){
+
+		if(paquete->header.tipoMensaje == ARCHIVOTEMPRL){
+
+			char* bufferTexto = malloc(paquete->header.tamPayload);
+			strcpy(bufferTexto,paquete->Payload);
+			char* strToSys = string_from_format("echo %s | sort -o %s -m %s -",bufferTexto,workerEncargado->archTempRL,workerEncargado->archTempRL);
+			system(strToSys);
+
+		}
+		else perror("Header incorrecto, se esperaba ARCHIVOTEMPRL");
+		return;
+	}
+	else perror("Se conecto algo que no es WORKER en ReduccionGlobal");
 }
+
 
 char* listAsString(t_list* lista){
 	char* resultado = string_new();
@@ -209,9 +219,9 @@ void realizarReduccionLocal(nodoRL* data){
 }
 
 void realizarReduccionGlobal(solicitudRG* data){
-	char* strArchivosTemporales = listaAstringRG(data->nodos);
+	//char* strArchivosTemporales = listaAstringRG(data->nodos);
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchivosTemporales, data->programaR, data->archRG);
+	char* strToSys = string_from_format("echo %s | .%s > %s",workerEncargado->archTempRL, data->programaR, data->archRG);
 	system(strToSys);
 	return;
 }
@@ -247,25 +257,27 @@ void accionHijo(void* socketM){
 				if (strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
 				else false;
 			}
-			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
+
+			workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado); //no hice malloc de workerEncargado, falla?
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
-			//if es encargado, se conecta a cada uno para obtener los archivos temporales
+
 			if(strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
 
 				//Servidor(IP_NODO,PUERTO_WORKER,WORKER,accionSelect,RecibirHandshake); preguntar centu
 				realizarReduccionGlobal(datosRG);
 			}
-			else{//else espera conexion y manda archivo temporal
+			else{
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
 				FILE* archTemp = fopen(workerActual->archTempRL,"r");
 				char str[BUFFERSIZE];
 
 				while( fgets(str, BUFFERSIZE, archTemp)!=NULL ) {
 					if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
-				   } else {
-					   if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 				   }
-				   fclose(archTemp);
+				bool* ok = true;
+				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,ok,sizeof(bool), ARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
+
+				fclose(archTemp);
 			}
 			break;
 		}
