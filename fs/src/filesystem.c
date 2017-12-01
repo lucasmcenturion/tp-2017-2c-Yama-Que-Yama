@@ -550,61 +550,6 @@ void accion(void* socket) {
 						NUEVOWORKER);
 			}
 			break;
-			case SOLICITUDBLOQUESYAMA:{
-				//TODO SOLICITUDBLOQUESYAMA
-				datos=paquete.Payload;
-				char*ruta_archivo=malloc(100);
-				strcpy(ruta_archivo,datos);
-				ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
-				int index_padre=index_ultimo_directorio(ruta_archivo,"a");
-				char**separado_por_barras=string_split(ruta_archivo,"/");
-				int i=0;
-				while(separado_por_barras[i]){
-					i++;
-				}
-				i--;
-				char*ruta_archivo_en_metadata=malloc(100);
-				strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
-				strcat(ruta_archivo_en_metadata,"/");
-				strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
-				strcat(ruta_archivo_en_metadata,"/");
-				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
-				t_list*lista_bloques=list_create();
-				lista_bloques=obtener_lista_bloques(ruta_archivo_en_metadata);
-				//la funcion obtener_lista_bloques me carga la lista
-				int var;
-				for (var = 0; var < list_size(lista_bloques); ++var) {
-					t_bloque_yama *bloque=list_get(lista_bloques,var);
-					printf("Tamanio: %i,Numero: %i ,Primera copia: Nodo: %s, Bloque:%i,Segunda copia copia: Nodo: %s, Bloque:%i",
-							bloque->tamanio,bloque->numero_bloque,bloque->primera.bloque_nodo,
-							bloque->primera.bloque_nodo,bloque->segunda.nombre_nodo,bloque->segunda.bloque_nodo);
-				}
-				/*void *datos_enviar;
-				int tamanio=sizeof(uint32_t) +list_size(lista_bloques)*sizeof(t_bloque_yama);
-				for (var = 0; var < list_size(lista_bloques); ++var) {
-					t_bloque_yama *bloque=list_get(lista_bloques,var);
-					*((uint32_t*)datos_enviar)=list_size(lista_bloques);
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->numero_bloque;
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->tamanio;
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->primera.bloque_nodo;
-					datos_enviar += sizeof(uint32_t);
-					strcpy(datos_enviar,bloque->primera.nombre_nodo);
-					datos_enviar+=strlen(bloque->primera.nombre_nodo)+1;
-					*((uint32_t*)datos_enviar)=bloque->segunda.bloque_nodo;
-					datos_enviar += sizeof(uint32_t);
-					strcpy(datos_enviar,bloque->segunda.nombre_nodo);
-					datos_enviar+=strlen(bloque->segunda.nombre_nodo)+1;
-
-				}
-				datos_enviar-=tamanio;
-				 	*/
-				//serializar datos
-
-			}
-			break;
 			case RESPUESTASOLICITUD: {
 				datos = paquete.Payload;
 				int bloque_archivo = *((uint32_t*) datos);
