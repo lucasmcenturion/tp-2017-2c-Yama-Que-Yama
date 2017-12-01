@@ -521,16 +521,20 @@ t_list*obtener_lista_bloques(char*ruta_archivo){
 			un_bloque->numero_bloque=i;
 			un_bloque->tamanio=config_get_int_value(archivo,bytes);
 			char **primera_copia_array=config_get_array_value(archivo,primera_copia);
+			un_bloque->primera.nombre_nodo=string_new();
 			strcpy(un_bloque->primera.nombre_nodo,primera_copia_array[0]);
 			un_bloque->primera.bloque_nodo=atoi(primera_copia_array[1]);
 			char **segunda_copia_array=config_get_array_value(archivo,segunda_copia);
+			un_bloque->segunda.nombre_nodo=string_new();
 			strcpy(un_bloque->segunda.nombre_nodo,segunda_copia_array[0]);
 			un_bloque->segunda.bloque_nodo=atoi(segunda_copia_array[1]);
 			list_add(bloques,un_bloque);
 		}else{
 			existe=false;
 		}
+		i++;
 	}
+	return bloques;
 }
 void accion(void* socket) {
 	int socketFD = *(int*) socket;
@@ -790,12 +794,8 @@ void accion(void* socket) {
 				//break;
 				//}
 				break;
-			case ESHANDSHAKE:{
-				//TODO SOLICITUDBLOQUESYAMA
+			case SOLICITUDBLOQUESYAMA:{
 				datos=paquete.Payload;
-				//char*ruta_archivo=malloc(100);
-				//strcpy(ruta_archivo,datos);
-				//ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
 				int index_padre=index_ultimo_directorio("/julian/so/yama_que_yama/test.dat","a");
 				char**separado_por_barras=string_split("/julian/so/yama_que_yama/test.dat","/");
 				int i=0;
@@ -809,39 +809,33 @@ void accion(void* socket) {
 				strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
 				strcat(ruta_archivo_en_metadata,"/");
 				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
-				t_list*lista_bloques=list_create();
-				lista_bloques=obtener_lista_bloques(ruta_archivo_en_metadata);
+				t_list*lista_bloques =obtener_lista_bloques(ruta_archivo_en_metadata);
 				//la funcion obtener_lista_bloques me carga la lista
-				int var;
-				for (var = 0; var < list_size(lista_bloques); ++var) {
-					t_bloque_yama *bloque=list_get(lista_bloques,var);
-					printf("Tamanio: %i,Numero: %i ,Primera copia: Nodo: %s, Bloque:%i,Segunda copia copia: Nodo: %s, Bloque:%i",
-							bloque->tamanio,bloque->numero_bloque,bloque->primera.bloque_nodo,
-							bloque->primera.bloque_nodo,bloque->segunda.nombre_nodo,bloque->segunda.bloque_nodo);
-				}
-				/*void *datos_enviar;
-				int tamanio=sizeof(uint32_t) +list_size(lista_bloques)*sizeof(t_bloque_yama);
-				for (var = 0; var < list_size(lista_bloques); ++var) {
-					t_bloque_yama *bloque=list_get(lista_bloques,var);
-					*((uint32_t*)datos_enviar)=list_size(lista_bloques);
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->numero_bloque;
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->tamanio;
-					datos_enviar += sizeof(uint32_t);
-					*((uint32_t*)datos_enviar)=bloque->primera.bloque_nodo;
-					datos_enviar += sizeof(uint32_t);
-					strcpy(datos_enviar,bloque->primera.nombre_nodo);
-					datos_enviar+=strlen(bloque->primera.nombre_nodo)+1;
-					*((uint32_t*)datos_enviar)=bloque->segunda.bloque_nodo;
-					datos_enviar += sizeof(uint32_t);
-					strcpy(datos_enviar,bloque->segunda.nombre_nodo);
-					datos_enviar+=strlen(bloque->segunda.nombre_nodo)+1;
 
+				int tamanioAEnviar = sizeof(uint32_t); //por a cantidad de elementos de la lista
+				datos = malloc(tamanioAEnviar);
+				*((uint32_t*)datos) = list_size(lista_bloques);
+				datos += sizeof(uint32_t);
+
+				for (i = 0; i < list_size(lista_bloques); i++){
+					t_bloque_yama* bloque = list_get(lista_bloques, i);
+					tamanioAEnviar += sizeof(uint32_t) * 2 + //por tamanio y numero_bloque
+							       + sizeof(uint32_t) * 2 + //por el bloque_nodo de cada copia
+								   + strlen(bloque->primera.nombre_nodo) + strlen(bloque->segunda.nombre_nodo) + 2; //por los nombres de los nodos y sus /n
+					realloc(datos, tamanioAEnviar);
+					//serializacion elemento
+					((uint32_t*)datos)[0] = bloque->numero_bloque;
+					((uint32_t*)datos)[1] = bloque->tamanio;
+					((uint32_t*)datos)[2] = bloque->primera.bloque_nodo;
+					((uint32_t*)datos)[3] = bloque->segunda.bloque_nodo;
+					datos += sizeof(uint32_t) * 4;
+					strcpy(datos,bloque->primera.nombre_nodo);
+					datos+=strlen(bloque->primera.nombre_nodo)+1;
+					strcpy(datos,bloque->segunda.nombre_nodo);
+					datos+=strlen(bloque->primera.nombre_nodo)+1;
 				}
-				datos_enviar-=tamanio;
-					*/
-				//serializar datos
+
+				EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar,SOLICITUDBLOQUESYAMA);
 
 			}
 			break;
