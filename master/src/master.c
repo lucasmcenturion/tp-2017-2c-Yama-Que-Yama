@@ -347,10 +347,10 @@ int main(int argc, char* argv[]){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	listaHilos = list_create();
-	char* programaTrans = argv[1];
-	char* programaReduc = argv[2];
-	char* archivoParaYAMA = argv[3];
-	char* archivoFinal = argv[4];
+	char* programaTrans = argv[2];
+	char* programaReduc = argv[3];
+	char* archivoParaYAMA = argv[4];
+	char* archivoFinal = argv[5];
 
 	//FALTA: Mandar mensaje a Yama de que comience transformacion
 

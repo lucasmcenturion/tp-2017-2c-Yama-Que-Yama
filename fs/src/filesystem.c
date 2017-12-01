@@ -795,7 +795,7 @@ void accion(void* socket) {
 				//}
 				break;
 			case SOLICITUDBLOQUESYAMA:{
-				datos=paquete.Payload;
+				datos=paquete.Payload+7;
 				int index_padre=index_ultimo_directorio(datos,"a");
 				char**separado_por_barras=string_split(datos,"/");
 				int i=0;
@@ -819,10 +819,12 @@ void accion(void* socket) {
 
 				for (i = 0; i < list_size(lista_bloques); i++){
 					t_bloque_yama* bloque = list_get(lista_bloques, i);
-					tamanioAEnviar += sizeof(uint32_t) * 2 + //por tamanio y numero_bloque
+					int tam = sizeof(uint32_t) * 2 + //por tamanio y numero_bloque
 							       + sizeof(uint32_t) * 2 + //por el bloque_nodo de cada copia
 								   + strlen(bloque->primera.nombre_nodo) + strlen(bloque->segunda.nombre_nodo) + 2; //por los nombres de los nodos y sus /n
-					realloc(datos, tamanioAEnviar);
+					datos -= tamanioAEnviar;
+					datos = realloc(datos, tamanioAEnviar+tam);
+					datos += tamanioAEnviar;
 					//serializacion elemento
 					((uint32_t*)datos)[0] = bloque->numero_bloque;
 					((uint32_t*)datos)[1] = bloque->tamanio;
