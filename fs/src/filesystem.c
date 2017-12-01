@@ -796,8 +796,8 @@ void accion(void* socket) {
 				break;
 			case SOLICITUDBLOQUESYAMA:{
 				datos=paquete.Payload;
-				int index_padre=index_ultimo_directorio("/julian/so/yama_que_yama/test.dat","a");
-				char**separado_por_barras=string_split("/julian/so/yama_que_yama/test.dat","/");
+				int index_padre=index_ultimo_directorio(datos,"a");
+				char**separado_por_barras=string_split(datos,"/");
 				int i=0;
 				while(separado_por_barras[i]){
 					i++;
