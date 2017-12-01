@@ -93,6 +93,34 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 
 
 		}
+		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
+		{
+			//Respuesta de FS
+			//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
+			void* datos = paquete->Payload;
+			t_list* listaBloques = list_create();
+			int tamanioLista = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			int i;
+			for (i=0; i < tamanioLista; i++){
+				t_bloque_yama* bloque = malloc(sizeof(t_bloque_yama));
+				bloque->numero_bloque = ((uint32_t*)datos)[0];
+				bloque->tamanio = ((uint32_t*)datos)[1];
+				bloque->primera.bloque_nodo = ((uint32_t*)datos)[2];
+				bloque->segunda.bloque_nodo = ((uint32_t*)datos)[3];
+				datos += sizeof(uint32_t) * 4;
+				bloque->primera.nombre_nodo = string_new();
+				strcpy(bloque->primera.nombre_nodo, datos);
+				datos += strlen(datos) + 1;
+				bloque->segunda.nombre_nodo = string_new();
+				strcpy(bloque->segunda.nombre_nodo, datos);
+				datos += strlen(datos) + 1;
+				list_add(listaBloques,bloque);
+			}
+			list_size(listaBloques);
+			planificacion(listaBloques);
+
+		}
 	}
 }
 
@@ -135,35 +163,7 @@ void accion(void* socket){
 					//LE PIDO A FILESYSTEM LOS BLOQUES
 				}
 				break;
-				case SOLICITUDBLOQUESYAMA:
-				{
-					//Respuesta de FS
-					//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
-					void* datos = paquete.Payload;
-					t_list* listaBloques = list_create();
-					int tamanioLista = *((uint32_t*)datos);
-					datos += sizeof(uint32_t);
-					int i;
-					for (i=0; i < tamanioLista; i++){
-						t_bloque_yama* bloque = malloc(sizeof(t_bloque_yama));
-						bloque->numero_bloque = ((uint32_t*)datos)[0];
-						bloque->tamanio = ((uint32_t*)datos)[1];
-						bloque->primera.bloque_nodo = ((uint32_t*)datos)[2];
-						bloque->segunda.bloque_nodo = ((uint32_t*)datos)[3];
-						datos += sizeof(uint32_t) * 4;
-						bloque->primera.nombre_nodo = string_new();
-						strcpy(bloque->primera.nombre_nodo, datos);
-						datos += strlen(datos) + 1;
-						bloque->segunda.nombre_nodo = string_new();
-						strcpy(bloque->segunda.nombre_nodo, datos);
-						datos += strlen(datos) + 1;
-						list_add(listaBloques,bloque);
-					}
-					list_size(listaBloques);
-					planificacion(listaBloques);
 
-				}
-				break;
 			}
 
 		}
