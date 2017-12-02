@@ -14,7 +14,7 @@ int socketFS;
 int socketYAMA;
 t_list* listaHilos;
 t_list* datanodes;
-t_list*datanodes_formateados;
+t_list* datanodes_anteriores;
 char *nodo_desconectado;
 bool directorios_ocupados[100];
 t_dictionary *archivos_actuales;
@@ -27,6 +27,7 @@ bool md5=false;
 bool formateado=false;
 bool unico_bloque=false;
 bool inseguro=true;
+bool rechazado=false;
 //char **archivos_almacenados;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
@@ -706,7 +707,6 @@ void accion(void* socket) {
 				pthread_mutex_lock(&mutex_datanodes);
 				list_add(datanodes, data);
 				pthread_mutex_unlock(&mutex_datanodes);
-				//actualizar_datanodes_bin();
 			}
 				break;
 			case RESULOPERACION: {
@@ -771,11 +771,13 @@ void accion(void* socket) {
 			}
 				break;
 			case ESHANDSHAKE:{
-				/*datos=paquete.Payload;
-				list_add(datanodes_formateados,"Nodo1");
-				list_add(datanodes_formateados,"Nodo2");
-				list_add(datanodes_formateados,"Nodo3");
-				bool comparar(void*nombre){
+				datos=paquete.Payload;
+				if(formateado){
+					close(socketFD);
+					rechazado=true;
+				}
+
+				/*bool comparar(void*nombre){
 						return !(strcmp(datos,nombre));
 					}
 				if(list_find(datanodes_formateados,(void*) comparar)==NULL){
@@ -788,75 +790,82 @@ void accion(void* socket) {
 			}
 		} else if (!strcmp(paquete.header.emisor, YAMA)) {
 			socketYAMA = socketFD;
-			switch (paquete.header.tipoMensaje) {
-			case ESDATOS:
-				//switch (paquete.Payload)
-				//{
-				//		case LEERARCHIVO:
-				//IniciarPrograma(DATOS[1],DATOS[2],socketFD);
-				//	break;
-				//case ALMACENARARCHIVO:
-				//SolicitarBytes(DATOS[1],DATOS[2],DATOS[3],DATOS[4],socketFD);
-				//break;
-				//}
-				break;
-			case SOLICITUDBLOQUESYAMA:{
-				datos=paquete.Payload+7;
-				int index_padre=index_ultimo_directorio(datos,"a");
-				char**separado_por_barras=string_split(datos,"/");
-				int i=0;
-				while(separado_por_barras[i]){
-					i++;
-				}
-				i--;
-				char*ruta_archivo_en_metadata=malloc(100);
-				strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
-				strcat(ruta_archivo_en_metadata,"/");
-				strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
-				strcat(ruta_archivo_en_metadata,"/");
-				strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
-				t_list*lista_bloques =obtener_lista_bloques(ruta_archivo_en_metadata);
-				//la funcion obtener_lista_bloques me carga la lista
+			if(inseguro){
+				close(socketYAMA);
+			}else{
+				switch (paquete.header.tipoMensaje) {
+					case ESDATOS:
+						//switch (paquete.Payload)
+						//{
+						//		case LEERARCHIVO:
+						//IniciarPrograma(DATOS[1],DATOS[2],socketFD);
+						//	break;
+						//case ALMACENARARCHIVO:
+						//SolicitarBytes(DATOS[1],DATOS[2],DATOS[3],DATOS[4],socketFD);
+						//break;
+						//}
+						break;
+					case SOLICITUDBLOQUESYAMA:{
+						datos=paquete.Payload+7;
+						int index_padre=index_ultimo_directorio(datos,"a");
+						char**separado_por_barras=string_split(datos,"/");
+						int i=0;
+						while(separado_por_barras[i]){
+							i++;
+						}
+						i--;
+						char*ruta_archivo_en_metadata=malloc(100);
+						strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
+						strcat(ruta_archivo_en_metadata,"/");
+						strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
+						strcat(ruta_archivo_en_metadata,"/");
+						strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
+						t_list*lista_bloques =obtener_lista_bloques(ruta_archivo_en_metadata);
+						//la funcion obtener_lista_bloques me carga la lista
 
-				int tamanioAEnviar = sizeof(uint32_t); //por a cantidad de elementos de la lista
-				datos = malloc(tamanioAEnviar);
-				*((uint32_t*)datos) = list_size(lista_bloques);
-				datos += sizeof(uint32_t);
+						int tamanioAEnviar = sizeof(uint32_t); //por a cantidad de elementos de la lista
+						datos = malloc(tamanioAEnviar);
+						*((uint32_t*)datos) = list_size(lista_bloques);
+						datos += sizeof(uint32_t);
 
-				for (i = 0; i < list_size(lista_bloques); i++){
-					t_bloque_yama* bloque = list_get(lista_bloques, i);
-					int tam = sizeof(uint32_t) * 2 + //por tamanio y numero_bloque
-							       + sizeof(uint32_t) * 2 + //por el bloque_nodo de cada copia
-								   + strlen(bloque->primer_nombre_nodo) + strlen(bloque->segundo_nombre_nodo) + 2; //por los nombres de los nodos y sus /n
-					datos -= tamanioAEnviar;
-					datos = realloc(datos, tamanioAEnviar+tam);
-					datos += tamanioAEnviar;
-					tamanioAEnviar+=tam;
-					//serializacion elemento
-					((uint32_t*)datos)[0] = bloque->numero_bloque;
-					((uint32_t*)datos)[1] = bloque->tamanio;
-					((uint32_t*)datos)[2] = bloque->primer_bloque_nodo;
-					((uint32_t*)datos)[3] = bloque->segundo_bloque_nodo;
-					datos += sizeof(uint32_t) * 4;
-					strcpy(datos,bloque->primer_nombre_nodo);
-					datos+=strlen(bloque->primer_nombre_nodo)+1;
-					strcpy(datos,bloque->segundo_nombre_nodo);
-					datos+=strlen(bloque->segundo_nombre_nodo)+1;
+						for (i = 0; i < list_size(lista_bloques); i++){
+							t_bloque_yama* bloque = list_get(lista_bloques, i);
+							int tam = sizeof(uint32_t) * 2 + //por tamanio y numero_bloque
+										   + sizeof(uint32_t) * 2 + //por el bloque_nodo de cada copia
+										   + strlen(bloque->primer_nombre_nodo) + strlen(bloque->segundo_nombre_nodo) + 2; //por los nombres de los nodos y sus /n
+							datos -= tamanioAEnviar;
+							datos = realloc(datos, tamanioAEnviar+tam);
+							datos += tamanioAEnviar;
+							tamanioAEnviar+=tam;
+							//serializacion elemento
+							((uint32_t*)datos)[0] = bloque->numero_bloque;
+							((uint32_t*)datos)[1] = bloque->tamanio;
+							((uint32_t*)datos)[2] = bloque->primer_bloque_nodo;
+							((uint32_t*)datos)[3] = bloque->segundo_bloque_nodo;
+							datos += sizeof(uint32_t) * 4;
+							strcpy(datos,bloque->primer_nombre_nodo);
+							datos+=strlen(bloque->primer_nombre_nodo)+1;
+							strcpy(datos,bloque->segundo_nombre_nodo);
+							datos+=strlen(bloque->segundo_nombre_nodo)+1;
+						}
+						datos -= tamanioAEnviar;
+						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar,SOLICITUDBLOQUESYAMA);
+					}
+					break;
 				}
-				datos -= tamanioAEnviar;
-				EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar,SOLICITUDBLOQUESYAMA);
 			}
-			break;
-		}
 		} else if (!strcmp(paquete.header.emisor, WORKER)) {
+			if(inseguro){
+				close(socketFD);
+			}else{
+				switch (paquete.header.tipoMensaje) {
+					case ESDATOS: {
+						void* datos = paquete.Payload;
+						//AlmacenarArchivo();
+					}
+						break;
 
-			switch (paquete.header.tipoMensaje) {
-			case ESDATOS: {
-				void* datos = paquete.Payload;
-				//AlmacenarArchivo();
-			}
-				break;
-
+					}
 			}
 		} else
 			perror("No es ni YAMA ni DATANODE NI WORKER");
@@ -866,10 +875,12 @@ void accion(void* socket) {
 	}
 	close(socketFD);
 	sacar_datanode(socketFD);
-	void *datos_datanode;
-	datos_datanode=malloc(strlen(nodo_desconectado)+1);
-	strcpy(datos_datanode,nodo_desconectado);
-	EnviarDatosTipo(socketYAMA,FILESYSTEM,datos_datanode,strlen(nodo_desconectado)+1,NODODESCONECTADO);
+	if(!rechazado){
+		void *datos_datanode;
+		datos_datanode=malloc(strlen(nodo_desconectado)+1);
+		strcpy(datos_datanode,nodo_desconectado);
+		EnviarDatosTipo(socketYAMA,FILESYSTEM,datos_datanode,strlen(nodo_desconectado)+1,NODODESCONECTADO);
+	}
 
 
 }
@@ -1367,6 +1378,7 @@ void consola() {
 			if(list_size(datanodes)!=0){
 				list_iterate(datanodes,(void*) igualar);
 			}
+			formateado=true;
 		}
 		else if (!strncmp(linea, "rm ", 3)) {
 			linea += 3;
@@ -2283,7 +2295,8 @@ int main() {
 	obtener_archivos_creados();
 	*/
 	pthread_t hiloConsola;
-	datanodes_formateados=list_create();
+	datanodes_anteriores=list_create();
+	//verificar_estado
 	pthread_mutex_init(&mutex_datanodes, NULL);
 	pthread_mutex_init(&mutex_directorio, NULL);
 	pthread_mutex_init(&mutex_directorios_ocupados, NULL);
