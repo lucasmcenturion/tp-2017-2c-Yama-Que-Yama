@@ -118,7 +118,8 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 				list_add(listaBloques,bloque);
 			}
 			list_size(listaBloques);
-			planificacion(listaBloques);
+			//master* m = list_find(listaMasters,LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == ;}) );
+			//planificacion(listaBloques, );
 
 		}
 	}
@@ -159,7 +160,9 @@ void accion(void* socket){
 					break;
 				case SOLICITUDTRANSFORMACION:
 				{
-					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload, SOLICITUDBLOQUESYAMA);
+					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
+					*((uint32_t*)paquete.Payload+paquete.header.tamPayload) = socketFD;
+					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
 					//AGARRO LOS DATOS
 					//LE PIDO A FILESYSTEM LOS BLOQUES
 				}
@@ -233,7 +236,7 @@ datosWorker* avanzarPuntero(datosWorker* puntero){
 	else
 		return list_get(listaWorkers,(puntero->indice+1)); //list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
 }
-void planificacion(t_list* bloques){
+void planificacion(t_list* bloques, int masterId){
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad(listaWorkers);
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
@@ -265,14 +268,14 @@ void planificacion(t_list* bloques){
 
 				char* numeroNodo = string_substring_from(punteroClock->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
 
-				char* strIdJob = string_itoa(idJob); //Una logica posible, es que cuando se conecte un Master, guardes el numero de Master asociado con el Job que esta ejecutando el mismo
+				//char* strIdJob = string_itoa(idJob);
 				char* strBloque = string_itoa(bloqueAAsignar->numero_bloque);
 				int tamanio = 9 +
-							  strlen(strIdJob) +
+							  //strlen(strIdJob) +
 				              strlen(strBloque) +
 			 	              strlen(numeroNodo);
 				char* rutaTemporal = malloc(tamanio);
-				rutaTemporal = string_from_format("/tmp/j%sn%sb%i",atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
+				//rutaTemporal = string_from_format("/tmp/j%sn%sb%i",atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
 				//snprintf(rutaTemporal, tamanio, "/tmp/j%sn%sb%i", atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
 				int tamanioDatos = sizeof(uint32_t) * 3 + strlen(punteroClock->ip) + strlen(punteroClock->nodo) + 2 + tamanio;
 				void* datos = malloc(tamanioDatos);
@@ -288,7 +291,7 @@ void planificacion(t_list* bloques){
 				datos += tamanio;
 
 				free(numeroNodo);
-				free(strIdJob);
+				//free(strIdJob);
 				free(strBloque);
 
 
