@@ -13,7 +13,7 @@ int idsMaster=0;
 int indiceWorker=0;
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("yamaCFG.txt");
+	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/yama/yamaCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
 	PUERTO = config_get_int_value(arch, "PUERTO");
 	FS_IP = string_duplicate(config_get_string_value(arch, "FS_IP"));
@@ -106,14 +106,14 @@ void* RecibirPaqueteFilesystem(Paquete* paquete){
 				t_bloque_yama* bloque = malloc(sizeof(t_bloque_yama));
 				bloque->numero_bloque = ((uint32_t*)datos)[0];
 				bloque->tamanio = ((uint32_t*)datos)[1];
-				bloque->primera.bloque_nodo = ((uint32_t*)datos)[2];
-				bloque->segunda.bloque_nodo = ((uint32_t*)datos)[3];
+				bloque->primer_bloque_nodo = ((uint32_t*)datos)[2];
+				bloque->segundo_bloque_nodo = ((uint32_t*)datos)[3];
 				datos += sizeof(uint32_t) * 4;
-				bloque->primera.nombre_nodo = string_new();
-				strcpy(bloque->primera.nombre_nodo, datos);
+				bloque->primer_nombre_nodo = string_new();
+				strcpy(bloque->primer_nombre_nodo, datos);
 				datos += strlen(datos) + 1;
-				bloque->segunda.nombre_nodo = string_new();
-				strcpy(bloque->segunda.nombre_nodo, datos);
+				bloque->segundo_nombre_nodo = string_new();
+				strcpy(bloque->segundo_nombre_nodo, datos);
 				datos += strlen(datos) + 1;
 				list_add(listaBloques,bloque);
 			}
@@ -203,10 +203,10 @@ void calcularDisponibilidad(t_list* list){
 bool bloqueAAsignarEsta(datosWorker* w, t_bloque_yama* bloque){
 	if (w->disponibilidad > 0)
 	{
-		if (!strcmp(bloque->primera.nombre_nodo, w->nodo)){
+		if (!strcmp(bloque->primer_nombre_nodo, w->nodo)){
 			return true;
 		}
-		else if (!strcmp(bloque->segunda.nombre_nodo, w->nodo)){
+		else if (!strcmp(bloque->segundo_nombre_nodo, w->nodo)){
 			return true;
 		}
 		else{
@@ -225,7 +225,13 @@ datosWorker* proximoWorkerDisponible(datosWorker* actual){
 	else
 		return worker;
 }
-
+datosWorker* avanzarPuntero(datosWorker* puntero){
+	//si el puntero está en el ultimo, lo pongo en el primero. Sino, en el siguiente
+	if (puntero->indice == (list_size(listaWorkers) - 1))
+		return list_get(listaWorkers,0);//list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == 0;}));
+	else
+		return list_get(listaWorkers,(puntero->indice+1)); //list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
+}
 void planificacion(t_list* bloques){
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad(listaWorkers);
@@ -257,11 +263,13 @@ void planificacion(t_list* bloques){
 				//si está se reduce el valor de disponibilidad
 				punteroClock->disponibilidad--;
 				//y se avanza el clock al siguiente worker
-				avanzarPuntero(punteroClock);
+				punteroClock=avanzarPuntero(punteroClock);
+				//avanzarPuntero(punteroClock);
 				//si el valor del punteroClock ahora es 0, se debe restaurar su disponibilidad a la base y avanzar el puntero
 				if (punteroClock->disponibilidad == 0){
 					punteroClock->disponibilidad = BASE;
-					avanzarPuntero(punteroClock);
+					punteroClock=avanzarPuntero(punteroClock);
+					//avanzarPuntero(punteroClock);
 				}
 				salio = true;
 			}
@@ -278,7 +286,7 @@ void planificacion(t_list* bloques){
 						punteroAux->disponibilidad--;
 						break;
 					}
-					punteroAux = proximoWorkerDisponible(punteroClock);
+					punteroAux = proximoWorkerDisponible(punteroAux);
 				}
 				while(punteroAux != punteroClock);
 				//si dio la vuelta y no encontró ninguno se re-calculan los valores de disponibilidad de los que tienen 0 como al principio
@@ -299,13 +307,7 @@ void planificacion(t_list* bloques){
 }
 
 
-void avanzarPuntero(datosWorker* puntero){
-	//si el puntero está en el ultimo, lo pongo en el primero. Sino, en el siguiente
-	if (puntero->indice == (list_size(listaWorkers) - 1))
-		puntero = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == 0;}));
-	else
-		puntero = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
-}
+
 
 int main(){
 	obtenerValoresArchivoConfiguracion();

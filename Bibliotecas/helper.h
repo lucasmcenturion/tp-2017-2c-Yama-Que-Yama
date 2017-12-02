@@ -81,19 +81,16 @@ typedef struct {
 }__attribute__((packed))
 transformacionDatos;
 
-typedef struct {
-	int bloque_nodo;
-	char *nombre_nodo;
-}__attribute__((packed))
-t_copia;
+
 
 typedef struct {
 	int numero_bloque;
 	int tamanio;
-	t_copia primera;
-	t_copia segunda;
-}__attribute__((packed))
-t_bloque_yama;
+	int primer_bloque_nodo;
+	int segundo_bloque_nodo;
+	char*primer_nombre_nodo;
+	char*segundo_nombre_nodo;
+}__attribute__((packed))t_bloque_yama;
 
 typedef struct {
 	bool resultado;

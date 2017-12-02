@@ -147,7 +147,19 @@ void escribirEnArchivoLog(char * contenidoAEscribir, FILE ** archivoDeLog){
 
 //   escribirEnArchivoLog(operacion,&LogDatanode);
 
-
+void enviarHandshakeDatanode(int socketFD,char emisor[11]){
+	Paquete* paquete = malloc(TAMANIOHEADER+strlen(NOMBRE_NODO)+1);
+	Header header;
+	header.tipoMensaje = ESHANDSHAKE;
+	header.tamPayload = strlen(NOMBRE_NODO)+1;
+	paquete->Payload=malloc(strlen(NOMBRE_NODO)+1);
+	strcpy(paquete->Payload,NOMBRE_NODO);
+	strcpy(header.emisor, emisor);
+	paquete->header = header;
+	bool valor_retorno=EnviarPaquete(socketFD, paquete);
+	//free(paquete->Payload);
+	free(paquete);
+}
 int main(){
 
 
@@ -156,7 +168,7 @@ int main(){
 	fflush( stdout );
 	obtenerStatusDataBin();
 	fflush( stdout );
-	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake);
+	socketFS = ConectarAServidorDatanode(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake,enviarHandshakeDatanode);
 	fflush( stdout );
 
 	int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;

@@ -83,6 +83,7 @@ void ServidorConcurrente(char* ip, int puerto, char nombre[11], t_list** listaDe
 
 }
 
+
 void ServidorConcurrenteForks(char* ip, int puerto, char nombre[11], t_list** listaDeProcesos,
 		bool* terminar, void (*accionPadre)(void* socketFD), void (*accionHijo) (void* socketFD)) {
 	printf("Iniciando Servidor %s\n", nombre);
@@ -142,6 +143,25 @@ int ConectarAServidor(int puertoAConectar, char* ipAConectar, char servidor[11],
 	while (connect(socketFD, (struct sockaddr *) &direccion, sizeof(struct sockaddr))<0)
 		sleep(1); //Espera un segundo y se vuelve a tratar de conectar.
 	EnviarHandshake(socketFD, cliente);
+	RecibirElHandshake(socketFD, servidor);
+	return socketFD;
+
+}
+
+int ConectarAServidorDatanode(int puertoAConectar, char* ipAConectar, char servidor[11],
+		char cliente[11], void RecibirElHandshake(int socketFD, char emisor[11]),void enviarElHandshake(int socketFD, char emisor[11])) {
+	int socketFD = socket(AF_INET, SOCK_STREAM, 0);
+
+	struct sockaddr_in direccion;
+
+	direccion.sin_family = AF_INET;
+	direccion.sin_port = htons(puertoAConectar);
+	direccion.sin_addr.s_addr = inet_addr(ipAConectar);
+	memset(&(direccion.sin_zero), '\0', 8);
+
+	while (connect(socketFD, (struct sockaddr *) &direccion, sizeof(struct sockaddr))<0)
+		sleep(1); //Espera un segundo y se vuelve a tratar de conectar.
+	enviarElHandshake(socketFD, cliente);
 	RecibirElHandshake(socketFD, servidor);
 	return socketFD;
 
@@ -295,12 +315,57 @@ int RecibirDatos(void* paquete, int socketFD, uint32_t cantARecibir) {
 	return recibido;
 }
 
+int RecibirDatosDeDatanode(void* paquete, int socketFD, uint32_t cantARecibir) {
+	void* datos = malloc(cantARecibir);
+	int recibido = 0;
+	int totalRecibido = 0;
+
+	do {
+		recibido = recv(socketFD, datos + totalRecibido, cantARecibir - totalRecibido, 0);
+		totalRecibido += recibido;
+	} while (totalRecibido != cantARecibir && recibido > 0);
+	memmove(paquete, datos, cantARecibir);
+	free(datos);
+
+	if (recibido < 0) {
+		printf("Cliente Desconectado\n");
+		close(socketFD); // ¡Hasta luego!
+		//exit(1);
+	} else if (recibido == 0) {
+		printf("Fin de Conexion en socket %d\n", socketFD);
+		close(socketFD); // ¡Hasta luego!
+	}
+
+	return recibido;
+}
+
 int RecibirPaqueteServidor(int socketFD, char receptor[11], Paquete* paquete) {
 	paquete->Payload = NULL;
 	int resul = RecibirDatos(&(paquete->header), socketFD, TAMANIOHEADER);
 	if (resul > 0) { //si no hubo error
 		if (paquete->header.tipoMensaje == ESHANDSHAKE) { //vemos si es un handshake
 			printf("Se establecio conexion con %s\n", paquete->header.emisor);
+			EnviarHandshake(socketFD, receptor); // paquete->header.emisor
+		} else if (paquete->header.tamPayload > 0){ //recibimos un payload y lo procesamos (por ej, puede mostrarlo)
+			paquete->Payload = malloc(paquete->header.tamPayload);
+			resul = RecibirDatos(paquete->Payload, socketFD, paquete->header.tamPayload);
+		}
+	}
+	return resul;
+}
+
+int RecibirPaqueteServidorFS(int socketFD, char receptor[11], Paquete* paquete,bool inseguro, bool formateado) {
+	int resul = RecibirDatos(&(paquete->header), socketFD, TAMANIOHEADER);
+	if (resul > 0) { //si no hubo error
+		if (paquete->header.tipoMensaje == ESHANDSHAKE) { //vemos si es un handshake
+			printf("Se establecio conexion con %s\n", paquete->header.emisor);
+			if(!strcmp(paquete->header.emisor,DATANODE)){
+				if(inseguro){
+					paquete->Payload = malloc(paquete->header.tamPayload);
+					resul = RecibirDatosDeDatanode(paquete->Payload, socketFD, paquete->header.tamPayload);
+				}
+
+			}
 			EnviarHandshake(socketFD, receptor); // paquete->header.emisor
 		} else if (paquete->header.tamPayload > 0){ //recibimos un payload y lo procesamos (por ej, puede mostrarlo)
 			paquete->Payload = malloc(paquete->header.tamPayload);
