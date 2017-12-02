@@ -26,7 +26,7 @@ bool end;
 bool md5=false;
 bool formateado=false;
 bool unico_bloque=false;
-bool inseguro=true;
+bool inseguro=false;
 bool rechazado=false;
 //char **archivos_almacenados;
 pthread_mutex_t mutex_datanodes;
@@ -639,7 +639,14 @@ void accion(void* socket) {
 				data->socket = socketFD;
 				char *path = malloc(200);
 				strcpy(path, PUNTO_MONTAJE);
-				strcat(path, "/bitmaps/");
+				strcat(path, "/bitmaps");
+				DIR*d;
+				struct dirent *dir;
+				d = opendir(path);
+				if(!d){
+					mkdir(path,0700);
+				}
+				strcat(path,"/");
 				strcat(path, data->nodo);
 				strcat(path, ".dat");
 				//verifico si existen sus estructuras administrativas
@@ -1355,6 +1362,11 @@ void consola() {
 			}
 			crear_directorio();
 			setear_directorio(0, 0, "root", -1);
+			DIR*directory;
+			directory=opendir(RUTA_ARCHIVOS);
+			if(!directory){
+				mkdir(RUTA_ARCHIVOS,0700);
+			}
 			rmtree(RUTA_ARCHIVOS);
 			mkdir(RUTA_ARCHIVOS, 0700);
 			DIR*d;
@@ -2284,6 +2296,15 @@ int main() {
 	 }
 	 return 0;
 	*/
+	if(access(RUTA_NODOS,F_OK)==-1){
+		FILE*f=fopen(RUTA_NODOS,"w");
+		fclose(f);
+		t_config*archivo=config_create(RUTA_NODOS);
+		config_set_value(archivo,"NODOS","");
+		config_set_value(archivo,"TAMANIO",integer_to_string(0));
+		config_set_value(archivo,"LIBRE",integer_to_string(0));
+		config_save_in_file(archivo,RUTA_NODOS);
+	}
 	datanodes = list_create();
 	archivos_actuales = dictionary_create();
 	archivos_terminados = dictionary_create();
