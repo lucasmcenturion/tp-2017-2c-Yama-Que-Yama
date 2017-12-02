@@ -13,7 +13,7 @@ int idsMaster=0;
 int indiceWorker=0;
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/yama/yamaCFG.txt");
+	t_config* arch = config_create("/home/utnso/tp-2017-2c-Yama-Que-Yama/yama/yamaCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
 	PUERTO = config_get_int_value(arch, "PUERTO");
 	FS_IP = string_duplicate(config_get_string_value(arch, "FS_IP"));
