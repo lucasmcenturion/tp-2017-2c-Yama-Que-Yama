@@ -211,7 +211,7 @@ void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker)
 
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("/home/utnso/master/masterCFG.txt");
+	t_config* arch = config_create("/home/utnso/tp-2017-2c-Yama-Que-Yama/master/masterCFG.txt");
 	YAMA_IP = string_duplicate(config_get_string_value(arch, "YAMA_IP"));
 	YAMA_PUERTO = config_get_int_value(arch, "YAMA_PUERTO");
 	config_destroy(arch);
