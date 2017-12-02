@@ -813,7 +813,7 @@ void accion(void* socket) {
 						//}
 						break;
 					case SOLICITUDBLOQUESYAMA:{
-						datos=paquete.Payload+7;
+						datos=(paquete.Payload+7);
 						int index_padre=index_ultimo_directorio(datos,"a");
 						char**separado_por_barras=string_split(datos,"/");
 						int i=0;
@@ -856,7 +856,11 @@ void accion(void* socket) {
 							datos+=strlen(bloque->segundo_nombre_nodo)+1;
 						}
 						datos -= tamanioAEnviar;
-						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar,SOLICITUDBLOQUESYAMA);
+						datos = realloc(datos, tamanioAEnviar+sizeof(uint32_t));
+						datos += tamanioAEnviar;
+						*((uint32_t*)datos) = *((uint32_t*)(paquete.Payload+paquete.header.tamPayload-sizeof(uint32_t)));
+						datos -= tamanioAEnviar;
+						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
 					}
 					break;
 				}
