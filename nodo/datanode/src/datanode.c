@@ -32,7 +32,7 @@ void imprimirArchivoConfiguracion(){
 				"IP_FILESYSTEM=		%s\n"
 				"PUERTO_FILESYSTEM=	%d\n"
 				"NOMBRE_NODO=		%s\n"
-				"IP_NODO=		%s\n
+				"IP_NODO=		%s\n"
 				"PUERTO_WORKER=		%d\n"
 				"RUTA_DATABIN=		%s\n\n",
 				IP_FILESYSTEM,

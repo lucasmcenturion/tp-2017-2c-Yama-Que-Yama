@@ -1,5 +1,4 @@
-src/helper.d: \
- /home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.c \
- /home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.h
+src/helper.d: /home/utnso/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.c \
+ /home/utnso/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.h
 
-/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.h:
+/home/utnso/tp-2017-2c-Yama-Que-Yama/Bibliotecas/helper.h:
