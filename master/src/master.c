@@ -20,6 +20,10 @@ int contTfallos;
 int contRLfallos;
 int contRGfallos;
 
+pthread_mutex_t mutex_Tfallos;
+pthread_mutex_t mutex_RLfallos;
+pthread_mutex_t mutex_RGfallos;
+
 
 
 t_list* listaHilos;
@@ -217,20 +221,29 @@ void accionHilo(void* solicitud){
 		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
 		serializacionTyEnvio(datosT,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) perror("Error: No se recibio validacion del worker en T");//TODO manejo desconexion
-		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paquete->Payload) {
-				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
-			}
-			else {
-				perror("No se puedo realizar la operacion de Transformacion");
-			}
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) {
+			perror("Error: No se recibio validacion del worker en T"); //manejo desconexion
+			bool* ok = false;
+
+			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de T");
+			pthread_mutex_lock(&mutex_Tfallos);
+			contTfallos++;
+			pthread_mutex_unlock(&mutex_Tfallos);
 		}
 		else {
-			perror("Error en el header, se esperaba VALIDACIONWORKER");
+			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+				if((bool*)paquete->Payload) {
+					bool* ok = true;
+					if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar la verificacion a YAMA en el caso de T");
+				}
+				else {
+					perror("Worker notifico que hubo una falla"); //no contemplado en Worker
+				}
+			}
+			else {
+				perror("Error en el header, se esperaba VALIDACIONWORKER");//Error nuestro, no contemplado para informar a YAMA
+			}
 		}
-
 		break;
 	}
 
@@ -248,20 +261,32 @@ void accionHilo(void* solicitud){
 
 		serializacionRLyEnvio(datosRL,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: No se recibio validacion del worker en RL"); //TODO manejo desconexion
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
+			perror("Error: No se recibio validacion del worker en RL");//manejo desconexion
+
+			bool* ok = false;
+			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RL");
+			pthread_mutex_lock(&mutex_RLfallos);
+			contRLfallos++;
+			pthread_mutex_unlock(&mutex_RLfallos);
+
+		}
+		else {
 		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paquete->Payload) {
 				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
+				if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RL");
 			}
 			else {
-				perror("No se puedo realizar la operacion de Reduccion Local");
+				perror("No se puedo realizar la operacion de Reduccion Local"); //Este caso  no se contempla en Worker, no se como puede ocurrir
 			}
 		}
 		else{
-			perror("Error en el header, se esperaba VALIDACIONWORKER");
+			perror("Error en el header, se esperaba VALIDACIONWORKER"); //Este caso ocurriria por error de programacion, no se contempla para notificar a YAMA
+		}
 		}
 		break;
+
 	}
 
 	case REDUCCIONGLOBAL:{
@@ -283,24 +308,34 @@ void accionHilo(void* solicitud){
 
 		serializacionRGyEnvio(datosRG,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0)perror("Error: no se recibio validacion del worker en RG");//TODO manejo desconexion
-		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paquete->Payload) {
-				bool* ok = true;
-				EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
+			perror("Error: no se recibio validacion del worker en RG");//manejo desconexion
+
+			bool* ok = false;
+			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RG");
+			pthread_mutex_lock(&mutex_RGfallos);
+			contRGfallos++;
+			pthread_mutex_unlock(&mutex_RGfallos);
+
+		} else {
+			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+				if((bool*)paquete->Payload) {
+					bool* ok = true;
+					EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
+				}
+				else {
+					perror("No se puedo realizar la operacion de Reduccion Global");
+				}
+			}else{
+				perror("Error en el header, se esperaba VALIDACIONWORKER");
 			}
-			else {
-				perror("No se puedo realizar la operacion de Reduccion Global");
-			}
-			break;
 		}
-		else{
-			perror("Error en el header, se esperaba VALIDACIONWORKER");
-		}
-	}
+		break;
 	}
 
+	}
 }
+
 
 
 void realizarTransformacion(Paquete* paquete, char* programaT){
@@ -363,7 +398,12 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 }
 
 int main(int argc, char* argv[]){
-	clock_t tiempoInicio = clock();
+	clock_t tiempoSumaT = clock();
+	clock_t tiempoSumaRL = clock();
+	clock_t tiempoSumaRG = clock();
+	pthread_mutex_init(&mutex_Tfallos, NULL);
+	pthread_mutex_init(&mutex_RLfallos, NULL);
+	pthread_mutex_init(&mutex_RGfallos, NULL);
 	bool exito;
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
@@ -374,7 +414,6 @@ int main(int argc, char* argv[]){
 	char* archivoParaYAMA = argv[4];
 	char* archivoFinal = argv[5];
 
-	//FALTA: Mandar mensaje a Yama de que comience transformacion
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 
@@ -384,30 +423,70 @@ int main(int argc, char* argv[]){
 		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<0) perror("Error al recibir respuesta de YAMA");
 		{
 			switch(paquete->header.tipoMensaje){
-			case NUEVOWORKER:
+			case NUEVOWORKER:{
+
 				contTActuales++;
 				if(contTActuales>contTMaxP) contTMaxP = contTActuales;
+				clock_t tiempoInicio = clock();
 				realizarTransformacion(paquete, programaTrans);
+				tiempoSumaT += clock() - tiempoInicio;
 				contTActuales--;
-				break;
-			case REDLOCALWORKER:
-				contRLActuales++;
-				if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
-				realizarReduccionLocal(paquete, programaReduc);
-				contRLActuales--;
-				break;
-			case REDGLOBALWORKER:
-				realizarReduccionGlobal(paquete, programaReduc);
 				contTRealizadas++;
 				break;
-			/*case FINALIZAR:
-			 	 clock_t tiempoDemoradoJobCompleto = clock() - tiempoInicio;
-			 	 double tiempoDemoradoJobCompletoMINUTOS = (((double)tiempoFin)/CLOCKS_PER_SEC)/60;
-			 	 printf("\nSe procede a mostrar las metricas del Job:\n\n");
-			 	 printf("1. Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompletoMINUTOS);
+			}
+			case REDLOCALWORKER:{
+				contRLActuales++;
+				if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
+				clock_t tiempoInicio = clock();
+				realizarReduccionLocal(paquete, programaReduc);
+				tiempoSumaRL += clock() - tiempoInicio;
+				contRLActuales--;
+				contRLRealizadas++;
+				break;
+			}
+			case REDGLOBALWORKER:{
+				clock_t tiempoInicio = clock();
+				realizarReduccionGlobal(paquete, programaReduc);
+				tiempoSumaRG += clock() - tiempoInicio;
+				contRGRealizadas++;
+				break;
+			}
+			//case FINALIZAR:
+			 	 clock_t tiempoDemoradoJobCompleto = clock();
+			 	 double tiempoDemoradoJobCompletoMINUTOS = (((double)tiempoDemoradoJobCompleto)/CLOCKS_PER_SEC)/60;
 
-			 	 printf("2.Tiempo promedio de ejecución de cada etapa principal del Job: )
-				finalizado = true;*/
+			 	 printf("\nSe procede a mostrar las metricas del Job:\n\n");
+			 	 printf("1.Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompletoMINUTOS);
+			 	 double tiempoPromedioTMINUTOS;
+			 	 double tiempoPromedioRLMINUTOS;
+			 	 double tiempoPromedioRGMINUTOS;
+
+			 	 if(contTRealizadas!=0){
+			 		 tiempoPromedioTMINUTOS = ((((double)tiempoSumaT)/ CLOCKS_PER_SEC)/60)/contTRealizadas;
+				 }
+				 else {
+				 tiempoPromedioTMINUTOS = 0;
+				 }
+
+				  if(contRLRealizadas!=0){
+					  tiempoPromedioRLMINUTOS = ((((double)tiempoSumaRL)/ CLOCKS_PER_SEC)/60)/contRLRealizadas;
+				 }
+				 else {
+					 tiempoPromedioRLMINUTOS = 0;
+				 }
+
+				  if(contTRealizadas!=0){
+					  tiempoPromedioRGMINUTOS = ((((double)tiempoSumaRG)/ CLOCKS_PER_SEC)/60)/contRGRealizadas;
+				 }
+				 else {
+					 tiempoPromedioRGMINUTOS = 0;
+				 }
+
+			 	 printf("2.Tiempo promedio de ejecucion de cada etapa principal del Job:\n Transformacion: %f\n Reduccion Local: %f\n Reduccion Global:%f\n\n",tiempoPromedioTMINUTOS,tiempoPromedioRLMINUTOS,tiempoPromedioRGMINUTOS );
+			 	 printf("3.Cantidad maxima de tareas de Transformacion y Reduccion Local ejecutadas de forma paralela \n Transformacion: %d \n Reduccion Local %d\n\n",contTMaxP,contRLMaxP);
+			 	 printf("4.Cantidad total de tareas realizadas en cada etapa principal del Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTRealizadas,contRLRealizadas,contRGRealizadas);
+			 	 printf("5. Cantidad de fallos obtenidos en la realizacion de un Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTfallos,contRLfallos,contRGfallos);
+			 	 finalizado = true;
 			}
 		}
 	}
