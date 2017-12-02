@@ -46,7 +46,7 @@ void accionSelect(Paquete* paquete, int socketFD){ //TODO
 
 			char* bufferTexto = malloc(paquete->header.tamPayload);
 			strcpy(bufferTexto,paquete->Payload);
-			char* strToSys = string_from_format("echo %s | sort -o %s -m %s -",bufferTexto,workerEncargado->archTempRL,workerEncargado->archTempRL);
+			char* strToSys = string_from_format("echo \"%s\" | sort -o %s -m %s -",bufferTexto,workerEncargado->archTempRL,workerEncargado->archTempRL);
 			system(strToSys);
 
 		}
@@ -146,7 +146,6 @@ solicitudRG* deserializacionRG(void* payload){
 	int mov = 0;
 	int aux;
 	int tamList;
-	bool boolAux;
 	solicitudRG* datosRG = malloc(sizeof(solicitudRG));
 
 	memcpy(&aux,payload+mov,sizeof(int));
@@ -204,7 +203,7 @@ void realizarTransformacion(nodoT* data){
 
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("echo %s | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
+	char* strToSys = string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	system(strToSys);
 	fclose(dataBin);
 	return;
@@ -221,7 +220,7 @@ void realizarReduccionLocal(nodoRL* data){
 void realizarReduccionGlobal(solicitudRG* data){
 	//char* strArchivosTemporales = listaAstringRG(data->nodos);
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("echo %s | .%s > %s",workerEncargado->archTempRL, data->programaR, data->archRG);
+	char* strToSys = string_from_format("echo \"%s\" | .%s > %s",workerEncargado->archTempRL, data->programaR, data->archRG);
 	system(strToSys);
 	return;
 }
@@ -230,7 +229,7 @@ void accionPadre(void* socketMaster){
 }
 
 void accionHijo(void* socketM){
-
+	bool boolAux = false;
 	int socketMaster = *(int*) socketM;
 	Paquete* paquete = malloc(sizeof(Paquete));
 
@@ -241,11 +240,14 @@ void accionHijo(void* socketM){
 		case TRANSFWORKER:{
 			nodoT* datosT = deserializacionT(paquete->Payload);
 			realizarTransformacion(datosT);
+			boolAux =true;
+			if(!EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER)<0) perror("Error al enviar OK a master en etapa de T");
 			break;
 		}
 		case REDLOCALWORKER:{
 			nodoRL* datosRL = deserializacionRL(paquete->Payload);
 			realizarReduccionLocal(datosRL);
+
 			break;
 		}
 		case REDGLOBALWORKER:{
@@ -265,6 +267,8 @@ void accionHijo(void* socketM){
 
 				//Servidor(IP_NODO,PUERTO_WORKER,WORKER,accionSelect,RecibirHandshake); preguntar centu
 				realizarReduccionGlobal(datosRG);
+				boolAux =true;
+				if(!EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER)<0) perror("Error al enviar OK a master en etapa de RG2");
 			}
 			else{
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
@@ -281,6 +285,8 @@ void accionHijo(void* socketM){
 			}
 			break;
 		}
+		default:{ perror("No se recibio un header de las etapas");
+		break;}
 		}
 
 	}

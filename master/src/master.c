@@ -1,8 +1,27 @@
 #include "sockets.h"
+#include <time.h>
 
 char *YAMA_IP;
 int YAMA_PUERTO;
 int socketYAMA;
+
+int contTRealizadas;
+int contRLRealizadas;
+int contRGRealizadas;
+
+int contTMaxP;
+int contRLMaxP;
+
+int contTActuales;
+int contRLActuales;
+int contRGActuales;
+
+int contTfallos;
+int contRLfallos;
+int contRGfallos;
+
+
+
 t_list* listaHilos;
 
 typedef struct{
@@ -344,9 +363,12 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 }
 
 int main(int argc, char* argv[]){
+	clock_t tiempoInicio = clock();
+	bool exito;
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	listaHilos = list_create();
+	bool finalizado = false;
 	char* programaTrans = argv[2];
 	char* programaReduc = argv[3];
 	char* archivoParaYAMA = argv[4];
@@ -355,21 +377,37 @@ int main(int argc, char* argv[]){
 	//FALTA: Mandar mensaje a Yama de que comience transformacion
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
+
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
-
-	while(true){
-		while (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)){
+	while(finalizado!=true){
+		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<0) perror("Error al recibir respuesta de YAMA");
+		{
 			switch(paquete->header.tipoMensaje){
 			case NUEVOWORKER:
+				contTActuales++;
+				if(contTActuales>contTMaxP) contTMaxP = contTActuales;
 				realizarTransformacion(paquete, programaTrans);
+				contTActuales--;
 				break;
 			case REDLOCALWORKER:
+				contRLActuales++;
+				if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
 				realizarReduccionLocal(paquete, programaReduc);
+				contRLActuales--;
 				break;
 			case REDGLOBALWORKER:
 				realizarReduccionGlobal(paquete, programaReduc);
+				contTRealizadas++;
 				break;
+			/*case FINALIZAR:
+			 	 clock_t tiempoDemoradoJobCompleto = clock() - tiempoInicio;
+			 	 double tiempoDemoradoJobCompletoMINUTOS = (((double)tiempoFin)/CLOCKS_PER_SEC)/60;
+			 	 printf("\nSe procede a mostrar las metricas del Job:\n\n");
+			 	 printf("1. Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompletoMINUTOS);
+
+			 	 printf("2.Tiempo promedio de ejecución de cada etapa principal del Job: )
+				finalizado = true;*/
 			}
 		}
 	}
