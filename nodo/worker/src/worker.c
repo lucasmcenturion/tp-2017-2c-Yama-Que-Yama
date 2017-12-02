@@ -11,7 +11,7 @@ bool end;
 nodoRG* workerEncargado;
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("../nodoCFG.txt");
+	t_config* arch = config_create("/home/utnso/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
