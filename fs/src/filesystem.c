@@ -798,7 +798,7 @@ void accion(void* socket) {
 		} else if (!strcmp(paquete.header.emisor, YAMA)) {
 			socketYAMA = socketFD;
 			if(inseguro){
-				close(socketYAMA);
+				break;
 			}else{
 				switch (paquete.header.tipoMensaje) {
 					case ESDATOS:
@@ -886,7 +886,7 @@ void accion(void* socket) {
 	}
 	close(socketFD);
 	sacar_datanode(socketFD);
-	if(!rechazado){
+	if(!rechazado && !inseguro){
 		void *datos_datanode;
 		datos_datanode=malloc(strlen(nodo_desconectado)+1);
 		strcpy(datos_datanode,nodo_desconectado);
@@ -1726,7 +1726,6 @@ void consola() {
 					strcat(string_system,"/");
 					strcat(string_system,"temporal_md5");
 					string_system=realloc(string_system,strlen(string_system)+1);
-					//trabate con el semaforo
 					system(string_system);
 					//devolve el md5
 					char*ruta_temporal=malloc(100);
@@ -1736,6 +1735,7 @@ void consola() {
 					unlink(ruta_temporal);
 					free(ruta_temporal);
 					free(string_system);
+					//pthread_mutex_unlock(&mutex_md5);
 				}
 			}
 		} else if (!strncmp(linea, "ls ", 3)) {
