@@ -149,7 +149,7 @@ void accion(void* socket){
 			{
 				case ESHANDSHAKE:
 				{
-					master* m = malloc(sizeof(master));
+					master* m = malloc(sizeof(master)); //TODO asignar idJob?
 					m->id = idsMaster;
 					m->socket = socketFD;
 					m->contJobs = 0;
@@ -261,18 +261,21 @@ void planificacion(t_list* bloques){
 			//se fija si está el bloque a asignar
 			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar))
 			{
-				char* numeroNodo = string_split(punteroClock->nodo, "Nodo");
-				char* strIdJob = string_itoa(idJob);
+				//char* numeroNodo = string_split(punteroClock->nodo, "Nodo"); //string_split te devuelve un array, en este caso en la pos. 0 va a estar vacia, creo y en la 1 el numero, no estoy seguro
+
+				char* numeroNodo = string_substring_from(punteroClock->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
+
+				char* strIdJob = string_itoa(idJob); //Una logica posible, es que cuando se conecte un Master, guardes el numero de Master asociado con el Job que esta ejecutando el mismo
 				char* strBloque = string_itoa(bloqueAAsignar->numero_bloque);
 				int tamanio = 9 +
 							  strlen(strIdJob) +
 				              strlen(strBloque) +
 			 	              strlen(numeroNodo);
 				char* rutaTemporal = malloc(tamanio);
-				string_from_format("/tmp/j%sn%sb%i")
-				snprintf(rutaTemporal, tamanio, "/tmp/j%sn%sb%i", atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
-				int tamanio = sizeof(uint32_t) * 3 + strlen(punteroClock->ip) + strlen(punteroClock->nodo) + 2 + tamanio;
-				void* datos = malloc(tamanio);
+				rutaTemporal = string_from_format("/tmp/j%sn%sb%i",atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
+				//snprintf(rutaTemporal, tamanio, "/tmp/j%sn%sb%i", atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
+				int tamanioDatos = sizeof(uint32_t) * 3 + strlen(punteroClock->ip) + strlen(punteroClock->nodo) + 2 + tamanio;
+				void* datos = malloc(tamanioDatos);
 				((uint32_t*)datos)[0] = bloqueAAsignar->numero_bloque;
 				((uint32_t*)datos)[1] = bloqueAAsignar->tamanio;
 				((uint32_t*)datos)[2] = punteroClock->puerto;

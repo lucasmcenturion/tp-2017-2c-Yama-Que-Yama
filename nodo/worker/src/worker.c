@@ -40,7 +40,7 @@ void imprimirArchivoConfiguracion(){
 }
 
 void accionSelect(Paquete* paquete, int socketFD){ //TODO
-	if(strcmp(paquete->header.emisor,WORKER)){
+	if(!strcmp(paquete->header.emisor,WORKER)){
 
 		if(paquete->header.tipoMensaje == ARCHIVOTEMPRL){
 
@@ -193,6 +193,51 @@ return datosRG;
 
 }
 
+typedef struct{
+	char* rutaArchivoF;
+	char* resultRG;
+} datoAF; //mover a sockets y poner packed
+
+datoAF* deserializacionAF(void* payload){ //TODO
+// tamString - ResultRG - tamString - rutaArchivoF
+	int mov = 0;
+	int aux;
+	datoAF* datos = malloc(sizeof(datoAF));
+
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datos->resultRG = malloc(aux);
+	memcpy(datos->resultRG,payload+mov,aux);
+	mov += aux;
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datos->rutaArchivoF = malloc(aux);
+	memcpy(datos->rutaArchivoF,payload+mov,aux);
+
+	return datos;
+}
+
+void serializacionAFyEnvioFS(char* buffer, char* rutaArchivoF,int socketFS){//bufferTexto,datosAF.rutaArchivoF,socketFS
+// tamStr + buffer + tamStr + rutaARchivoF
+	int mov = 0;
+	int sizeAux;
+	int size = sizeof(int)+strlen(buffer)+1+sizeof(int)+strlen(rutaArchivoF)+1;
+	void* datos = malloc(size);
+
+	sizeAux = strlen(buffer)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,buffer,strlen(buffer)+1);
+	mov += strlen(buffer)+1;
+	sizeAux = strlen(rutaArchivoF)+1;
+	memcpy(datos,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos,rutaArchivoF,strlen(rutaArchivoF)+1);
+
+	if(!(EnviarDatosTipo(socketFS,WORKER,datos,size,1))) perror("Error al datos al FS para almacenado final");
+
+
+}
 
 void realizarTransformacion(nodoT* data){
 	FILE* dataBin = fopen(RUTA_DATABIN,"r");
@@ -241,7 +286,7 @@ void accionHijo(void* socketM){
 			nodoT* datosT = deserializacionT(paquete->Payload);
 			realizarTransformacion(datosT);
 			boolAux =true;
-			if(!EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER)<0) perror("Error al enviar OK a master en etapa de T");
+			if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de T");
 			break;
 		}
 		case REDLOCALWORKER:{
@@ -256,19 +301,19 @@ void accionHijo(void* socketM){
 				return elemento->encargado;
 			}
 			bool obtenerActual(nodoRG* elemento){
-				if (strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
+				if (!strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
 				else false;
 			}
 
 			workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado); //no hice malloc de workerEncargado, falla?
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
 
-			if(strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
+			if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
 
 				//Servidor(IP_NODO,PUERTO_WORKER,WORKER,accionSelect,RecibirHandshake); preguntar centu
 				realizarReduccionGlobal(datosRG);
 				boolAux =true;
-				if(!EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER)<0) perror("Error al enviar OK a master en etapa de RG2");
+				if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de RG2");
 			}
 			else{
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
@@ -285,8 +330,27 @@ void accionHijo(void* socketM){
 			}
 			break;
 		}
-		default:{ perror("No se recibio un header de las etapas");
-		break;}
+
+		case 2:{ //FINALIZAR TODO
+			//Deserializo lo que me mando Master
+			datoAF* datosAF = deserializacionAF(paquete->Payload);
+			// Abro el archivo de Reduc Global y copio su contenido a buffer
+			FILE* fdRedGlobal = fopen(datosAF->resultRG,"r");
+			struct stat st;
+			stat(datosAF->resultRG,&st);
+			char* bufferTexto = malloc((st.st_size)+1);
+			fread(bufferTexto,st.st_size,1,fdRedGlobal);
+			// Le mando a FS el buffer con el path
+			socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
+			serializacionAFyEnvioFS(bufferTexto,datosAF->rutaArchivoF,socketFS);
+			//ESpero conf de FS
+			// Mando conf a Master
+			break;
+		}
+		default:{
+			perror("No se recibio un header de las etapas");
+			break;
+		}
 		}
 
 	}
@@ -301,8 +365,6 @@ int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
-
-	socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 
 	return 0;
 }

@@ -182,6 +182,29 @@ void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
 		memcpy(datos+mov,&sizeAux,sizeof(int));
 		mov += sizeof(int);
 	}
+	if(!(EnviarDatosTipo(socketWorker,MASTER,datos,size,REDGLOBALWORKER)))perror("Error al enviar datosRG al Worker");
+}
+
+void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker){//TODO
+// tamString - ResultRG - tamString - rutaArchivoF
+	int mov = 0;
+	int sizeAux;
+	int size = sizeof(int)+strlen(resultRG)+1+sizeof(int);
+	void* datos = malloc(size);
+
+	sizeAux = strlen(resultRG)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,resultRG,strlen(resultRG)+1);
+	mov += strlen(resultRG)+1;
+	sizeAux = strlen(rutaArchivoF)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,rutaArchivoF,strlen(rutaArchivoF)+1);
+
+
+	//if(!(EnviarDatosTipo(socketWorker,MASTER,datos,size,FINALIZAR))) perror("Error al enviar datosAF al worker");
+
 
 }
 
@@ -338,22 +361,24 @@ void accionHilo(void* solicitud){
 
 
 
-void realizarTransformacion(Paquete* paquete, char* programaT){
+void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deserializar
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 
 	itemNuevo->worker = ((nodoT*)paquete->Payload)->worker;
-	nodoT* datosParaTransformacion = malloc(sizeof(paquete->header.tamPayload));
-
+	nodoT* datosParaT = malloc(sizeof(nodoT));
+	datosParaT->programaT = malloc(strlen(programaT)+1);
+	datosParaT->archivoTemporal = malloc(10); //Falta sacar size
+	datosParaT->worker.ip = malloc(10); //Falta sacar size;
 
 	//Aca vendria la deserializacion de lo que me da YAMA
-	datosParaTransformacion->programaT = programaT;
+	/*datosParaTransformacion->programaT = programaT;
 	datosParaTransformacion->worker = ((nodoT*)paquete->Payload)->worker;
 	datosParaTransformacion->archivoTemporal = ((nodoT*)paquete->Payload)->archivoTemporal;
 	datosParaTransformacion->bloque = ((nodoT*)paquete->Payload)->bloque;
-	datosParaTransformacion->bytesOcupados = ((nodoT*)paquete->Payload)->bytesOcupados;
+	datosParaTransformacion->bytesOcupados = ((nodoT*)paquete->Payload)->bytesOcupados;*/
 
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaTransformacion);
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
 	list_add(listaHilos, itemNuevo);
 
 }
@@ -397,6 +422,22 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 }
 
+ void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO AF
+	 //YAMA me da IP y Puerto de Worker
+	 char* ipWorker;
+	 int puertoWorker;
+	 //YAMA me da nombre de archivo resultado de la reduccion Global
+	 char* resultRG;
+	 //Yo tengo la ruta final del archivo
+
+
+	 int socketWorker = ConectarAServidor(puertoWorker,ipWorker, WORKER, MASTER, RecibirHandshake);
+	 serializacionAFyEnvio(resultRG,rutaArchivoF,socketWorker);
+	 //Espero conf de worker
+	 //Mando conf a YAMA
+
+ }
+
 int main(int argc, char* argv[]){
 	clock_t tiempoSumaT = clock();
 	clock_t tiempoSumaRL = clock();
@@ -404,7 +445,6 @@ int main(int argc, char* argv[]){
 	pthread_mutex_init(&mutex_Tfallos, NULL);
 	pthread_mutex_init(&mutex_RLfallos, NULL);
 	pthread_mutex_init(&mutex_RGfallos, NULL);
-	bool exito;
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	listaHilos = list_create();
@@ -452,6 +492,9 @@ int main(int argc, char* argv[]){
 				break;
 			}
 			//case FINALIZAR:
+
+				realizarAlmacenamientoFinal(paquete,archivoFinal);
+
 			 	 clock_t tiempoDemoradoJobCompleto = clock();
 			 	 double tiempoDemoradoJobCompletoMINUTOS = (((double)tiempoDemoradoJobCompleto)/CLOCKS_PER_SEC)/60;
 
