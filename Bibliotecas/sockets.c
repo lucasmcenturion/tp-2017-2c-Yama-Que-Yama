@@ -302,7 +302,6 @@ int RecibirDatos(void* paquete, int socketFD, uint32_t cantARecibir) {
 	} while (totalRecibido != cantARecibir && recibido > 0);
 	memcpy(paquete, datos, cantARecibir);
 	free(datos);
-
 	if (recibido < 0) {
 		printf("Cliente Desconectado\n");
 		close(socketFD); // ¡Hasta luego!
@@ -363,7 +362,6 @@ int RecibirPaqueteServidorFS(int socketFD, char receptor[11], Paquete* paquete,b
 			if(!strcmp(paquete->header.emisor,DATANODE)){
 					paquete->Payload = malloc(paquete->header.tamPayload);
 					resul = RecibirDatos(paquete->Payload, socketFD, paquete->header.tamPayload);
-
 			}
 			EnviarHandshake(socketFD, receptor); // paquete->header.emisor
 		} else if (paquete->header.tamPayload > 0){ //recibimos un payload y lo procesamos (por ej, puede mostrarlo)
