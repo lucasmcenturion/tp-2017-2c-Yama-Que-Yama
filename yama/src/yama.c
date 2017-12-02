@@ -152,6 +152,7 @@ void accion(void* socket){
 					master* m = malloc(sizeof(master));
 					m->id = idsMaster;
 					m->socket = socketFD;
+					m->contJobs = 0;
 					list_add(listaMasters, m);
 					idsMaster++;
 				}
@@ -260,6 +261,34 @@ void planificacion(t_list* bloques){
 			//se fija si está el bloque a asignar
 			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar))
 			{
+				char* numeroNodo = string_split(punteroClock->nodo, "Nodo");
+				char* strIdJob = string_itoa(idJob);
+				char* strBloque = string_itoa(bloqueAAsignar->numero_bloque);
+				int tamanio = 9 +
+							  strlen(strIdJob) +
+				              strlen(strBloque) +
+			 	              strlen(numeroNodo);
+				char* rutaTemporal = malloc(tamanio);
+				string_from_format("/tmp/j%sn%sb%i")
+				snprintf(rutaTemporal, tamanio, "/tmp/j%sn%sb%i", atoi(idJob), atoi(numeroNodo), bloqueAAsignar->numero_bloque);
+				int tamanio = sizeof(uint32_t) * 3 + strlen(punteroClock->ip) + strlen(punteroClock->nodo) + 2 + tamanio;
+				void* datos = malloc(tamanio);
+				((uint32_t*)datos)[0] = bloqueAAsignar->numero_bloque;
+				((uint32_t*)datos)[1] = bloqueAAsignar->tamanio;
+				((uint32_t*)datos)[2] = punteroClock->puerto;
+				datos += sizeof(uint32_t) * 3;
+				strcpy(datos, punteroClock->ip);
+				datos += strlen(punteroClock->ip) + 1;
+				strcpy(datos, punteroClock->nodo);
+				datos += strlen(punteroClock->nodo) + 1;
+				strcpy(datos, rutaTemporal);
+				datos += tamanio;
+
+				free(numeroNodo);
+				free(strIdJob);
+				free(strBloque);
+
+
 				//si está se reduce el valor de disponibilidad
 				punteroClock->disponibilidad--;
 				//y se avanza el clock al siguiente worker

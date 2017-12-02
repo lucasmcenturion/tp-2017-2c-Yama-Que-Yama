@@ -68,6 +68,7 @@ datosWorker;
 typedef struct{
 	int id;
 	int socket;
+	int contJobs;
 }
 __attribute__((packed))
 master;
