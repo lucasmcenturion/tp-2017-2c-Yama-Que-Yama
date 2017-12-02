@@ -344,7 +344,7 @@ void guardar_directorios(t_directory **directorios) {
 void obtenerValoresArchivoConfiguracion() {
 	t_config* arch =
 			config_create(
-					"/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/fs/filesystemCFG.txt");
+					"/home/utnso/tp-2017-2c-Yama-Que-Yama/fs/filesystemCFG.txt");
 	IP = string_duplicate(config_get_string_value(arch, "IP"));
 	PUERTO = config_get_int_value(arch, "PUERTO");
 	PUNTO_MONTAJE = string_duplicate(
