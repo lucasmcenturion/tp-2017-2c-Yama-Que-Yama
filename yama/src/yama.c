@@ -265,7 +265,7 @@ void planificacion(t_list* bloques){
 
 				char* numeroNodo = string_substring_from(punteroClock->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
 
-				char* strIdJob = string_itoa(idJob); //Una logica posible, es que cuando se conecte un Master, guardes el numero de Master asociado con el Job que esta ejecutando el mismo
+				/*char* strIdJob = string_itoa(idJob); //Una logica posible, es que cuando se conecte un Master, guardes el numero de Master asociado con el Job que esta ejecutando el mismo
 				char* strBloque = string_itoa(bloqueAAsignar->numero_bloque);
 				int tamanio = 9 +
 							  strlen(strIdJob) +
@@ -290,7 +290,7 @@ void planificacion(t_list* bloques){
 				free(numeroNodo);
 				free(strIdJob);
 				free(strBloque);
-
+	*/
 
 				//si está se reduce el valor de disponibilidad
 				punteroClock->disponibilidad--;
