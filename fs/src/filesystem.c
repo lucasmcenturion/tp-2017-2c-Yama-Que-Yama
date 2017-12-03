@@ -1732,7 +1732,7 @@ void consola() {
 					strcpy(ruta_temporal,PUNTO_MONTAJE);
 					strcat(ruta_temporal,"/temporal_md5");
 					ruta_temporal=realloc(ruta_temporal,strlen(ruta_temporal)+1);
-					unlink(ruta_temporal);
+					remove(ruta_temporal);
 					free(ruta_temporal);
 					free(string_system);
 					//pthread_mutex_unlock(&mutex_md5);
@@ -1800,7 +1800,63 @@ void consola() {
 				strcpy(nombre_archivo,obtener_nombre_archivo(array_input[1]));
 				nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
 				if(existe_archivo(nombre_archivo,index_directorio_padre)){
-
+					char*ruta_archivo=malloc(100);
+					strcpy(ruta_archivo,RUTA_ARCHIVOS);
+					strcat(ruta_archivo,"/");
+					strcat(ruta_archivo,integer_to_string(index_directorio_padre));
+					strcat(ruta_archivo,"/");
+					strcat(ruta_archivo,nombre_archivo);
+					t_config*archivo=config_create(ruta_archivo);
+					printf("Nombre Archivo: %s \n",nombre_archivo);
+					printf("Tamanio : %s bytes\n",config_get_string_value(archivo,"TAMANIO"));
+					bool condicion=true;
+					int i=0;
+					char*primera_copia;
+					char*segunda_copia;
+					char*tamanio_bloque;
+					while(condicion){
+						primera_copia=malloc(50);
+						segunda_copia=malloc(50);
+						tamanio_bloque=malloc(50);
+						strcpy(primera_copia,"BLOQUE");
+						strcpy(segunda_copia,"BLOQUE");
+						strcpy(tamanio_bloque,"BLOQUE");
+						strcat(primera_copia,integer_to_string(i));
+						strcat(segunda_copia,integer_to_string(i));
+						strcat(tamanio_bloque,integer_to_string(i));
+						strcat(primera_copia,"COPIA0");
+						strcat(segunda_copia,"COPIA1");
+						strcat(tamanio_bloque,"BYTES");
+						primera_copia=realloc(primera_copia,strlen(primera_copia)+1);
+						segunda_copia=realloc(segunda_copia,strlen(segunda_copia)+1);
+						tamanio_bloque=realloc(tamanio_bloque,strlen(tamanio_bloque)+1);
+						if(config_has_property(archivo,tamanio_bloque)){
+							printf("Bloque %s tamanio %s bytes \n",integer_to_string(i),config_get_string_value(archivo,tamanio_bloque));
+							if(config_has_property(archivo,primera_copia) && config_has_property(archivo,segunda_copia)){
+								char**array_primera_copia=config_get_array_value(archivo,primera_copia);
+								printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",integer_to_string(i),array_primera_copia[0],array_primera_copia[1]);
+								char**array_segunda_copia=config_get_array_value(archivo,segunda_copia);
+								printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",integer_to_string(i),array_segunda_copia[0],array_segunda_copia[1]);
+							}else{
+								if(config_has_property(archivo,primera_copia)){
+									char**array_primera_copia=config_get_array_value(archivo,primera_copia);
+									printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",integer_to_string(i),array_primera_copia[0],array_primera_copia[1]);
+								}else{
+									char**array_segunda_copia=config_get_array_value(archivo,segunda_copia);
+									printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",integer_to_string(i),array_segunda_copia[0],array_segunda_copia[1]);
+								}
+							}
+						}else{
+							condicion=false;
+						}
+						i++;
+						free(primera_copia);
+						free(segunda_copia);
+						free(tamanio_bloque);
+					}
+					free(ruta_archivo);
+				}else{
+					printf("El archivo no existe, por favor creelo \n");
 				}
 			}
 		}
@@ -2168,8 +2224,8 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 		while (size_bloques) {
 			//obtenemos datos del  datanode para enviarle la primer copia del bloque
 			//primer copia es i_lista_disponibles
-			int index_primer_copia = i_lista_disponibles;
-			int index_segunda_copia =i_lista_disponibles + 1 > (list_size(disponibles) - 1) ?0 : i_lista_disponibles + 1;
+			int index_primer_copia = i_lista_disponibles + 1 > (list_size(disponibles) - 1) ? 0 : i_lista_disponibles + 1;
+			int index_segunda_copia =index_primer_copia + 1 > (list_size(disponibles) - 1) ? 0 : index_primer_copia + 1;
 			t_resultado_envio*resultado_primer_copia;
 			t_resultado_envio*resultado_segunda_copia;
 			pthread_mutex_lock(&mutex_cpfrom);
