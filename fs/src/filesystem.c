@@ -28,6 +28,7 @@ bool formateado=false;
 bool unico_bloque=false;
 bool inseguro=false;
 bool rechazado=false;
+bool se_trabo;
 //char **archivos_almacenados;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
@@ -624,6 +625,9 @@ void accion(void* socket) {
 				pthread_mutex_unlock(&mutex_md5);
 				if (bloques_totales == 1 && md5){
 					anterior_md5=0;
+					if(!se_trabo){
+						sleep(1);
+					}
 					pthread_mutex_unlock(&mutex_md5);
 				}
 				pthread_mutex_unlock(&mutex_respuesta_solicitud);
@@ -1145,6 +1149,7 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	int aux = cantidad;
 	int i = 0;
 	while (aux > 0) {
+		pthread_mutex_lock(&mutex_md5);
 		char*bloque_bytes = calloc(1, 50);
 		strcpy(bloque_bytes, "BLOQUE");
 		strcat(bloque_bytes, integer_to_string(i));
@@ -1284,7 +1289,6 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		pthread_mutex_lock(&mutex_datanodes);
 		int socket = obtener_socket(bloque->nombre_nodo);
 		pthread_mutex_unlock(&mutex_datanodes);
-		pthread_mutex_lock(&mutex_md5);
 		EnviarDatosTipo(socket, FILESYSTEM, datos, tamanio, SOLICITUDBLOQUE);
 		i++;
 		aux--;
@@ -1720,6 +1724,7 @@ void consola() {
 					solicitar_bloques(separado_por_barras[i], index_padre);
 					pthread_mutex_lock(&mutex_md5);
 					//trabate con el semaforo
+					se_trabo=true;
 					pthread_mutex_lock(&mutex_md5);
 					pthread_mutex_unlock(&mutex_md5);
 					char*string_system=malloc(100);
