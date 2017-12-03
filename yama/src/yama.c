@@ -9,6 +9,7 @@ t_list* listaHilos;
 t_list* tablaDeEstados;
 datosWorker* punteroClock;
 bool end;
+pthread_mutex_t mutex_plani;
 int idsMaster=0;
 int indiceWorker=0;
 
@@ -44,92 +45,13 @@ void imprimirArchivoConfiguracion(){
 				);
 }
 
-//TRUE SI NO ES WORKER, FALSE SI ES WORKER
-void* RecibirPaqueteFilesystem(Paquete* paquete){
-	while(1)
-	{
-		RecibirPaqueteCliente(socketFS,YAMA,paquete);
-		if(paquete->header.tipoMensaje == NUEVOWORKER){
-			//TODO: GUARDAR Y ENVIAR A MASTER
-			void* datos = paquete->Payload;
-			int tamanio = paquete->header.tamPayload;
-			datosWorker* worker = malloc(tamanio);
-			uint32_t largo;
-			largo = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->nodo = string_new();
-			strcpy(worker->nodo, datos);
-			datos+=largo + 1;
-			worker->puerto = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			largo = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->ip = string_new();
-			strcpy(worker->ip, datos);
-			datos += largo + 1;
-			worker->cargaDeTrabajo = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->disponibilidad = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->contTareasRealizadas = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			datos -= tamanio;
-			worker->indice = indiceWorker;
-			indiceWorker++;
-			list_add(listaWorkers,worker);
-		}
-		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
-		{
-			char* nodoAEliminar = string_new();
-			strcpy(nodoAEliminar,paquete->Payload);
-			int indiceEliminado = ((datosWorker*)list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);})))->indice;
-			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}), free);
-			void actualizarIndice(datosWorker* worker){
-				if (worker->indice > indiceEliminado)
-					worker->indice--;
-			}
-			list_iterate(listaWorkers,actualizarIndice);
-			indiceWorker--;
 
-
-		}
-		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
-		{
-			//Respuesta de FS
-			//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
-			void* datos = paquete->Payload;
-			t_list* listaBloques = list_create();
-			int tamanioLista = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			int i;
-			for (i=0; i < tamanioLista; i++){
-				t_bloque_yama* bloque = malloc(sizeof(t_bloque_yama));
-				bloque->numero_bloque = ((uint32_t*)datos)[0];
-				bloque->tamanio = ((uint32_t*)datos)[1];
-				bloque->primer_bloque_nodo = ((uint32_t*)datos)[2];
-				bloque->segundo_bloque_nodo = ((uint32_t*)datos)[3];
-				datos += sizeof(uint32_t) * 4;
-				bloque->primer_nombre_nodo = string_new();
-				strcpy(bloque->primer_nombre_nodo, datos);
-				datos += strlen(datos) + 1;
-				bloque->segundo_nombre_nodo = string_new();
-				strcpy(bloque->segundo_nombre_nodo, datos);
-				datos += strlen(datos) + 1;
-				list_add(listaBloques,bloque);
-			}
-			master* m = list_find(listaMasters,LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == *((uint32_t*)datos) ;}) );
-			m->contJobs++;
-			planificacion(listaBloques, m);
-
-		}
-	}
-}
-
-void CrearListas() {
+void CrearListasEInicializarSemaforos() {
 	listaWorkers = list_create();
 	listaHilos = list_create();
 	listaMasters = list_create();
 	tablaDeEstados = list_create();
+	pthread_mutex_init(&mutex_plani, NULL);
 }
 
 void LiberarListas() {
@@ -139,50 +61,8 @@ void LiberarListas() {
 	list_destroy_and_destroy_elements(tablaDeEstados, free);
 }
 
-void accion(void* socket){
-	int socketFD = *(int*)socket;
-	Paquete paquete;
-	while (RecibirPaqueteServidor(socketFD, YAMA, &paquete) > 0)
-	{
-		if(!strcmp(paquete.header.emisor, MASTER))
-		{
-			switch (paquete.header.tipoMensaje)
-			{
-				case ESHANDSHAKE:
-				{
-					master* m = malloc(sizeof(master)); //TODO asignar idJob?
-					m->id = idsMaster;
-					m->socket = socketFD;
-					m->contJobs = 0;
-					list_add(listaMasters, m);
-					idsMaster++;
-				}
-					break;
-				case SOLICITUDTRANSFORMACION:
-				{
-					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
-					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
-					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
-					//AGARRO LOS DATOS
-					//LE PIDO A FILESYSTEM LOS BLOQUES
-				}
-				break;
-
-			}
-
-		}
-		else
-			perror("No es MASTER");
-
-		if (paquete.Payload != NULL)
-			free(paquete.Payload);
-
-	}
-	close(socketFD);
-
-}
-
-void availability(datosWorker* worker){
+void availability(void* w){
+	datosWorker* worker = (datosWorker*)w;
 	if (!strcmp(ALGORITMO_BALANCEO, "C"))
 	{
 		 worker->disponibilidad = BASE;
@@ -236,6 +116,50 @@ datosWorker* avanzarPuntero(datosWorker* puntero){
 	else
 		return list_get(listaWorkers,(puntero->indice+1)); //list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
 }
+
+void* armarRutaTemporal(datosWorker* p, master* m, int nBloque){
+	char* numeroNodo = string_substring_from(p->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
+	char* strNJob = string_itoa(m->contJobs);
+	char* strBloque = string_itoa(nBloque);
+	char *ruta = string_from_format("/tmp/j%sn%sb%s",strNJob, numeroNodo, strBloque);
+
+	free(numeroNodo);
+	free(strNJob);
+	free(strBloque);
+
+	return ruta;
+}
+
+void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
+	char* r = armarRutaTemporal(p,m,b->numero_bloque);
+	int tamanioDatos = sizeof(uint32_t) * 3 + strlen(p->ip) + strlen(p->nodo) + strlen(r) + 3 ;
+	void* datos = malloc(tamanioDatos);
+	((uint32_t*)datos)[0] = b->numero_bloque;
+	((uint32_t*)datos)[1] = b->tamanio;
+	((uint32_t*)datos)[2] = p->puerto;
+	datos += sizeof(uint32_t) * 3;
+	strcpy(datos, p->ip);
+	datos += strlen(p->ip) + 1;
+	strcpy(datos, p->nodo);
+	datos += strlen(p->nodo) + 1;
+	strcpy(datos, r);
+	datos += strlen(r) + 1;
+	datos -= tamanioDatos;
+	EnviarDatosTipo(m->socket, YAMA, datos, tamanioDatos, SOLICITUDTRANSFORMACION);
+	free(datos);
+	registroEstado* registro = malloc(sizeof(registroEstado));
+	registro->archivoTemporal = string_new();
+	strcpy(registro->archivoTemporal, r);
+	registro->bloque = b->numero_bloque;
+	registro->estado = ENPROCESO;
+	registro->etapa = TRANSFORMACION;
+	registro->job = m->contJobs;
+	registro->master = m->id;
+	registro->nodo = p->nodo;
+	list_add(tablaDeEstados, registro);
+	free(r);
+}
+
 void planificacion(t_list* bloques, master* elmaster){
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad(listaWorkers);
@@ -264,33 +188,7 @@ void planificacion(t_list* bloques, master* elmaster){
 			//se fija si está el bloque a asignar
 			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar))
 			{
-				int nJob = elmaster->contJobs;
-				char* numeroNodo = string_substring_from(punteroClock->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
-				char* strNJob = string_itoa(nJob);
-				char* strBloque = string_itoa(bloqueAAsignar->numero_bloque);
-				int tamanio = 9 +
-							  strlen(strNJob) +
-				              strlen(strBloque) +
-			 	              strlen(numeroNodo);
-				char* rutaTemporal = malloc(tamanio);
-				rutaTemporal = string_from_format("/tmp/j%sn%sb%s",strNJob, numeroNodo, strBloque);
-				int tamanioDatos = sizeof(uint32_t) * 3 + strlen(punteroClock->ip) + strlen(punteroClock->nodo) + 2 + tamanio;
-				void* datos = malloc(tamanioDatos);
-				((uint32_t*)datos)[0] = bloqueAAsignar->numero_bloque;
-				((uint32_t*)datos)[1] = bloqueAAsignar->tamanio;
-				((uint32_t*)datos)[2] = punteroClock->puerto;
-				datos += sizeof(uint32_t) * 3;
-				strcpy(datos, punteroClock->ip);
-				datos += strlen(punteroClock->ip) + 1;
-				strcpy(datos, punteroClock->nodo);
-				datos += strlen(punteroClock->nodo) + 1;
-				strcpy(datos, rutaTemporal);
-				datos += tamanio;
-
-				free(numeroNodo);
-				free(strNJob);
-				free(strBloque);
-
+				EnviarBloqueAMaster(bloqueAAsignar,punteroClock,elmaster);
 				//si está se reduce el valor de disponibilidad
 				punteroClock->disponibilidad--;
 				//y se avanza el clock al siguiente worker
@@ -313,6 +211,7 @@ void planificacion(t_list* bloques, master* elmaster){
 				do {
 					if (bloqueAAsignarEsta(punteroAux, bloqueAAsignar))
 					{
+						EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster);
 						//si está se reduce el valor de disponibilidad
 						punteroAux->disponibilidad--;
 						break;
@@ -337,14 +236,135 @@ void planificacion(t_list* bloques, master* elmaster){
 
 }
 
+void RecibirPaqueteFilesystem(Paquete* paquete){
+	while(RecibirPaqueteCliente(socketFS,YAMA,paquete))
+	{
+		if(paquete->header.tipoMensaje == NUEVOWORKER){
+			void* datos = paquete->Payload;
+			int tamanio = paquete->header.tamPayload;
+			datosWorker* worker = malloc(tamanio);
+			uint32_t largo;
+			largo = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			worker->nodo = string_new();
+			strcpy(worker->nodo, datos);
+			datos+=largo + 1;
+			worker->puerto = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			largo = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			worker->ip = string_new();
+			strcpy(worker->ip, datos);
+			datos += largo + 1;
+			worker->cargaDeTrabajo = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			worker->disponibilidad = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			worker->contTareasRealizadas = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			datos -= tamanio;
+			worker->indice = indiceWorker;
+			indiceWorker++;
+			list_add(listaWorkers,worker);
+		}
+		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
+		{
+			char* nodoAEliminar = string_new();
+			strcpy(nodoAEliminar,paquete->Payload);
+			int indiceEliminado = ((datosWorker*)list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);})))->indice;
+			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}), free);
+			void actualizarIndice(void* w){
+				datosWorker* worker = (datosWorker*)w;
+				if (worker->indice > indiceEliminado)
+					worker->indice--;
+			}
+			list_iterate(listaWorkers,actualizarIndice);
+			indiceWorker--;
 
+
+		}
+		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
+		{
+			//Respuesta de FS
+			//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
+			void* datos = paquete->Payload;
+			t_list* listaBloques = list_create();
+			int tamanioLista = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			int i;
+			for (i=0; i < tamanioLista; i++){
+				t_bloque_yama* bloque = malloc(sizeof(t_bloque_yama));
+				bloque->numero_bloque = ((uint32_t*)datos)[0];
+				bloque->tamanio = ((uint32_t*)datos)[1];
+				bloque->primer_bloque_nodo = ((uint32_t*)datos)[2];
+				bloque->segundo_bloque_nodo = ((uint32_t*)datos)[3];
+				datos += sizeof(uint32_t) * 4;
+				bloque->primer_nombre_nodo = string_new();
+				strcpy(bloque->primer_nombre_nodo, datos);
+				datos += strlen(datos) + 1;
+				bloque->segundo_nombre_nodo = string_new();
+				strcpy(bloque->segundo_nombre_nodo, datos);
+				datos += strlen(datos) + 1;
+				list_add(listaBloques,bloque);
+			}
+			master* m = list_find(listaMasters,LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == *((uint32_t*)datos) ;}) );
+			m->contJobs++;
+			pthread_mutex_lock(&mutex_plani);
+			planificacion(listaBloques, m);
+			pthread_mutex_lock(&mutex_plani);
+
+		}
+	}
+}
+
+void accion(void* socket){
+	int socketFD = *(int*)socket;
+	Paquete paquete;
+	while (RecibirPaqueteServidor(socketFD, YAMA, &paquete) > 0)
+	{
+		if(!strcmp(paquete.header.emisor, MASTER))
+		{
+			switch (paquete.header.tipoMensaje)
+			{
+				case ESHANDSHAKE:
+				{
+					master* m = malloc(sizeof(master));
+					m->id = idsMaster;
+					m->socket = socketFD;
+					m->contJobs = 0;
+					list_add(listaMasters, m);
+					idsMaster++;
+				}
+					break;
+				case SOLICITUDTRANSFORMACION:
+				{
+					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
+					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
+					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
+					//AGARRO LOS DATOS
+					//LE PIDO A FILESYSTEM LOS BLOQUES
+				}
+				break;
+
+			}
+
+		}
+		else
+			perror("No es MASTER");
+
+		if (paquete.Payload != NULL)
+			free(paquete.Payload);
+
+	}
+	close(socketFD);
+
+}
 
 
 int main(){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-
-	CrearListas();
+	CrearListasEInicializarSemaforos();
 	socketFS = ConectarAServidor(FS_PUERTO, FS_IP, FILESYSTEM, YAMA, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));
 	pthread_t conexionFilesystem;

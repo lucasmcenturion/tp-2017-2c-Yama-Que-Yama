@@ -463,7 +463,29 @@ int main(int argc, char* argv[]){
 		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<0) perror("Error al recibir respuesta de YAMA");
 		{
 			switch(paquete->header.tipoMensaje){
-			case NUEVOWORKER:{
+			case SOLICITUDTRANSFORMACION:{
+				void* datos = paquete->Payload;
+				//numero de bloque
+				((uint32_t*)datos)[0];
+				//cantbytesocupados
+				((uint32_t*)datos)[1];
+				//puerto worker
+				((uint32_t*)datos)[2];
+				datos+=sizeof(uint32_t) * 3;
+				//ip worker
+				char* ip = string_new();
+				strcpy(ip, datos);
+				datos += strlen(datos)+1;
+				//nombre nodo del worker
+				char* nombreNodo = string_new();
+				strcpy(nombreNodo, datos);
+				datos += strlen(datos)+1;
+				//ruta temporal
+				char* rutaTemporal = string_new();
+				strcpy(rutaTemporal, datos);
+				datos += strlen(datos)+1;
+				datos -= paquete->header.tamPayload;
+
 
 				contTActuales++;
 				if(contTActuales>contTMaxP) contTMaxP = contTActuales;

@@ -136,9 +136,9 @@ typedef struct {
 	int master;
 	char* nodo;
 	int bloque;
-	char* etapa;
+	etapa etapa;
 	char* archivoTemporal;
-	char* estado;
+	estado estado;
 }__attribute__((packed))
 registroEstado;
 
