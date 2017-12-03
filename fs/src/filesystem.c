@@ -37,6 +37,7 @@ pthread_mutex_t mutex_archivos_erroneos;
 pthread_mutex_t mutex_escribir_archivo;
 pthread_mutex_t mutex_md5;
 pthread_mutex_t mutex_cpfrom;
+pthread_mutex_t mutex_respuesta_solicitud;
 //pthread_mutex_t mutex_archivos_almacenados;
 t_directory **obtener_directorios() {
 	int fd_directorio = open(RUTA_DIRECTORIOS, O_RDWR);
@@ -599,6 +600,7 @@ void accion(void* socket) {
 			}
 			break;
 			case RESPUESTASOLICITUD: {
+				pthread_mutex_lock(&mutex_respuesta_solicitud);
 				datos = paquete.Payload;
 				int bloque_archivo = *((uint32_t*) datos);
 				datos += sizeof(uint32_t);
@@ -624,7 +626,7 @@ void accion(void* socket) {
 					anterior_md5=0;
 					pthread_mutex_unlock(&mutex_md5);
 				}
-
+				pthread_mutex_unlock(&mutex_respuesta_solicitud);
 			}
 				break;
 			case IDENTIFICACIONDATANODE: {
@@ -2386,6 +2388,7 @@ int main() {
 	pthread_mutex_init(&mutex_escribir_archivo, NULL);
 	pthread_mutex_init(&mutex_md5, NULL);
 	pthread_mutex_init(&mutex_cpfrom,NULL);
+	pthread_mutex_init(&mutex_respuesta_solicitud,NULL);
 	//pthread_mutex_init(&mutex_archivos_almacenados,NULL);
 	pthread_create(&hiloConsola, NULL, (void*) consola, NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
