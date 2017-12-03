@@ -1210,12 +1210,9 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 					}
 				} else {
 					//alguno de los dos nunca se seteo
-					if (dictionary_has_key(datanodes_dictionary,
-							datos_primer_bloque[0])) {
-						dictionary_put(datanodes_dictionary,
-								datos_segundo_bloque,
-								dictionary_get(datanodes_dictionary,
-										datos_segundo_bloque) + 1);
+					if (dictionary_has_key(datanodes_dictionary,datos_primer_bloque[0])) {
+						dictionary_put(datanodes_dictionary,datos_segundo_bloque,
+								dictionary_get(datanodes_dictionary,datos_segundo_bloque) + 1);
 						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
@@ -1294,6 +1291,9 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		aux--;
 		cantidad--;
 	}
+	free(ruta);
+	config_destroy(archivo);
+	dictionary_destroy(datanodes_dictionary);
 
 }
 int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
@@ -1326,6 +1326,7 @@ int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
 	free(total_nodo);
 	free(libre_nodo);
 	free(nombre_nodo);
+	config_destroy(nodos);
 	return tamanio_nodo;
 }
 void formatear_bitarray(char*nombre_archivo,bool primera_vez){
@@ -1425,7 +1426,6 @@ void consola() {
 					strcat(ruta_archivo_yamafs,nombre_archivo);
 					ruta_archivo_yamafs=realloc(ruta_archivo_yamafs,strlen(ruta_archivo_yamafs)+1);
 					remove(ruta_archivo_yamafs);
-					free(ruta_archivo_yamafs);
 					char *directorio=malloc(100);
 					strcpy(directorio,RUTA_ARCHIVOS);
 					strcat(directorio,"/");
@@ -1449,6 +1449,9 @@ void consola() {
 					if(i==0){
 						rmdir(directorio);
 					}
+					free(nombre_archivo);
+					free(ruta_archivo_yamafs);
+					free(directorio);
 				}
 			}
 		}else if (!strncmp(linea, "rename ", 7)) {
@@ -1526,6 +1529,8 @@ void consola() {
 							}
 						}
 						guardar_directorios(directorios);
+						free((*directorios));
+						free(directorios);
 					}
 				}
 			}
@@ -1581,25 +1586,6 @@ void consola() {
 				fflush(stdout);
 				crear_y_actualizar_ocupados(directorio_yama);
 			}
-			/*t_directory **directorios = obtener_directorios();
-			t_directory *aux = (*directorios);
-			char **separado_por_barras = string_split(directorio_yama, "/");
-			int iterador = 0;
-			int padre_anterior = -1;
-			int index_directorio_padre;
-			while (separado_por_barras[iterador]) {
-				if (!(separado_por_barras[iterador + 1])) {
-					index_directorio_padre = obtener_index_directorio(
-							separado_por_barras[iterador], padre_anterior, aux);
-				} else {
-					padre_anterior = obtener_index_directorio(
-							separado_por_barras[iterador], padre_anterior, aux);
-				}
-				iterador++;
-			}
-			free((*directorios));
-			free(directorios);*/
-
 			int index_directorio_padre=index_ultimo_directorio(directorio_yama,"d");
 			int tipo_archivo = atoi(array_input[3]);
 			t_list *bloques_a_enviar = list_create();
@@ -1673,9 +1659,12 @@ void consola() {
 				unico_bloque=true;
 			}
 			if (!(enviarBloques((t_list*) bloques_a_enviar, nombre_archivo,
-					index_directorio_padre, tipo_archivo))) {
+					index_directorio_padre, tipo_archivo))){
 				break;
 			}
+			free(path_archivo);
+			free(nombre_archivo);
+			free(directorio_yama);
 		} else if (!strncmp(linea, "cpto ", 5)){
 			char **array_input = string_split(linea, " ");
 			if (!array_input[0] || !array_input[1] || !array_input[2]) {
