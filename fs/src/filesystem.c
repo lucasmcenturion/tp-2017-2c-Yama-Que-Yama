@@ -72,7 +72,7 @@ int index_ultimo_directorio(char*ruta, char* tipo) {
 	t_directory *aux = (*directorios);
 	char **separado_por_barras = string_split(ruta, "/");
 	int i = 0;
-	int padre_anterior = -1;
+	int padre_anterior = 0;
 	int index_actual;
 	if (strcmp("a", tipo) == 0) {
 		int cantidad = 0;
@@ -225,8 +225,7 @@ void actualizar_nodos_bin(info_datanode *data) {
 	tamanio_actual =tamanio_actual == 0 ?data->bloques_totales :tamanio_actual + data->bloques_totales;
 	char *string_tamanio_actual = malloc(100);
 	sprintf(string_tamanio_actual, "%i", tamanio_actual);
-	string_tamanio_actual = realloc(string_tamanio_actual,
-			strlen(string_tamanio_actual) + 1);
+	string_tamanio_actual = realloc(string_tamanio_actual,strlen(string_tamanio_actual) + 1);
 	config_set_value(nodos, "TAMANIO", string_tamanio_actual);
 	config_save_in_file(nodos, ruta_nodos);
 	int libre;
@@ -238,8 +237,8 @@ void actualizar_nodos_bin(info_datanode *data) {
 	config_set_value(nodos, "LIBRE", string_libre);
 	config_save_in_file(nodos, ruta_nodos);
 	char *nodos_actuales = calloc(1, 100);
-	nodos_actuales = config_get_string_value(nodos, "NODOS");
-	if (nodos_actuales) {
+	if (config_has_property(nodos,"NODOS")){
+		nodos_actuales = config_get_string_value(nodos, "NODOS");
 		char **separado_por_comas = string_split(nodos_actuales, ",");
 		int cantidad_comas = 0;
 		while (separado_por_comas[cantidad_comas]) {
@@ -251,8 +250,7 @@ void actualizar_nodos_bin(info_datanode *data) {
 			if (cantidad_comas == 1) {
 				char *substring = calloc(1, 100);
 				substring = string_substring(
-						separado_por_comas[(cantidad_comas - 1)], 0,
-						strlen(separado_por_comas[(cantidad_comas - 1)]) - 1);
+						separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)]) - 1);
 				substring = realloc(substring, strlen(substring) + 1);
 				strcpy(nuevos_nodos, substring);
 				strcat(nuevos_nodos, ",");
@@ -544,47 +542,7 @@ t_list*obtener_lista_bloques(char*ruta_archivo){
 	}
 	return bloques;
 }
-/*void actualizar_archivos_almacenados(char*nombre_archivo){
-	int cantidad_palabras=0;
-	while(1){
-		if(archivos_almacenados[cantidad_palabras]){
-			cantidad_palabras++;
-		}else{
-			break;
-		}
-	}
-	archivos_almacenados=realloc(archivos_almacenados,(cantidad_palabras+1)*sizeof(char*));
-	archivos_almacenados[cantidad_palabras]=malloc(strlen(nombre_archivo)+1);
-	strcpy(archivos_almacenados[cantidad_palabras],nombre_archivo);
-	t_config*archivos=config_create(RUTA_ARCHIVOS_ALMACENADOS);
-	char*value=malloc(1024);
-	int i=0;
-	if(cantidad_palabras+1==1){
-		strcpy(value,"[");
-		strcat(value,archivos_almacenados[i]);
-		strcat(value,"]");
-	}else{
-		while(archivos_almacenados[i]){
-			if(i==0){
-				strcpy(value,"[");
-				strcat(value,archivos_almacenados[i]);
-				strcat(value,",");
-			}else{
-				if(!(archivos_almacenados[i+1])){
-					strcat(value,archivos_almacenados);
-					strcat(value,"]");
-				}else{
-					strcat(value,archivos_almacenados[i]);
-					strcat(value,",");
-				}
-			}
-		}
-	}
-	config_set_value(archivos,"ARCHIVOS",value);
-	config_set_value(archivos,"CANTIDAD",integer_to_string(cantidad_palabras+1));
-	config_save_in_file(archivos,RUTA_ARCHIVOS_ALMACENADOS);
-}
-*/
+
 
 void accion(void* socket) {
 	int socketFD = *(int*) socket;
@@ -628,6 +586,8 @@ void accion(void* socket) {
 					if(!se_trabo){
 						sleep(1);
 					}
+					pthread_mutex_unlock(&mutex_md5);
+				}else{
 					pthread_mutex_unlock(&mutex_md5);
 				}
 				pthread_mutex_unlock(&mutex_respuesta_solicitud);
@@ -937,7 +897,7 @@ crear(t_directory aux[100], char *ruta) {
 	pthread_mutex_unlock(&mutex_directorio);
 	char **separado_por_barras = string_split(ruta, "/");
 	int i = 0;
-	int padre_anterior = -1;
+	int padre_anterior = 0;
 	while (separado_por_barras[i]) {
 		if (!(existe(separado_por_barras[i], padre_anterior, aux))) {
 			int index_array = primer_index_libre();
@@ -992,8 +952,8 @@ existe(char*nombre, int index_padre, t_directory aux[100]) {
 }
 
 bool existe_ruta(char *ruta_fs) {
-	char *ruta = calloc(1, strlen("/home/utnso/metadata/directorios.dat") + 1);
-	strcpy(ruta, "/home/utnso/metadata/directorios.dat");
+	char *ruta = calloc(1, strlen(RUTA_DIRECTORIOS) + 1);
+	strcpy(ruta, RUTA_DIRECTORIOS);
 	int fd_directorio = open(ruta, O_RDWR);
 	if (fd_directorio == -1) {
 		printf("Error al intentar abrir el archivo");
@@ -1024,7 +984,7 @@ bool existe_ruta(char *ruta_fs) {
 				return existe(separado_por_barras[cantidad - 1], -1, aux);
 			} else {
 				//ruta formada por mas de un directorio
-				int index_padre_anterior = -1;
+				int index_padre_anterior = 0;
 				int i = 0;
 				cantidad--;
 				while (cantidad >= 0) {
@@ -1473,7 +1433,7 @@ void consola() {
 					t_directory **directorios = obtener_directorios();
 					t_directory *aux = (*directorios);
 					int i;
-					int padre_anterior = -1;
+					int padre_anterior = 0;
 					for (i = 0; i < cantidad; ++i) {
 						padre_anterior = obtener_index_directorio(
 								separado_por_barras[i], padre_anterior, aux);
@@ -1506,7 +1466,7 @@ void consola() {
 						t_directory **directorios = obtener_directorios();
 						t_directory *aux = (*directorios);
 						int i = 0;
-						int padre_anterior = -1;
+						int padre_anterior = 0;
 						int index_ultimo_directorio;
 						while (separado_por_barras[i]) {
 							if (!(separado_por_barras[i + 1])) {
@@ -1534,8 +1494,112 @@ void consola() {
 					}
 				}
 			}
-		} else if (!strncmp(linea, "mv ", 3))
-			printf("mover\n");
+		} else if (!strncmp(linea, "mv ", 3)){
+			char**array_input=string_split(linea," ");
+			if(!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3]){
+				printf("Error, verificar parámetros \n");
+			}else{
+				int tipo=atoi(array_input[3]);
+				char*ruta_original=malloc(100);
+				char*ruta_destino=malloc(100);
+				char *nombre_archivo=malloc(100);
+				char*ruta_archivo_original=malloc(100);
+				char*directorio_destino=malloc(100);
+				strcpy(ruta_original,array_input[1]);
+				strcpy(ruta_destino,array_input[2]);
+				ruta_original=realloc(ruta_original,strlen(ruta_original)+1);
+				ruta_destino=realloc(ruta_destino,strlen(ruta_destino)+1);
+				if(tipo==0){
+					//es un archivo
+					int index_directorio_padre_original=index_ultimo_directorio(ruta_original,"a");
+					int index_directorio_padre_destino=index_ultimo_directorio(ruta_destino,"d");
+					strcpy(nombre_archivo,obtener_nombre_archivo(ruta_original));
+					nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+					if(!existe_archivo(nombre_archivo,index_directorio_padre_original)){
+						printf("Error,no existe el archivo original \n");
+					}else{
+						strcpy(ruta_archivo_original,RUTA_ARCHIVOS);
+						strcat(ruta_archivo_original,"/");
+						strcat(ruta_archivo_original,integer_to_string(index_directorio_padre_original));
+						strcat(ruta_archivo_original,"/");
+						strcat(ruta_archivo_original,nombre_archivo);
+						ruta_archivo_original=realloc(ruta_archivo_original,strlen(ruta_archivo_original)+1);
+						t_config*archivo_original=config_create(ruta_archivo_original);
+						strcpy(directorio_destino,RUTA_ARCHIVOS);
+						strcat(directorio_destino,"/");
+						strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+						directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
+						DIR*d;
+						d=opendir(directorio_destino);
+						if(!d){
+							mkdir(directorio_destino,0700);
+						}
+						closedir(directorio_destino);
+						directorio_destino=malloc(100);
+						strcpy(directorio_destino,RUTA_ARCHIVOS);
+						strcat(directorio_destino,"/");
+						strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+						strcat(directorio_destino,"/");
+						strcat(directorio_destino,nombre_archivo);
+						directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
+						if(access(directorio_destino,F_OK)==-1){
+							FILE*f=fopen(directorio_destino,"w");
+							fclose(f);
+						}
+						config_save_in_file(archivo_original,directorio_destino);
+						config_destroy(archivo_original);
+						remove(ruta_archivo_original);
+						char*directorio_original=malloc(100);
+						strcpy(directorio_original,RUTA_ARCHIVOS);
+						strcat(directorio_original,"/");
+						strcat(directorio_original,integer_to_string(index_directorio_padre_original));
+						directorio_original=realloc(directorio_original,strlen(directorio_original)+1);
+						struct dirent *dir;
+						DIR*directory;
+						directory= opendir(directorio_original);
+						int i=0;
+						if (directory){
+							while ((dir = readdir(directory)) != NULL)
+							{
+								if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
+									i++;
+								}else{
+
+								}
+							}
+						}
+						closedir(directory);
+						if(i==0){
+							rmdir(directorio_original);
+						}
+						closedir(d);
+					}
+				}else{
+					//es un directorio
+					int ultimo_index_original=index_ultimo_directorio(ruta_original,"d");
+					int ultimo_index_destino=index_ultimo_directorio(ruta_destino,"d");
+					t_directory **directorios = obtener_directorios();
+					t_directory *aux = (*directorios);
+					int var;
+					for (var = 0; var < 100; ++var) {
+						if(aux[var].index==ultimo_index_original){
+							aux[var].padre=ultimo_index_destino;
+							break;
+						}
+					}
+					guardar_directorios(directorios);
+					free((*directorios));
+					free(directorios);
+
+				}
+				free(nombre_archivo);
+				free(ruta_archivo_original);
+				free(directorio_destino);
+				free(ruta_original);
+				free(ruta_destino);
+
+			}
+		}
 		else if (!strncmp(linea, "cat ", 4))
 			printf("muestra archivo\n");
 		else if (!strncmp(linea, "mkdir ", 6)) {
@@ -1749,7 +1813,7 @@ void consola() {
 					char **separado_por_barras = string_split(array_input[1],
 							"/");
 					int iterador = 0;
-					int padre_anterior = -1;
+					int padre_anterior = 0;
 					int ultimo_index;
 					while (separado_por_barras[iterador]) {
 						if (!(separado_por_barras[iterador + 1])) {
@@ -1851,6 +1915,7 @@ void consola() {
 						free(tamanio_bloque);
 					}
 					free(ruta_archivo);
+					config_destroy(archivo);
 				}else{
 					printf("El archivo no existe, por favor creelo \n");
 				}
@@ -1891,7 +1956,7 @@ void mostrar_directorios_hijos(char *path) {
 					cantidad++;
 				}
 				int i = 0;
-				int padre_anterior = -1;
+				int padre_anterior = 0;
 				int index_actual;
 				while (separado_por_barras[i]) {
 					if (!(separado_por_barras[i + 1])) {
@@ -2283,7 +2348,7 @@ void crear_directorio() {
 	truncate(RUTA_DIRECTORIOS, 100 * sizeof(t_directory));
 	guardar_directorios(directorios);
 	pthread_mutex_lock(&mutex_directorio);
-	index_directorio = 0;
+	index_directorio = 1;
 	pthread_mutex_unlock(&mutex_directorio);
 	free((*directorios));
 	free(directorios);
@@ -2301,29 +2366,7 @@ void setear_directorio(int index_array, int index, char *nombre, int padre) {
 	free((*directorios));
 	free(directorios);
 }
-/*void obtener_archivos_creados(){
-	t_config*archivos_creados=config_create(RUTA_ARCHIVOS_ALMACENADOS);
-	if(config_has_property(archivos_creados,"ARCHIVOS") && config_get_string_value(archivos_creados,"ARCHIVOS")){
-		int cantidad=config_get_int_value(archivos_creados,"CANTIDAD");
-		archivos_almacenados=malloc(cantidad*sizeof(char*));
-		archivos_almacenados=config_get_array_value(archivos_creados,"ARCHIVOS");
-		printf("%s,%s \n",archivos_almacenados[0],archivos_almacenados[1]);
-		int i=0;
-		while(1){
-			if(archivos_almacenados[i]){
-				archivos_almacenados[i]=realloc(archivos_almacenados[i],strlen(archivos_almacenados[i])+1);
-			}else{
-				break;
-			}
-			i++;
-		}
-	}else{
-		config_set_value(archivos_creados,"ARCHIVOS","");
-		config_set_value(archivos_creados,"CANTIDAD",integer_to_string(0));
-	}
-	config_save_in_file(archivos_creados,RUTA_ARCHIVOS_ALMACENADOS);
-}
-*/
+
 int main() {
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
@@ -2343,8 +2386,8 @@ int main() {
 	strcpy(RUTA_ARCHIVOS_ALMACENADOS, PUNTO_MONTAJE);
 	strcat(RUTA_ARCHIVOS_ALMACENADOS, "/archivos.bin");
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
-	/*
-	 t_directory **directorios=obtener_directorios();
+
+	 /*t_directory **directorios=obtener_directorios();
 	 t_directory *aux=(*directorios);
 	 int var;
 	 for (var = 0; var < 10; ++var) {
@@ -2356,7 +2399,6 @@ int main() {
 		FILE*f=fopen(RUTA_NODOS,"w");
 		fclose(f);
 		t_config*archivo=config_create(RUTA_NODOS);
-		config_set_value(archivo,"NODOS","");
 		config_set_value(archivo,"TAMANIO",integer_to_string(0));
 		config_set_value(archivo,"LIBRE",integer_to_string(0));
 		config_save_in_file(archivo,RUTA_NODOS);
@@ -2365,12 +2407,6 @@ int main() {
 	archivos_actuales = dictionary_create();
 	archivos_terminados = dictionary_create();
 	archivos_erroneos = dictionary_create();
-	/*if(access(RUTA_ARCHIVOS_ALMACENADOS,F_OK)==-1){
-		FILE *f=fopen(RUTA_ARCHIVOS_ALMACENADOS,"w");
-		fclose(f);
-	}
-	obtener_archivos_creados();
-	*/
 	pthread_t hiloConsola;
 	datanodes_anteriores=list_create();
 	//verificar_estado
