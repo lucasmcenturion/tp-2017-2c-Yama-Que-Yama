@@ -2391,7 +2391,7 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 		while (size_bloques) {
 			//obtenemos datos del  datanode para enviarle la primer copia del bloque
 			//primer copia es i_lista_disponibles
-			int index_primer_copia = i_lista_disponibles + 1 > (list_size(disponibles) - 1) ? 0 : i_lista_disponibles + 1;
+			int index_primer_copia = i_lista_disponibles;
 			int index_segunda_copia =index_primer_copia + 1 > (list_size(disponibles) - 1) ? 0 : index_primer_copia + 1;
 			t_resultado_envio*resultado_primer_copia;
 			t_resultado_envio*resultado_segunda_copia;
@@ -2422,7 +2422,7 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 				segunda_copia->nombre_nodo = realloc(segunda_copia->nombre_nodo,strlen(segunda_copia->nombre_nodo) + 1);
 				list_add(bloques_enviados, segunda_copia);
 			}
-			i_lista_disponibles =	i_lista_disponibles + 1 > (list_size(disponibles) - 1) ?0 : i_lista_disponibles + 1;
+			i_lista_disponibles = i_lista_disponibles == (list_size(disponibles) - 1) ? 1 : i_lista_disponibles == (list_size(disponibles) - 2) ? 0 : i_lista_disponibles + 2;
 			size_bloques--;
 			i_bloques_a_enviar++;
 			if (size_bloques <= 0) {

@@ -237,7 +237,7 @@ void planificacion(t_list* bloques, master* elmaster){
 }
 
 void RecibirPaqueteFilesystem(Paquete* paquete){
-	while(RecibirPaqueteCliente(socketFS,YAMA,paquete))
+	while(RecibirPaqueteCliente(socketFS,YAMA,paquete) > 1)
 	{
 		if(paquete->header.tipoMensaje == NUEVOWORKER){
 			void* datos = paquete->Payload;
