@@ -143,7 +143,7 @@ int existe_algun_directorio(char *nombre){
 	}
 }
 
-char **obtener_nombre_archivo(char*path){
+char *obtener_nombre_archivo(char*path){
 	char **separado_por_barras=string_split(path,"/");
 	int cantidad=0;
 	while(separado_por_barras[cantidad]){
