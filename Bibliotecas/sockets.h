@@ -39,6 +39,13 @@ typedef struct{
 }__attribute__((packed)) solicitudPrograma;
 
 typedef struct{
+	int bloque;
+	int idJob;//jXnYbZesX;
+	char* nodo;
+	bool exito;
+}__attribute__((packed)) rtaEstado;
+
+typedef struct{
 	etapa header; //No se si es necesaria, ahora lo chequeo.
 	datosWorker worker;
 	char* archTempRL;
