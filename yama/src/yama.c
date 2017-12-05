@@ -269,6 +269,12 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			indiceWorker++;
 			list_add(listaWorkers,worker);
 		}
+		if(paquete->header.tipoMensaje == LISTAWORKERS){
+			//TODO deserializar los datos
+			//primero obtene el tamaño de la lista
+			//luego te llegan puertoworker,ipnodo,nombrenodo
+			//serializo en ESHANDSHAKE en filesystem
+		}
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
 			char* nodoAEliminar = string_new();

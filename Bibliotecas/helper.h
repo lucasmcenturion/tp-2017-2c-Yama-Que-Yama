@@ -146,7 +146,9 @@ typedef struct{
 	uint32_t socket;
 	uint32_t bloques_totales;
 	uint32_t bloques_libres;
+	uint32_t puertoworker;
 	char *nodo;
+	char *ip_nodo;
 }__attribute__((packed))
 info_datanode;
 
