@@ -1209,7 +1209,6 @@ int obtener_socket(char*nombre) {
 	return ((info_datanode*) list_find(datanodes, (void*) nombre_igual))->socket;
 }
 void solicitar_bloques(char*nombre_archivo, int index_padre) {
-	//TODO SOLICITAR_BLOQUES
 	char*ruta = malloc(100);
 	strcpy(ruta, RUTA_ARCHIVOS);
 	strcat(ruta, "/");
@@ -1547,7 +1546,6 @@ void consola() {
 			}
 		}else if (!strncmp(linea, "rename ", 7)) {
 			char **array_input = string_split(linea, " ");
-			//TODO rename
 			if (!array_input[0] || !array_input[1] || !array_input[2]
 					|| !array_input[3]) {
 				printf("Error, verificar parametros\n");
@@ -1736,7 +1734,6 @@ void consola() {
 		else if (!strncmp(linea, "mkdir ", 6)) {
 			printf("crea directorio\n");
 			char **array_input = string_split(linea, " ");
-			//TODO
 			if (!array_input[0] || !array_input[1]) {
 				printf("Error, verificar parametros\n");
 				fflush(stdout);
@@ -2389,17 +2386,61 @@ void actualizar_datanodes(char *nombre_nodo){
 	list_iterate(datanodes,(void*) restar_uno);
 }
 //TODO HACER ESTO SIN FALTA
-/*void actualizar_luego_de_cpfrom(){
-	for (int var = 0; var < max; ++var) {
-
+void actualizar_luego_de_cpfrom(){
+	int var;
+	for (var = 0; var < list_size(datanodes); ++var) {
+		info_datanode*elemento=list_get(datanodes,var);
+		char *ruta_nodos = malloc(100);
+		strcpy(ruta_nodos, RUTA_NODOS);
+		ruta_nodos = realloc(ruta_nodos, strlen(ruta_nodos) + 1);
+		t_config *nodos = config_create(ruta_nodos);
+		int tamanio_actual;
+		tamanio_actual = config_get_int_value(nodos, "TAMANIO");
+		tamanio_actual =tamanio_actual == 0 ? elemento->bloques_totales :tamanio_actual + elemento->bloques_totales;
+		char *string_tamanio_actual = malloc(100);
+		sprintf(string_tamanio_actual, "%i", tamanio_actual);
+		string_tamanio_actual = realloc(string_tamanio_actual,strlen(string_tamanio_actual) + 1);
+		config_set_value(nodos, "TAMANIO", string_tamanio_actual);
+		config_save(nodos);
+		int libre;
+		libre = config_get_int_value(nodos, "LIBRE");
+		libre = libre == 0 ? elemento->bloques_libres : libre + elemento->bloques_libres;
+		char *string_libre = malloc(100);
+		sprintf(string_libre, "%i", libre);
+		string_libre = realloc(string_libre, strlen(string_libre) + 1);
+		config_set_value(nodos, "LIBRE", string_libre);
+		config_save(nodos);
+		char *nodo_actual_total = calloc(1, 100);
+		strcpy(nodo_actual_total, elemento->nodo);
+		strcat(nodo_actual_total, "Total");
+		char *string_bloques_totales = calloc(1, 100);
+		sprintf(string_bloques_totales, "%i", elemento->bloques_totales);
+		string_bloques_totales = realloc(string_bloques_totales,strlen(string_bloques_totales) + 1);
+		config_set_value(nodos, nodo_actual_total, string_bloques_totales);
+		config_save(nodos);
+		char *nodo_actual_libre = calloc(1, 100);
+		strcpy(nodo_actual_libre, elemento->nodo);
+		strcat(nodo_actual_libre, "Libre");
+		char *string_bloques_libres = calloc(1, 100);
+		sprintf(string_bloques_libres, "%i", elemento->bloques_libres);
+		string_bloques_libres = realloc(string_bloques_libres,strlen(string_bloques_libres) + 1);
+		config_set_value(nodos, nodo_actual_libre, string_bloques_libres);
+		config_save(nodos);
+		config_save_in_file(nodos, ruta_nodos);
+		free(ruta_nodos);
+		free(string_tamanio_actual);
+		free(string_bloques_libres);
+		free(nodo_actual_libre);
+		free(string_bloques_totales);
+		free(nodo_actual_total);
+		free(string_libre);
 	}
-}*/
+}
 int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 		int index_directorio_padre, int tipo_archivo) {
 	//filtramos los que tengan bloques libres
 	//hay que filtrar en la lista de datanodes los que tengan bloques libres>0
 	//una vez obtenidos,los enviamos
-	//TODO ----> ENVIAR BLOQUES
 
 	t_list *datanodes_a_enviar = list_create();
 	t_list *disponibles = list_create();
@@ -2437,7 +2478,6 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 			if (!(resultado_primer_copia->resultado)|| !(resultado_segunda_copia->resultado)) {
 				//limpio todos los bloques enviados
 				limpiar_bitarrays(bloques_enviados);
-				//TODO HACER SEMAFOROS
 				pthread_mutex_lock(&mutex_archivos_erroneos);
 				dictionary_put(archivos_erroneos, nombre_archivo,nombre_archivo);
 				pthread_mutex_unlock(&mutex_archivos_erroneos);
@@ -2467,7 +2507,7 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 			}
 		}
 		pthread_mutex_lock(&mutex_datanodes);
-		//actualizar_luego_de_cpfrom();
+		actualizar_luego_de_cpfrom();
 		pthread_mutex_unlock(&mutex_datanodes);
 	}
 	list_destroy(datanodes_a_enviar);
@@ -2529,6 +2569,8 @@ int main() {
 	RUTA_ARCHIVOS_ALMACENADOS=malloc(strlen(PUNTO_MONTAJE) + strlen("/archivos.bin") + 1);
 	strcpy(RUTA_ARCHIVOS_ALMACENADOS, PUNTO_MONTAJE);
 	strcat(RUTA_ARCHIVOS_ALMACENADOS, "/archivos.bin");
+	mkdir(RUTA_ARCHIVOS,0700);
+	mkdir(RUTA_BITMAPS,0700);
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
 
 	 /*t_directory **directorios=obtener_directorios();
@@ -2539,6 +2581,7 @@ int main() {
 	 }
 	 return 0;
 	*/
+	remove(RUTA_NODOS);
 	if(access(RUTA_NODOS,F_OK)==-1){
 		FILE*f=fopen(RUTA_NODOS,"w");
 		fclose(f);
