@@ -208,6 +208,28 @@ void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker)
 
 }
 
+void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA){
+	// bllque - idJob - strLen - noodo - bool
+	int mov = 0;
+	bool boolAux;
+	int sizeAux;
+	int size = sizeof(int)*2 + sizeof(int)+strlen(resultado->nodo)+1+sizeof(bool);
+	void* datos = malloc(size);
+
+	memcpy(datos+mov,resultado->bloque,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,resultado->idJob,sizeof(int));
+	mov += sizeof(int);
+	sizeAux = strlen(resultado->nodo)+1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,resultado->nodo,strlen(resultado->nodo)+1);
+	mov += strlen(resultado->nodo)+1;
+	boolAux = resultado->exito;
+	memcpy(datos+mov,&boolAux,sizeof(bool));
+
+	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, size, VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de T");
+}
 
 
 void obtenerValoresArchivoConfiguracion() {
@@ -227,13 +249,21 @@ void imprimirArchivoConfiguracion(){
 	);
 }
 
+int obtenerIdJobDeRuta(char* rutaTemporal){
+	// /tmp/jXnybz
+	// 0123456
+	int resultado = rutaTemporal[6];
+	return resultado;
+}
+
+
 
 void accionHilo(void* solicitud){
 	Paquete* paquete = malloc(sizeof(Paquete));
 	switch (((nodoT*)solicitud)->header)
 	{
 
-	case TRANSFORMACION:{
+	case TRANSFORMACION:{ //TODO
 		nodoT* datosT = malloc(sizeof(nodoT));
 		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
 		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
@@ -241,14 +271,22 @@ void accionHilo(void* solicitud){
 
 		solicitud=NULL; //solicitud ya no la vamos a usar, para simplificar uso de tipos
 
+		rtaEstado* resultado = malloc(sizeof(resultado));
+		resultado->bloque = datosT->bloque;
+		resultado->nodo = malloc(strlen(datosT->programaT)+1);
+		strcpy(resultado->nodo,datosT->programaT);
+		resultado->exito = true;
+		resultado->idJob = obtenerIdJobDeRuta(datosT->archivoTemporal);
+
 		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
 		serializacionTyEnvio(datosT,socketWorker);
 
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) {
 			perror("Error: No se recibio validacion del worker en T"); //manejo desconexion
-			bool* ok = false;
 
-			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de T");
+			resultado->exito = false;
+			serializacionDeRTAyEnvio(resultado,socketYAMA);
+
 			pthread_mutex_lock(&mutex_Tfallos);
 			contTfallos++;
 			pthread_mutex_unlock(&mutex_Tfallos);
@@ -363,24 +401,37 @@ void accionHilo(void* solicitud){
 
 void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deserializar
 
-	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-
-	itemNuevo->worker = ((nodoT*)paquete->Payload)->worker;
 	nodoT* datosParaT = malloc(sizeof(nodoT));
-	datosParaT->programaT = malloc(strlen(programaT)+1);
-	datosParaT->archivoTemporal = malloc(10); //Falta sacar size
-	datosParaT->worker.ip = malloc(10); //Falta sacar size;
+	void* datos = paquete->Payload;
+	//numero de bloque
+	datosParaT->bloque = ((uint32_t*)datos)[0];
+	//cantbytesocupados
+	datosParaT->bytesOcupados = ((uint32_t*)datos)[1];
+	//puerto worker
+	datosParaT->worker.puerto = ((uint32_t*)datos)[2];
+	datos+=sizeof(uint32_t) * 3;
+	//ip worker
+	datosParaT->worker.ip = string_new();
+	strcpy(datosParaT->worker.ip, datos);
+	datos += strlen(datos)+1;
+	//nombre nodo del worker
+	datosParaT->worker.nodo = string_new();
+	strcpy(datosParaT->worker.nodo, datos);
+	datos += strlen(datos)+1;
+	//ruta temporal
+	datosParaT->archivoTemporal = string_new();
+	strcpy(datosParaT->archivoTemporal, datos);
+	datos += strlen(datos)+1;
+	datos -= paquete->header.tamPayload;
 
-	//Aca vendria la deserializacion de lo que me da YAMA
-	/*datosParaTransformacion->programaT = programaT;
-	datosParaTransformacion->worker = ((nodoT*)paquete->Payload)->worker;
-	datosParaTransformacion->archivoTemporal = ((nodoT*)paquete->Payload)->archivoTemporal;
-	datosParaTransformacion->bloque = ((nodoT*)paquete->Payload)->bloque;
-	datosParaTransformacion->bytesOcupados = ((nodoT*)paquete->Payload)->bytesOcupados;*/
+	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+	itemNuevo->worker = datosParaT->worker;
+
+	datosParaT->programaT = malloc(strlen(programaT)+1);
+	strcpy(datosParaT->programaT,programaT);
 
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
 	list_add(listaHilos, itemNuevo);
-
 }
 
 
@@ -464,29 +515,6 @@ int main(int argc, char* argv[]){
 		{
 			switch(paquete->header.tipoMensaje){
 			case SOLICITUDTRANSFORMACION:{
-				void* datos = paquete->Payload;
-				//numero de bloque
-				((uint32_t*)datos)[0];
-				//cantbytesocupados
-				((uint32_t*)datos)[1];
-				//puerto worker
-				((uint32_t*)datos)[2];
-				datos+=sizeof(uint32_t) * 3;
-				//ip worker
-				char* ip = string_new();
-				strcpy(ip, datos);
-				datos += strlen(datos)+1;
-				//nombre nodo del worker
-				char* nombreNodo = string_new();
-				strcpy(nombreNodo, datos);
-				datos += strlen(datos)+1;
-				//ruta temporal
-				char* rutaTemporal = string_new();
-				strcpy(rutaTemporal, datos);
-				datos += strlen(datos)+1;
-				datos -= paquete->header.tamPayload;
-
-
 				contTActuales++;
 				if(contTActuales>contTMaxP) contTMaxP = contTActuales;
 				clock_t tiempoInicio = clock();
