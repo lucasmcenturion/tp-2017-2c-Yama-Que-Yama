@@ -198,7 +198,7 @@ typedef struct{
 	char* resultRG;
 } datoAF; //mover a sockets y poner packed
 
-datoAF* deserializacionAF(void* payload){ //TODO
+datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
 // tamString - ResultRG - tamString - rutaArchivoF
 	int mov = 0;
 	int aux;
@@ -243,6 +243,7 @@ void realizarTransformacion(nodoT* data){
 	FILE* dataBin = fopen(RUTA_DATABIN,"r");
 	char* bufferTexto = malloc(data->bytesOcupados);
 	int mov = data->bloque * TAMANIODEBLOQUE;
+
 	fseek(dataBin,mov,SEEK_SET);
 	fread(bufferTexto,data->bytesOcupados,1,dataBin);
 
@@ -250,6 +251,7 @@ void realizarTransformacion(nodoT* data){
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	char* strToSys = string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	system(strToSys);
+
 	fclose(dataBin);
 	return;
 }
@@ -275,11 +277,12 @@ void accionPadre(void* socketMaster){
 
 void accionHijo(void* socketM){
 	bool boolAux = false;
-	int socketMaster = *(int*) socketM;
+	int socketMaster = (int) socketM;
 	Paquete* paquete = malloc(sizeof(Paquete));
 
+	if(RecibirPaqueteServidor(socketMaster, WORKER, paquete)<0) perror("Error: No se recibieron los datos de Master");
 	if(RecibirPaqueteCliente(socketMaster, WORKER, paquete)<0) perror("Error: No se recibieron los datos de Master");
-	if(!strcmp(paquete->header.emisor, MASTER)){ //Posible error en el !
+	if(!strcmp(paquete->header.emisor, MASTER)){
 
 		switch(paquete->header.tipoMensaje){
 		case TRANSFWORKER:{
@@ -331,7 +334,7 @@ void accionHijo(void* socketM){
 			break;
 		}
 
-		case 2:{ //FINALIZAR TODO
+		case 2:{ //FINALIZAR TODO terminar camino de AF
 			//Deserializo lo que me mando Master
 			datoAF* datosAF = deserializacionAF(paquete->Payload);
 			// Abro el archivo de Reduc Global y copio su contenido a buffer

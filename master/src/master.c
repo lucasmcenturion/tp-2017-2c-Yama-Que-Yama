@@ -185,7 +185,7 @@ void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
 	if(!(EnviarDatosTipo(socketWorker,MASTER,datos,size,REDGLOBALWORKER)))perror("Error al enviar datosRG al Worker");
 }
 
-void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker){//TODO
+void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker){//TODO terminar el camino de AF
 // tamString - ResultRG - tamString - rutaArchivoF
 	int mov = 0;
 	int sizeAux;
@@ -249,7 +249,7 @@ void imprimirArchivoConfiguracion(){
 int obtenerIdJobDeRuta(char* rutaTemporal){
 	// /tmp/jXnybz
 	// 0123456
-	int resultado = rutaTemporal[6];
+	int resultado = rutaTemporal[6]-'0';
 	return resultado;
 }
 
@@ -260,7 +260,7 @@ void accionHilo(void* solicitud){
 	switch (((nodoT*)solicitud)->header)
 	{
 
-	case TRANSFORMACION:{ //TODO
+	case TRANSFORMACION:{ //TODO recibir de YAMA y deserializar, arreglar los manejo de errores con mismo formato que tranfs.
 		nodoT* datosT = malloc(sizeof(nodoT));
 		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
 		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
@@ -396,7 +396,7 @@ void accionHilo(void* solicitud){
 
 
 
-void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deserializar
+void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deserializar el resto
 
 	nodoT* datosParaT = malloc(sizeof(nodoT));
 	void* datos = paquete->Payload;
@@ -426,6 +426,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deseriali
 
 	datosParaT->programaT = malloc(strlen(programaT)+1);
 	strcpy(datosParaT->programaT,programaT);
+	datosParaT->header = TRANSFORMACION;
 
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
 	list_add(listaHilos, itemNuevo);
@@ -470,7 +471,7 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 }
 
- void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO AF
+ void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
 	 //YAMA me da IP y Puerto de Worker
 	 char* ipWorker;
 	 int puertoWorker;
@@ -507,6 +508,8 @@ int main(int argc, char* argv[]){
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
+	char* progTest = "scriptPython";
+	realizarTransformacion(paquete,progTest);
 	while(finalizado!=true){
 		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<0) perror("Error al recibir respuesta de YAMA");
 		{
