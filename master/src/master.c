@@ -212,21 +212,18 @@ void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA){
 	// bllque - idJob - strLen - noodo - bool
 	int mov = 0;
 	bool boolAux;
-	int sizeAux;
-	int size = sizeof(int)*2 + sizeof(int)+strlen(resultado->nodo)+1+sizeof(bool);
+	int size = sizeof(int)*2 + strlen(resultado->nodo)+1+sizeof(bool);
 	void* datos = malloc(size);
 
 	memcpy(datos+mov,resultado->bloque,sizeof(int));
 	mov += sizeof(int);
 	memcpy(datos+mov,resultado->idJob,sizeof(int));
 	mov += sizeof(int);
-	sizeAux = strlen(resultado->nodo)+1;
-	memcpy(datos+mov,&sizeAux,sizeof(int));
-	mov += sizeof(int);
-	memcpy(datos+mov,resultado->nodo,strlen(resultado->nodo)+1);
+	strcpy(datos+mov,resultado->nodo);
 	mov += strlen(resultado->nodo)+1;
 	boolAux = resultado->exito;
 	memcpy(datos+mov,&boolAux,sizeof(bool));
+	mov += sizeof(bool);
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, size, VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de T");
 }

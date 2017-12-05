@@ -197,7 +197,7 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
 
 }
 
-void planificacion(t_list* bloques, master* elmaster){
+void planificacionT(t_list* bloques, master* elmaster){
 	char* ALGORITMO_BALANCEO_ACTUAL = string_new();
 	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
 	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
@@ -279,6 +279,87 @@ void planificacion(t_list* bloques, master* elmaster){
 
 }
 
+void planificacionRL(t_list* bloques, master* elmaster){
+	char* ALGORITMO_BALANCEO_ACTUAL = string_new();
+	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
+	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
+	int DISP_BASE_ACTUAL = DISP_BASE;
+	//calcula la disponibilidad por cada worker y la actualiza
+	calcularDisponibilidad(listaWorkers, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
+	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
+	//ordena por disponibilidad de mayor a menor
+	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
+	//obtiene la mayor disponibilidad
+	uint32_t disp = ((datosWorker*)list_get(lista, 0))->disponibilidad;
+	//obtiene los elementos que poseen la mayor disponibilidad
+	t_list* disponibles = list_filter(lista,LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == disp;}));
+	//ordena por cantidad tareas realizadas de menor a mayor
+	list_sort(disponibles, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->contTareasRealizadas <= ((datosWorker*)item2)->contTareasRealizadas;}));
+	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
+	punteroClock = list_get(disponibles, 0);
+	list_destroy(disponibles);
+	int i;
+	for(i = 0; i < list_size(bloques); i++)
+	{
+		//Se obtiene el bloque actual
+		t_bloque_yama* bloqueAAsignar = list_get(bloques, i);
+
+		//loopea hasta que se logre asignar el bloque y recien ahi avanza al proximo
+		bool salio = false;
+		do
+		{
+			//se fija si está el bloque a asignar
+			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar))
+			{
+				EnviarBloqueAMaster(bloqueAAsignar,punteroClock,elmaster);
+				//si está se reduce el valor de disponibilidad
+				punteroClock->disponibilidad--;
+				//y se avanza el clock al siguiente worker
+				punteroClock=avanzarPuntero(punteroClock);
+				//avanzarPuntero(punteroClock);
+				//si el valor del punteroClock ahora es 0, se debe restaurar su disponibilidad a la base y avanzar el puntero
+				if (punteroClock->disponibilidad == 0){
+					punteroClock->disponibilidad = DISP_BASE_ACTUAL;
+					punteroClock=avanzarPuntero(punteroClock);
+					//avanzarPuntero(punteroClock);
+				}
+				salio = true;
+				usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
+			}
+			//si no está
+			else
+			{
+				//se queda loopeando hasta encontrar el proximo worker con disponibilidad mayor a 0 que posea el bloque a asignar
+				//o hasta haber dado una vuelta sin encontrar uno disponible
+				datosWorker* punteroAux = proximoWorkerDisponible(punteroClock);
+				do {
+					if (bloqueAAsignarEsta(punteroAux, bloqueAAsignar))
+					{
+						EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster);
+						//si está se reduce el valor de disponibilidad
+						punteroAux->disponibilidad--;
+						usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
+						break;
+					}
+					punteroAux = proximoWorkerDisponible(punteroAux);
+				}
+				while(punteroAux != punteroClock);
+				//si dio la vuelta y no encontró ninguno se re-calculan los valores de disponibilidad de los que tienen 0 como al principio
+				if (punteroAux == punteroClock)
+				{
+					t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
+					calcularDisponibilidad(listaAux, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
+				}
+				else
+				{
+					salio = true;
+					break;
+				}
+			}
+		}while(!salio);
+	}
+
+}
 void RecibirPaqueteFilesystem(Paquete* paquete){
 	while(RecibirPaqueteCliente(socketFS,YAMA,paquete) > 1)
 	{
@@ -353,7 +434,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			master* m = list_find(listaMasters,LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == *((uint32_t*)datos) ;}) );
 			m->contJobs++;
 			pthread_mutex_lock(&mutex_plani);
-			planificacion(listaBloques, m);
+			planificacionT(listaBloques, m);
 			pthread_mutex_unlock(&mutex_plani);
 
 		}
@@ -380,6 +461,15 @@ void accion(void* socket){
 				}
 					break;
 				case SOLICITUDTRANSFORMACION:
+				{
+					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
+					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
+					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
+					//AGARRO LOS DATOS
+					//LE PIDO A FILESYSTEM LOS BLOQUES
+				}
+				break;
+				case VALIDACIONYAMA:
 				{
 					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
 					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
