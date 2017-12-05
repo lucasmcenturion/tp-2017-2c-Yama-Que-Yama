@@ -358,6 +358,107 @@ void imprimirArchivoConfiguracion() {
 			"PUERTO=%d\n"
 			"PUNTO_MONTAJE=%s\n", IP, PUERTO, PUNTO_MONTAJE);
 }
+int verificar_estado(){
+	bool obtener_nombre(info_datanode*elemento){
+		return elemento->nodo;
+	}
+	if(list_size(datanodes)>0){
+		t_list*nombres=list_map(datanodes,(void*) obtener_nombre);
+		DIR*primer_nivel,segundo_nivel;
+		struct dirent *ep,*ap;
+		primer_nivel=opendir(RUTA_ARCHIVOS);
+		int rv;
+		while ((ep = readdir (primer_nivel))!=NULL){
+			if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")){
+				continue;
+			}
+			segundo_nivel=opendir(ep->d_name);
+			while((ap = readdir (segundo_nivel))!=NULL){
+				if (!strcmp(ap->d_name, ".") || !strcmp(ap->d_name, "..")){
+					continue;
+				}
+				t_config*archivo=config_create(ap->d_name);
+				int i=0;
+				while(1){
+					char**primera_copia=malloc(sizeof(char*));
+					primera_copia[0]=malloc(20);
+					primera_copia[1]=malloc(4);
+					char**segunda_copia=malloc(sizeof(char*));
+					segunda_copia[0]=malloc(20);
+					segunda_copia[1]=malloc(4);
+					char*key_primera_copia=malloc(30);
+					strcpy(key_primera_copia,"BLOQUE");
+					strcat(key_primera_copia,integer_to_string(i));
+					strcat(key_primera_copia,"COPIA0");
+					key_primera_copia=realloc(key_primera_copia,strlen(key_primera_copia)+1);
+					char*key_segunda_copia=malloc(30);
+					strcpy(key_segunda_copia,"BLOQUE");
+					strcat(key_segunda_copia,integer_to_string(i));
+					strcat(key_segunda_copia,"COPIA0");
+					key_segunda_copia=realloc(key_segunda_copia,strlen(key_segunda_copia)+1);
+					if(config_has_property(archivo,key_primera_copia) && config_has_property(archivo,key_segunda_copia)){
+						primera_copia=config_get_array_value(archivo,key_primera_copia);
+						segunda_copia=config_get_array_value(archivo,key_segunda_copia);
+						int var;
+						for ( var = 0; var < list_size(nombres); ++var) {
+							char*nombre=list_get(nombres,var);
+							if(!strcmp(nombre,primera_copia[0])|| !strcmp(nombre,segunda_copia[0])){
+								rv=-1;
+								break;
+							}
+						}
+					}else{
+						if(config_has_property(archivo,key_primera_copia)){
+							primera_copia=config_get_array_value(archivo,key_primera_copia);
+							int var;
+							for ( var = 0; var < list_size(nombres); ++var) {
+								char*nombre=list_get(nombres,var);
+								if(!strcmp(nombre,primera_copia[0])){
+									rv=-1;
+									break;
+								}
+							}
+						}else{
+							segunda_copia=config_get_array_value(archivo,key_segunda_copia);
+							int var;
+							for ( var = 0; var < list_size(nombres); ++var) {
+								char*nombre=list_get(nombres,var);
+								if(!strcmp(nombre,segunda_copia[0])){
+									rv=-1;
+									break;
+								}
+							}
+						}
+					}
+					i++;
+					free(primera_copia[0]);
+					free(primera_copia[1]);
+					free(primera_copia);
+					free(segunda_copia[0]);
+					free(segunda_copia[1]);
+					free(segunda_copia);
+					free(key_primera_copia);
+					free(key_segunda_copia);
+					if(rv==-1){
+						break;
+					}
+				}
+				if(rv==-1){
+					break;
+				}
+			}
+			if(rv==-1){
+				break;
+			}
+		}
+		closedir (primer_nivel);
+		if(rv==-1){
+			return -1;
+		}else{
+			return 1;
+		}
+	}
+}
 void sacar_datanode(int socket) {
 	int tiene_socket(info_datanode *datanode) {
 		if (datanode->socket == socket) {
@@ -680,6 +781,11 @@ void accion(void* socket) {
 				pthread_mutex_lock(&mutex_datanodes);
 				list_add(datanodes, data);
 				pthread_mutex_unlock(&mutex_datanodes);
+				if(verificar_estado()==1){
+					inseguro=false;
+				}else{
+					inseguro=true;
+				}
 			}
 				break;
 			case RESULOPERACION: {
