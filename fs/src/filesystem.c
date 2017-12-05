@@ -28,7 +28,7 @@ bool formateado=false;
 bool unico_bloque=false;
 bool inseguro=false;
 bool rechazado=false;
-bool se_trabo;
+bool sin_datanodes=true;
 //char **archivos_almacenados;
 pthread_mutex_t mutex_datanodes;
 pthread_mutex_t mutex_directorio;
@@ -39,6 +39,7 @@ pthread_mutex_t mutex_escribir_archivo;
 pthread_mutex_t mutex_md5;
 pthread_mutex_t mutex_cpfrom;
 pthread_mutex_t mutex_respuesta_solicitud;
+pthread_mutex_t asd;
 //pthread_mutex_t mutex_archivos_almacenados;
 t_directory **obtener_directorios() {
 	int fd_directorio = open(RUTA_DIRECTORIOS, O_RDWR);
@@ -359,12 +360,12 @@ void imprimirArchivoConfiguracion() {
 			"PUNTO_MONTAJE=%s\n", IP, PUERTO, PUNTO_MONTAJE);
 }
 int verificar_estado(){
-	bool obtener_nombre(info_datanode*elemento){
+	char* obtener_nombre(info_datanode*elemento){
 		return elemento->nodo;
 	}
 	if(list_size(datanodes)>0){
 		t_list*nombres=list_map(datanodes,(void*) obtener_nombre);
-		DIR*primer_nivel,segundo_nivel;
+		DIR*primer_nivel,*segundo_nivel;
 		struct dirent *ep,*ap;
 		primer_nivel=opendir(RUTA_ARCHIVOS);
 		int rv;
@@ -372,12 +373,19 @@ int verificar_estado(){
 			if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")){
 				continue;
 			}
-			segundo_nivel=opendir(ep->d_name);
+			char*ruta=malloc(100);
+			strcpy(ruta,RUTA_ARCHIVOS);
+			strcat(ruta,"/");
+			strcat(ruta,ep->d_name);
+			segundo_nivel=opendir(ruta);
 			while((ap = readdir (segundo_nivel))!=NULL){
 				if (!strcmp(ap->d_name, ".") || !strcmp(ap->d_name, "..")){
 					continue;
 				}
-				t_config*archivo=config_create(ap->d_name);
+				strcat(ruta,"/");
+				strcat(ruta,ap->d_name);
+				ruta=realloc(ruta,strlen(ruta)+1);
+				t_config*archivo=config_create(ruta);
 				int i=0;
 				while(1){
 					char**primera_copia=malloc(sizeof(char*));
@@ -394,17 +402,28 @@ int verificar_estado(){
 					char*key_segunda_copia=malloc(30);
 					strcpy(key_segunda_copia,"BLOQUE");
 					strcat(key_segunda_copia,integer_to_string(i));
-					strcat(key_segunda_copia,"COPIA0");
+					strcat(key_segunda_copia,"COPIA1");
 					key_segunda_copia=realloc(key_segunda_copia,strlen(key_segunda_copia)+1);
+					char*bytes=malloc(100);
+					strcpy(bytes,"BLOQUE");
+					strcat(bytes,integer_to_string(i));
+					strcat(bytes,"BYTES");
+					bytes=realloc(bytes,strlen(bytes)+1);
+					if(!config_has_property(archivo,bytes)){
+						free(bytes);
+						break;
+					}
 					if(config_has_property(archivo,key_primera_copia) && config_has_property(archivo,key_segunda_copia)){
 						primera_copia=config_get_array_value(archivo,key_primera_copia);
 						segunda_copia=config_get_array_value(archivo,key_segunda_copia);
 						int var;
 						for ( var = 0; var < list_size(nombres); ++var) {
 							char*nombre=list_get(nombres,var);
-							if(!strcmp(nombre,primera_copia[0])|| !strcmp(nombre,segunda_copia[0])){
-								rv=-1;
-								break;
+							if(!strcmp(nombre,primera_copia[0])){
+								if(!strcmp(nombre,segunda_copia[0])){
+									rv=-1;
+									break;
+								}
 							}
 						}
 					}else{
@@ -450,6 +469,7 @@ int verificar_estado(){
 			if(rv==-1){
 				break;
 			}
+			free(ruta);
 		}
 		closedir (primer_nivel);
 		if(rv==-1){
@@ -684,12 +704,11 @@ void accion(void* socket) {
 				pthread_mutex_unlock(&mutex_md5);
 				if (bloques_totales == 1 && md5){
 					anterior_md5=0;
-					if(!se_trabo){
+					/*if(!se_trabo){
 						sleep(1);
-					}
-					pthread_mutex_unlock(&mutex_md5);
-				}else{
-					pthread_mutex_unlock(&mutex_md5);
+					}*/
+					printf("unlock");
+					pthread_mutex_unlock(&asd);
 				}
 				pthread_mutex_unlock(&mutex_respuesta_solicitud);
 			}
@@ -777,6 +796,7 @@ void accion(void* socket) {
 						}
 					}
 				}
+				sin_datanodes=false;
 				actualizar_nodos_bin(data);
 				pthread_mutex_lock(&mutex_datanodes);
 				list_add(datanodes, data);
@@ -1363,6 +1383,7 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 
 }
 int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
+
 	int tamanio_nodo;
 	char *nombre_nodo=malloc(100);
 	strcpy(nombre_nodo,nombre_archivo);
@@ -1386,7 +1407,9 @@ int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
 		int tamanio_anterior=config_get_int_value(nodos,"LIBRE");
 		tamanio_anterior+=tamanio_nodo;
 		config_set_value(nodos,"LIBRE",integer_to_string(tamanio_anterior));
+
 	}
+	config_set_value(nodos,"NODOS",config_get_string_value(nodos,"NODOS"));
 	config_save(nodos);
 	config_save_in_file(nodos,RUTA_NODOS);
 	free(total_nodo);
@@ -1446,26 +1469,28 @@ void consola() {
 			}
 			rmtree(RUTA_ARCHIVOS);
 			mkdir(RUTA_ARCHIVOS, 0700);
-			DIR*d;
-			struct dirent *dir;
-			d = opendir(RUTA_BITMAPS);
-			bool primera_vez=true;
-			int i=0;
-			if (d){
-				while ((dir = readdir(d)) != NULL)
-				{
-					if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
-						if(i!=0){
-							primera_vez=false;
+			if(!sin_datanodes){
+				DIR*d;
+				struct dirent *dir;
+				d = opendir(RUTA_BITMAPS);
+				bool primera_vez=true;
+				int i=0;
+				if (d){
+					while ((dir = readdir(d)) != NULL)
+					{
+						if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
+							if(i!=0){
+								primera_vez=false;
+							}
+							formatear_bitarray(dir->d_name,primera_vez);
 						}
-						formatear_bitarray(dir->d_name,primera_vez);
+						i++;
 					}
-					i++;
+					closedir(d);
 				}
-				closedir(d);
-			}
-			if(list_size(datanodes)!=0){
-				list_iterate(datanodes,(void*) igualar);
+				if(list_size(datanodes)!=0){
+					list_iterate(datanodes,(void*) igualar);
+				}
 			}
 			formateado=true;
 		}
@@ -1881,11 +1906,10 @@ void consola() {
 					//enviar bloques
 					md5=true;
 					solicitar_bloques(separado_por_barras[i], index_padre);
-					pthread_mutex_lock(&mutex_md5);
 					//trabate con el semaforo
-					se_trabo=true;
-					pthread_mutex_lock(&mutex_md5);
-					pthread_mutex_unlock(&mutex_md5);
+					//se_trabo=true;
+					printf("lock");
+					pthread_mutex_lock(&asd);
 					char*string_system=malloc(100);
 					strcpy(string_system,"md5sum ");
 					strcat(string_system,PUNTO_MONTAJE);
@@ -2151,8 +2175,7 @@ int se_puede_enviar(t_list*datanodes, int bloques_a_enviar) {
 			int i = 0;
 			while (i < list_size(datanodes)) {
 				t_datanode_a_enviar *un_datanode = list_get(datanodes, i);
-				if (un_datanode->cantidad
-						>= ceilDivision(bloques_a_enviar * 2, var)) {
+				if (un_datanode->cantidad>= ceilDivision(bloques_a_enviar * 2, var)) {
 					contador++;
 				}
 				i++;
@@ -2257,10 +2280,8 @@ t_resultado_envio* enviar_bloque(t_list *disponibles, t_list*bloques_a_enviar,
 		if (bmap == MAP_FAILED) {
 			printf("Error al mapear a memoria: %s\n", strerror(errno));
 		} else {
-			int size_bitarray =
-					total % 8 > 0 ? ((int) (total / 8)) + 1 : (int) (total / 8);
-			t_bitarray *bitarray = bitarray_create_with_mode(bmap,
-					size_bitarray, MSB_FIRST);
+			int size_bitarray =total % 8 > 0 ? ((int) (total / 8)) + 1 : (int) (total / 8);
+			t_bitarray *bitarray = bitarray_create_with_mode(bmap,size_bitarray, MSB_FIRST);
 			int j;
 			for (j = 0; j < total; j++) {
 				if (bitarray_test_bit(bitarray, j) == 0) {
@@ -2359,6 +2380,20 @@ void limpiar_bitarrays(t_list*lista) {
 		}
 	}
 }
+void actualizar_datanodes(char *nombre_nodo){
+	void restar_uno(info_datanode*elemento){
+		if(strcmp(elemento->nodo,nombre_nodo)==0){
+			elemento->bloques_libres-=1;
+		}
+	}
+	list_iterate(datanodes,(void*) restar_uno);
+}
+//TODO HACER ESTO SIN FALTA
+/*void actualizar_luego_de_cpfrom(){
+	for (int var = 0; var < max; ++var) {
+
+	}
+}*/
 int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 		int index_directorio_padre, int tipo_archivo) {
 	//filtramos los que tengan bloques libres
@@ -2388,7 +2423,7 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 	int i_lista_disponibles = 0;
 	int i_bloques_a_enviar = 0;
 	if (!error) {
-		while (size_bloques) {
+		while (size_bloques){
 			//obtenemos datos del  datanode para enviarle la primer copia del bloque
 			//primer copia es i_lista_disponibles
 			int index_primer_copia = i_lista_disponibles;
@@ -2414,12 +2449,14 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 				primer_copia->nombre_nodo = malloc(100);
 				strcpy(primer_copia->nombre_nodo,resultado_primer_copia->nombre_nodo);
 				primer_copia->nombre_nodo = realloc(primer_copia->nombre_nodo,strlen(primer_copia->nombre_nodo) + 1);
+				actualizar_datanodes(primer_copia->nombre_nodo);
 				list_add(bloques_enviados, primer_copia);
 				t_bloque_enviado*segunda_copia = malloc(sizeof(t_bloque_enviado));
 				segunda_copia->bloque = resultado_segunda_copia->bloque;
 				segunda_copia->nombre_nodo = malloc(100);
 				strcpy(segunda_copia->nombre_nodo,resultado_segunda_copia->nombre_nodo);
 				segunda_copia->nombre_nodo = realloc(segunda_copia->nombre_nodo,strlen(segunda_copia->nombre_nodo) + 1);
+				actualizar_datanodes(primer_copia->nombre_nodo);
 				list_add(bloques_enviados, segunda_copia);
 			}
 			i_lista_disponibles = i_lista_disponibles == (list_size(disponibles) - 1) ? 1 : i_lista_disponibles == (list_size(disponibles) - 2) ? 0 : i_lista_disponibles + 2;
@@ -2429,8 +2466,9 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,
 				dictionary_put(archivos_terminados, nombre_archivo,nombre_archivo);
 			}
 		}
-		//pthread_mutex_unlock(&mutex_cpfrom);
-		//pthread_mutex_unlock(&mutex_cpfrom);
+		pthread_mutex_lock(&mutex_datanodes);
+		//actualizar_luego_de_cpfrom();
+		pthread_mutex_unlock(&mutex_datanodes);
 	}
 	list_destroy(datanodes_a_enviar);
 	list_destroy(disponibles);
@@ -2508,6 +2546,7 @@ int main() {
 		config_set_value(archivo,"TAMANIO",integer_to_string(0));
 		config_set_value(archivo,"LIBRE",integer_to_string(0));
 		config_save_in_file(archivo,RUTA_NODOS);
+		sin_datanodes=true;
 	}
 	datanodes = list_create();
 	archivos_actuales = dictionary_create();
@@ -2525,6 +2564,8 @@ int main() {
 	pthread_mutex_init(&mutex_md5, NULL);
 	pthread_mutex_init(&mutex_cpfrom,NULL);
 	pthread_mutex_init(&mutex_respuesta_solicitud,NULL);
+	pthread_mutex_init(&asd,NULL);
+	pthread_mutex_lock(&asd);
 	//pthread_mutex_init(&mutex_archivos_almacenados,NULL);
 	pthread_create(&hiloConsola, NULL, (void*) consola, NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
