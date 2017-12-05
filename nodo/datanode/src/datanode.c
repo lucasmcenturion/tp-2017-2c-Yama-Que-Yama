@@ -171,7 +171,7 @@ int main(){
 	socketFS = ConectarAServidorDatanode(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake,enviarHandshakeDatanode);
 	fflush( stdout );
 
-	int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
+	/*int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
 	void* datos = malloc(tamanio);
 	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
 	datos += sizeof(uint32_t);
@@ -194,20 +194,24 @@ int main(){
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
 
 	free(datos);
-
+	 */
 	//escribirEnArchivoLog("operacion",&LogDatanode);
-	tamanio = sizeof(uint32_t) * 1  + sizeof(char) * strlen(NOMBRE_NODO) + 1;
-	datos = malloc(tamanio);
+	int tamanio = sizeof(uint32_t) * 2  +  sizeof(char) * strlen(IP_NODO) +1+sizeof(char) * strlen(NOMBRE_NODO) + 1;
+	void*datos = malloc(tamanio);
 	*((uint32_t*)datos) = tamanioDataBin;
 	datos += sizeof(uint32_t);
+	*((uint32_t*)datos) = PUERTO_WORKER;
+	datos += sizeof(uint32_t);
+	strcpy(datos, IP_NODO);
+	datos += strlen(IP_NODO) + 1;
 	strcpy(datos, NOMBRE_NODO);
 	datos +=  strlen(NOMBRE_NODO) + 1;
 	datos -= tamanio;
-	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
 
+	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
+	free(datos);
 	Paquete paquete;
 	void *datos_solicitud;
-	free(datos);
 	int bloque_archivo;
 	while (RecibirPaqueteCliente(socketFS, FILESYSTEM, &paquete)>0){
 		switch(paquete.header.tipoMensaje){

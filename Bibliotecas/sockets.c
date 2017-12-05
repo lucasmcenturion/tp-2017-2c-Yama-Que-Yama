@@ -353,7 +353,7 @@ int RecibirPaqueteServidor(int socketFD, char receptor[11], Paquete* paquete) {
 	return resul;
 }
 
-int RecibirPaqueteServidorFS(int socketFD, char receptor[11], Paquete* paquete,bool inseguro, bool formateado) {
+int RecibirPaqueteServidorFS(int socketFD, char receptor[11], Paquete* paquete) {
 	paquete->Payload = NULL;
 	int resul = RecibirDatos(&(paquete->header), socketFD, TAMANIOHEADER);
 	if (resul > 0) { //si no hubo error
