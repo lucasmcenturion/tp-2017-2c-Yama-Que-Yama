@@ -456,6 +456,8 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 
 		}
 	}
+	printf("La conexión de filesystem ha sido rechazada porque no se encontraba en un estado seguro.\nIntente nuevamente.");
+	fflush(stdout);
 	raise(SIGKILL);
 }
 
