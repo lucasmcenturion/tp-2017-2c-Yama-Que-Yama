@@ -1,7 +1,7 @@
 #include "sockets.h"
 
 char *IP, *FS_IP, *ALGORITMO_BALANCEO;
-int PUERTO, FS_PUERTO, RETARDO_PLANIFICACION, BASE;
+int PUERTO, FS_PUERTO, RETARDO_PLANIFICACION, DISP_BASE;
 int socketFS;
 t_list* listaMasters;
 t_list* listaWorkers;
@@ -21,7 +21,7 @@ void obtenerValoresArchivoConfiguracion() {
 	FS_PUERTO = config_get_int_value(arch, "FS_PUERTO");
 	RETARDO_PLANIFICACION = config_get_int_value(arch, "RETARDO_PLANIFICACION");
 	ALGORITMO_BALANCEO = string_duplicate(config_get_string_value(arch, "ALGORITMO_BALANCEO"));
-	BASE = config_get_int_value(arch, "BASE");
+	DISP_BASE = config_get_int_value(arch, "DISP_BASE");
 	config_destroy(arch);
 }
 
@@ -34,14 +34,14 @@ void imprimirArchivoConfiguracion(){
 				"FS_PUERTO=%d\n"
 				"RETARDO_PLANIFICACION=%d\n"
 				"ALGORITMO_BALANCEO=%s\n"
-				"BASE=%d\n",
+				"DISP_BASE=%d\n",
 				IP,
 				PUERTO,
 				FS_IP,
 				FS_PUERTO,
 				RETARDO_PLANIFICACION,
 				ALGORITMO_BALANCEO,
-				BASE
+				DISP_BASE
 				);
 }
 
@@ -61,26 +61,24 @@ void LiberarListas() {
 	list_destroy_and_destroy_elements(tablaDeEstados, free);
 }
 
-void availability(void* w){
-	datosWorker* worker = (datosWorker*)w;
-	if (!strcmp(ALGORITMO_BALANCEO, "C"))
-	{
-		 worker->disponibilidad = BASE;
+void calcularDisponibilidad(t_list* list, char* ab, int db){
+	void availability(void* w){
+		datosWorker* worker = (datosWorker*)w;
+		if (!strcmp(ab, "C"))
+		{
+			 worker->disponibilidad = db;
+		}
+		else if(!strcmp(ab, "WC"))
+		{
+			//ordeno la lista por carga de trabajo de mayor a menor
+			list_sort(listaWorkers, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo >= ((datosWorker*)item2)->cargaDeTrabajo;}));
+			//obtengo el que mayor carga de trabajo tiene
+			uint32_t WLMax = ((datosWorker*)list_get(listaWorkers, 0))->cargaDeTrabajo;
+			 worker->disponibilidad = db + WLMax - worker->cargaDeTrabajo;
+		}
+		else
+			perror("El algortimo de balanceo no es ni Clock ni W-Clock");
 	}
-	else if(!strcmp(ALGORITMO_BALANCEO, "WC"))
-	{
-		//ordeno la lista por carga de trabajo de mayor a menor
-		list_sort(listaWorkers, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo >= ((datosWorker*)item2)->cargaDeTrabajo;}));
-		//obtengo el que mayor carga de trabajo tiene
-		uint32_t WLMax = ((datosWorker*)list_get(listaWorkers, 0))->cargaDeTrabajo;
-		 worker->disponibilidad = BASE + WLMax - worker->cargaDeTrabajo;
-	}
-	else
-		perror("El algortimo no es ni Clock ni W-Clock");
-}
-
-
-void calcularDisponibilidad(t_list* list){
 	list_iterate(list,availability);
 }
 
@@ -161,8 +159,12 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
 }
 
 void planificacion(t_list* bloques, master* elmaster){
+	char* ALGORITMO_BALANCEO_ACTUAL = string_new();
+	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
+	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
+	int DISP_BASE_ACTUAL = DISP_BASE;
 	//calcula la disponibilidad por cada worker y la actualiza
-	calcularDisponibilidad(listaWorkers);
+	calcularDisponibilidad(listaWorkers, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	//ordena por disponibilidad de mayor a menor
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->disponibilidad >= ((datosWorker*)item2)->disponibilidad;}));
@@ -196,7 +198,7 @@ void planificacion(t_list* bloques, master* elmaster){
 				//avanzarPuntero(punteroClock);
 				//si el valor del punteroClock ahora es 0, se debe restaurar su disponibilidad a la base y avanzar el puntero
 				if (punteroClock->disponibilidad == 0){
-					punteroClock->disponibilidad = BASE;
+					punteroClock->disponibilidad = DISP_BASE_ACTUAL;
 					punteroClock=avanzarPuntero(punteroClock);
 					//avanzarPuntero(punteroClock);
 				}
@@ -223,7 +225,7 @@ void planificacion(t_list* bloques, master* elmaster){
 				if (punteroAux == punteroClock)
 				{
 					t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
-					calcularDisponibilidad(listaAux);
+					calcularDisponibilidad(listaAux, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
 				}
 				else
 				{
@@ -360,8 +362,18 @@ void accion(void* socket){
 
 }
 
+void rutina(int n){
+	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/yama/yamaCFG.txt");
+	RETARDO_PLANIFICACION = config_get_int_value(arch, "RETARDO_PLANIFICACION");
+	ALGORITMO_BALANCEO = string_duplicate(config_get_string_value(arch, "ALGORITMO_BALANCEO"));
+	DISP_BASE = config_get_int_value(arch, "DISP_BASE");
+	printf("Se ha recargado la configuración.\nEstos son sus nuevos valores:\n");
+	imprimirArchivoConfiguracion();
+}
+
 
 int main(){
+	signal(SIGUSR1, rutina);
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	CrearListasEInicializarSemaforos();
