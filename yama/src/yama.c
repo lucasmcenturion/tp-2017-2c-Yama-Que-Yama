@@ -241,6 +241,7 @@ void planificacion(t_list* bloques, master* elmaster){
 					//avanzarPuntero(punteroClock);
 				}
 				salio = true;
+				usleep(RETARDO_PLANIFICACION_ACTUAL);
 			}
 			//si no está
 			else
@@ -254,6 +255,7 @@ void planificacion(t_list* bloques, master* elmaster){
 						EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster);
 						//si está se reduce el valor de disponibilidad
 						punteroAux->disponibilidad--;
+						usleep(RETARDO_PLANIFICACION_ACTUAL);
 						break;
 					}
 					punteroAux = proximoWorkerDisponible(punteroAux);
