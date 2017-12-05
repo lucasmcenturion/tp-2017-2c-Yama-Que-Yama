@@ -38,7 +38,7 @@
 #define false 0
 #define NULL ((void *) 0)
 
-typedef enum { TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL} etapa;
+typedef enum { TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL, ALMACENAMIENTOFINAL} etapa;
 typedef enum { ENPROCESO, ERROR, FINALIZADOOK} estado;
 typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
 typedef struct{

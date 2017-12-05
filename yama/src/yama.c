@@ -128,6 +128,40 @@ void* armarRutaTemporal(datosWorker* p, master* m, int nBloque){
 	return ruta;
 }
 
+void MostrarRegistroTablaDeEstados(registroEstado* r){
+	char* etapa;
+	switch(r->etapa){
+	case TRANSFORMACION:
+		etapa = "Transformación";
+		break;
+	case REDUCCIONLOCAL:
+		etapa = "Reducción local";
+		break;
+	case REDUCCIONGLOBAL:
+			etapa = "Reducción global";
+			break;
+	case ALMACENAMIENTOFINAL:
+			etapa = "Almacenamiento final";
+			break;
+	}
+
+	char* estado;
+		switch(r->estado){
+		case ENPROCESO:
+			estado = "Transformación";
+			break;
+		case FINALIZADOOK:
+			estado = "Reducción local";
+			break;
+		case ERROR:
+			estado = "Reducción global";
+			break;
+	}
+
+	printf("|| Job = %i || Master = %i || Nodo = %s || Bloque = %i || Etapa = %s || Archivo temporal = %s || Estado = %s ||",
+			r->job, r->master, r->nodo, r->bloque, etapa, r->archivoTemporal, estado);
+}
+
 void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
 	char* r = armarRutaTemporal(p,m,b->numero_bloque);
 	int tamanioDatos = sizeof(uint32_t) * 3 + strlen(p->ip) + strlen(p->nodo) + strlen(r) + 3 ;
@@ -155,7 +189,11 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
 	registro->master = m->id;
 	registro->nodo = p->nodo;
 	list_add(tablaDeEstados, registro);
+	MostrarRegistroTablaDeEstados(registro);
 	free(r);
+	//actualizo la carga de trabajo
+	p->cargaDeTrabajo++;
+
 }
 
 void planificacion(t_list* bloques, master* elmaster){
