@@ -115,7 +115,7 @@ datosWorker* avanzarPuntero(datosWorker* puntero){
 		return list_get(listaWorkers,(puntero->indice+1)); //list_find(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->indice == (puntero->indice + 1) ;}));
 }
 
-void* armarRutaTemporal(datosWorker* p, master* m, int nBloque){
+char* armarRutaTemporal(datosWorker* p, master* m, int nBloque){
 	char* numeroNodo = string_substring_from(p->nodo,strlen("Nodo")); //Esto borra literalmente la cantidad de bytes que ocupe "nodo" por ende, borra "Nodo" y deja el numero como string
 	char* strNJob = string_itoa(m->contJobs);
 	char* strBloque = string_itoa(nBloque);
@@ -148,18 +148,19 @@ void MostrarRegistroTablaDeEstados(registroEstado* r){
 	char* estado;
 		switch(r->estado){
 		case ENPROCESO:
-			estado = "Transformación";
+			estado = "En proceso";
 			break;
 		case FINALIZADOOK:
-			estado = "Reducción local";
+			estado = "Finalizado OK";
 			break;
 		case ERROR:
-			estado = "Reducción global";
+			estado = "Error";
 			break;
 	}
 
-	printf("|| Job = %i || Master = %i || Nodo = %s || Bloque = %i || Etapa = %s || Archivo temporal = %s || Estado = %s ||",
+	printf("|| Job = %i || Master = %i || %s || Bloque = %i || Etapa = %s || Archivo temporal = %s || Estado = %s ||\n\n",
 			r->job, r->master, r->nodo, r->bloque, etapa, r->archivoTemporal, estado);
+	fflush(stdout);
 }
 
 void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m){
@@ -241,7 +242,7 @@ void planificacion(t_list* bloques, master* elmaster){
 					//avanzarPuntero(punteroClock);
 				}
 				salio = true;
-				usleep(RETARDO_PLANIFICACION_ACTUAL);
+				usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
 			}
 			//si no está
 			else
@@ -255,7 +256,7 @@ void planificacion(t_list* bloques, master* elmaster){
 						EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster);
 						//si está se reduce el valor de disponibilidad
 						punteroAux->disponibilidad--;
-						usleep(RETARDO_PLANIFICACION_ACTUAL);
+						usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
 						break;
 					}
 					punteroAux = proximoWorkerDisponible(punteroAux);
@@ -353,7 +354,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			m->contJobs++;
 			pthread_mutex_lock(&mutex_plani);
 			planificacion(listaBloques, m);
-			pthread_mutex_lock(&mutex_plani);
+			pthread_mutex_unlock(&mutex_plani);
 
 		}
 	}
