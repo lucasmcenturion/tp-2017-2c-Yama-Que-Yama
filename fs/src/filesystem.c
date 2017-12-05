@@ -940,7 +940,6 @@ void accion(void* socket) {
 							datosAEnviar += tamanioAEnviar;
 							tamanioAEnviar+=tam;
 							//serializacion elemento
-							*((uint32_t*)datosAEnviar)=((info_datanode*)list_get(datanodes, i))->puertoworker;
 							datosAEnviar += sizeof(uint32_t);
 							strcpy(datosAEnviar,((info_datanode*)list_get(datanodes, i))->ip_nodo);
 							datosAEnviar+=strlen(((info_datanode*)list_get(datanodes, i))->ip_nodo)+1;
@@ -948,11 +947,7 @@ void accion(void* socket) {
 							datosAEnviar+=strlen(((info_datanode*)list_get(datanodes, i))->nodo)+1;
 						}
 						datosAEnviar -= tamanioAEnviar;
-						datosAEnviar = realloc(datosAEnviar, tamanioAEnviar+sizeof(uint32_t));
-						datosAEnviar += tamanioAEnviar;
-						*((uint32_t*)datosAEnviar) = *((uint32_t*)(paquete.Payload+paquete.header.tamPayload-sizeof(uint32_t)));
-						datosAEnviar -= tamanioAEnviar;
-						EnviarDatosTipo(socketYAMA,FILESYSTEM,datosAEnviar,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
+						EnviarDatosTipo(socketYAMA,FILESYSTEM,datosAEnviar,tamanioAEnviar,LISTAWORKERS);
 						pthread_mutex_lock(&mutex_datanodes);
 						free(datosAEnviar);
 					}
@@ -1005,7 +1000,7 @@ void accion(void* socket) {
 						datos += tamanioAEnviar;
 						*((uint32_t*)datos) = *((uint32_t*)(paquete.Payload+paquete.header.tamPayload-sizeof(uint32_t)));
 						datos -= tamanioAEnviar;
-						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),LISTAWORKERS);
+						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
 					}
 					break;
 				}

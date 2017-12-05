@@ -59,6 +59,7 @@ void LiberarListas() {
 	list_destroy_and_destroy_elements(listaHilos, free);
 	list_destroy_and_destroy_elements(listaMasters, free);
 	list_destroy_and_destroy_elements(tablaDeEstados, free);
+	pthread_mutex_destroy(&mutex_plani);
 }
 
 void calcularDisponibilidad(t_list* list, char* ab, int db){
@@ -366,36 +367,46 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		if(paquete->header.tipoMensaje == NUEVOWORKER){
 			void* datos = paquete->Payload;
 			int tamanio = paquete->header.tamPayload;
-			datosWorker* worker = malloc(tamanio);
-			uint32_t largo;
-			largo = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->nodo = string_new();
-			strcpy(worker->nodo, datos);
-			datos+=largo + 1;
+			datosWorker* worker = malloc(sizeof(datosWorker));
 			worker->puerto = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			largo = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
 			worker->ip = string_new();
 			strcpy(worker->ip, datos);
-			datos += largo + 1;
-			worker->cargaDeTrabajo = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->disponibilidad = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			worker->contTareasRealizadas = *((uint32_t*)datos);
-			datos += sizeof(uint32_t);
-			datos -= tamanio;
+			datos+=strlen(datos) + 1;
+			worker->nodo = string_new();
+			strcpy(worker->nodo, datos);
+			datos += strlen(datos) + 1;
+			datos-=tamanio;
+			worker->cargaDeTrabajo = 0;
+			worker->disponibilidad = 0;
+			worker->contTareasRealizadas = 0;
 			worker->indice = indiceWorker;
 			indiceWorker++;
 			list_add(listaWorkers,worker);
 		}
 		if(paquete->header.tipoMensaje == LISTAWORKERS){
-			//TODO deserializar los datos
-			//primero obtene el tamaño de la lista
-			//luego te llegan puertoworker,ipnodo,nombrenodo
-			//serializo en ESHANDSHAKE en filesystem
+			void* datos = paquete->Payload;
+			int listSize = *((uint32_t*)datos);
+			datos += sizeof(uint32_t);
+			int i;
+			for (i=0; i < listSize; i++){
+				datosWorker* worker = malloc(sizeof(datosWorker));
+				worker->puerto = *((uint32_t*)datos);
+				datos+=sizeof(uint32_t);
+				worker->ip = string_new();
+				strcpy(worker->ip, datos);
+				datos += strlen(datos) +1;
+				worker->nodo =  string_new();
+				strcpy(worker->nodo, datos);
+				datos += strlen(datos) +1;
+				worker->cargaDeTrabajo=0;
+				worker->contTareasRealizadas=0;
+				worker->disponibilidad=0;
+				worker->indice = i;
+				list_add(listaWorkers, worker);
+			}
+			indiceWorker = listSize;
+			datos -= paquete->header.tamPayload;
 		}
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
@@ -445,6 +456,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 
 		}
 	}
+	raise(SIGKILL);
 }
 
 void accion(void* socket){
@@ -519,7 +531,6 @@ int main(){
 	pthread_t conexionFilesystem;
 	pthread_create(&conexionFilesystem, NULL, (void*)RecibirPaqueteFilesystem,paquete);
 	ServidorConcurrente(IP, PUERTO, YAMA, &listaHilos, &end ,accion);
-	//Servidor(IP, PUERTO, YAMA, accion, RecibirPaqueteServidor);
 	pthread_join(conexionFilesystem, NULL);
 	free(paquete);
 	LiberarListas();
