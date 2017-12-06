@@ -1541,6 +1541,7 @@ void consola() {
 				}
 			}
 			formateado=true;
+			estable = true;
 
 		}
 		else if (!strncmp(linea, "rm ", 3)) {

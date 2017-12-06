@@ -484,7 +484,8 @@ void accion(void* socket){
 				{
 					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
 					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
-					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
+					int a = EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
+					a = 1;
 					//AGARRO LOS DATOS
 					//LE PIDO A FILESYSTEM LOS BLOQUES
 				}
