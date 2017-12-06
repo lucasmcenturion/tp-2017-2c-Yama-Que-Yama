@@ -948,7 +948,7 @@ void accion(void* socket) {
 						}
 						datosAEnviar -= tamanioAEnviar;
 						EnviarDatosTipo(socketYAMA,FILESYSTEM,datosAEnviar,tamanioAEnviar,LISTAWORKERS);
-						pthread_mutex_lock(&mutex_datanodes);
+						pthread_mutex_unlock(&mutex_datanodes);
 						free(datosAEnviar);
 					}
 					break;
