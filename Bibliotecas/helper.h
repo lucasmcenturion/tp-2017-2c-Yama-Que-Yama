@@ -153,6 +153,12 @@ typedef struct{
 info_datanode;
 
 typedef struct{
+	char*nombre_nodo;
+	int cantidad;
+}__attribute__((packed))
+t_solicitudes;
+
+typedef struct{
  int numero;
  int copia;
  int tamanio;
