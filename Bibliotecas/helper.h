@@ -41,17 +41,6 @@
 typedef enum { TRANSFORMACION, REDUCCIONLOCAL, REDUCCIONGLOBAL, ALMACENAMIENTOFINAL} etapa;
 typedef enum { ENPROCESO, ERROR, FINALIZADOOK} estado;
 typedef enum { ALMACENARARCHIVO, LEERARCHIVO} interfazFilesystem;
-typedef struct{
-	int job;
-	int socketMaster;
-	int bloque;
-	char* nodo;
-	char* archivoTemporal;
-	etapa etapa;
-	estado estado;
-}
-__attribute__((packed))
-tablaDeEstadosReg;
 
 typedef struct{
 	char* nodo;
@@ -135,10 +124,14 @@ typedef struct {
 	int job;
 	int master;
 	char* nodo;
+	char* nodoConOtraCopia;
+	int nroBloque;
+	int nroBloqueCopia;
 	int bloque;
 	etapa etapa;
 	char* archivoTemporal;
 	estado estado;
+	int tamanio;
 }__attribute__((packed))
 registroEstado;
 
