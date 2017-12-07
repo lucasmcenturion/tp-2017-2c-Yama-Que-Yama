@@ -21,12 +21,23 @@ int contRLfallos;
 int contRGfallos;
 
 pthread_mutex_t mutex_Tfallos;
+pthread_mutex_t mutex_TActuales;
+pthread_mutex_t mutex_TRealizadas;
+
+pthread_mutex_t mutex_listaJobs;
+
 pthread_mutex_t mutex_RLfallos;
 pthread_mutex_t mutex_RGfallos;
 
 
 
+t_list* duracionesJob;
 t_list* listaHilos;
+
+typedef struct{
+	etapa header;
+	double time;
+} duracionJob;
 
 typedef struct{
 	pthread_t hilo;
@@ -46,6 +57,18 @@ int obtenerSizeListdeString(t_list* lista){
 		size+= strlen(list_get(lista,i))+1;
 	}
 	return size;
+}
+
+double sumListaDuraciones(t_list* duraciones){
+	double suma = 0;
+	int tamList = list_size(duraciones);
+
+	int i;
+	for(i=0;i<tamList;i++){
+		duracionJob* duracion = list_get(duraciones,i);
+		suma += duracion->time;
+	}
+	return suma;
 }
 
 void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
@@ -254,22 +277,28 @@ int obtenerIdJobDeRuta(char* rutaTemporal){
 }
 
 
-
 void accionHilo(void* solicitud){
 	Paquete* paquete = malloc(sizeof(Paquete));
-	switch (((nodoT*)solicitud)->header)
-	{
+	switch (((nodoT*)solicitud)->header){
 
 	case TRANSFORMACION:{ //TODO recibir de YAMA y deserializar, arreglar los manejo de errores con mismo formato que tranfs.
+		duracionJob* duracionDelJob = malloc(sizeof(duracionJob));
+		duracionDelJob->header = TRANSFORMACION;
+		time_t inicio = time(0);
+		pthread_mutex_lock(&mutex_TActuales);
+		contTActuales++;
+		if(contTActuales>contTMaxP) contTMaxP = contTActuales;
+		pthread_mutex_unlock(&mutex_TActuales);
+
 		nodoT* datosT = malloc(sizeof(nodoT));
 		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
 		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
 		*datosT = *(nodoT*)solicitud;
 
-		solicitud=NULL; //solicitud ya no la vamos a usar, para simplificar uso de tipos
+		solicitud=NULL;
 
 		rtaEstado* resultado = malloc(sizeof(resultado));
-		resultado->bloque = datosT->bloque;
+		resultado->bloque = datosT->bloque; //TODO TRABAJANDO
 		resultado->nodo = malloc(strlen(datosT->programaT)+1);
 		strcpy(resultado->nodo,datosT->programaT);
 		resultado->exito = true;
@@ -278,7 +307,7 @@ void accionHilo(void* solicitud){
 		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
 		serializacionTyEnvio(datosT,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)< 0) {
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<= 0) {
 			perror("Error: No se recibio validacion del worker en T"); //manejo desconexion
 
 			resultado->exito = false;
@@ -287,12 +316,27 @@ void accionHilo(void* solicitud){
 			pthread_mutex_lock(&mutex_Tfallos);
 			contTfallos++;
 			pthread_mutex_unlock(&mutex_Tfallos);
+			pthread_mutex_lock(&mutex_TActuales);
+			contTActuales--;
+			pthread_mutex_unlock(&mutex_TActuales);
 		}
 		else {
 			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 				if((bool*)paquete->Payload) {
-					bool* ok = true;
-					if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar la verificacion a YAMA en el caso de T");
+
+					duracionDelJob->time = difftime(time(0),inicio);
+
+					pthread_mutex_lock(&mutex_listaJobs);
+					list_add(duracionesJob,duracionDelJob);
+					pthread_mutex_unlock(&mutex_listaJobs);
+					pthread_mutex_lock(&mutex_TActuales);
+					contTActuales--;
+					pthread_mutex_unlock(&mutex_TActuales);
+					pthread_mutex_lock(&mutex_TRealizadas);
+					contTRealizadas++;
+					pthread_mutex_unlock(&mutex_TRealizadas);
+					//Aca de deberia serializar y enviar resultado
+					if(!(EnviarDatosTipo(socketYAMA, MASTER ,resultado, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar la verificacion a YAMA en el caso de T");
 				}
 				else {
 					perror("Worker notifico que hubo una falla"); //no contemplado en Worker
@@ -454,23 +498,8 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	//*itemNuevo->worker =
-
-	/*itemNuevo->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
-	solicitudPrograma* datosParaReducGlobal = malloc(sizeof(solicitudPrograma));
-
-	datosParaReducGlobal->programa = programaR;
-	datosParaReducGlobal->worker = ((reduccionGlobalDatos*)paquete->Payload)->worker;
-	datosParaReducGlobal->workerEncargado = ((reduccionGlobalDatos*)paquete->Payload)->WorkerEncargado;
-	datosParaReducGlobal->ListaArchivosTemporales = ((reduccionGlobalDatos*)paquete->Payload)->listaArchivosTemps;
-	datosParaReducGlobal->archivoTemporal = ((reduccionGlobalDatos*)paquete->Payload)->archTemp;
-
-	datosParaReducGlobal->header = REDUCCIONGLOBAL;
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducGlobal);
-	list_add(listaHilos, itemNuevo);*/
 
 }
-
  void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
 	 //YAMA me da IP y Puerto de Worker
 	 char* ipWorker;
@@ -487,41 +516,41 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
  }
 
+ void inicializarSemaforos(){
+	 pthread_mutex_init(&mutex_Tfallos, NULL);
+	 pthread_mutex_init(&mutex_TActuales, NULL);
+	 pthread_mutex_init(&mutex_TRealizadas, NULL);
+	 pthread_mutex_init(&mutex_RLfallos, NULL);
+	 pthread_mutex_init(&mutex_RGfallos, NULL);
+	 pthread_mutex_init(&mutex_listaJobs,NULL);
+ }
+
 int main(int argc, char* argv[]){
-	clock_t tiempoSumaT = clock();
+	time_t tiempoInicioPrograma = time(0);
 	clock_t tiempoSumaRL = clock();
 	clock_t tiempoSumaRG = clock();
-	pthread_mutex_init(&mutex_Tfallos, NULL);
-	pthread_mutex_init(&mutex_RLfallos, NULL);
-	pthread_mutex_init(&mutex_RGfallos, NULL);
+	inicializarSemaforos();
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	listaHilos = list_create();
+	duracionesJob = list_create();
 	bool finalizado = false;
-	char* programaTrans = argv[2];
-	char* programaReduc = argv[3];
-	char* archivoParaYAMA = argv[4];
-	char* archivoFinal = argv[5];
+	char* programaTrans = argv[1];
+	char* programaReduc = argv[2];
+	char* archivoParaYAMA = argv[3];
+	char* archivoFinal = argv[4];
 
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
-	char* progTest = "scriptPython";
-	realizarTransformacion(paquete,progTest);
 	while(finalizado!=true){
-		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<0) perror("Error al recibir respuesta de YAMA");
+		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<=0) perror("Error al recibir respuesta de YAMA");
 		{
 			switch(paquete->header.tipoMensaje){
 			case SOLICITUDTRANSFORMACION:{
-				contTActuales++;
-				if(contTActuales>contTMaxP) contTMaxP = contTActuales;
-				clock_t tiempoInicio = clock();
 				realizarTransformacion(paquete, programaTrans);
-				tiempoSumaT += clock() - tiempoInicio;
-				contTActuales--;
-				contTRealizadas++;
 				break;
 			}
 			case REDLOCALWORKER:{
@@ -545,20 +574,29 @@ int main(int argc, char* argv[]){
 
 				realizarAlmacenamientoFinal(paquete,archivoFinal);
 
-			 	 clock_t tiempoDemoradoJobCompleto = clock();
-			 	 double tiempoDemoradoJobCompletoMINUTOS = (((double)tiempoDemoradoJobCompleto)/CLOCKS_PER_SEC)/60;
+				//Aca deberia haber pthread join del AF
+
+			 	 double tiempoDemoradoJobCompleto = difftime(time(0),tiempoInicioPrograma);
 
 			 	 printf("\nSe procede a mostrar las metricas del Job:\n\n");
-			 	 printf("1.Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompletoMINUTOS);
-			 	 double tiempoPromedioTMINUTOS;
+			 	 printf("1.Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompleto);
+
+			 	 double tiempoPromedioT;
 			 	 double tiempoPromedioRLMINUTOS;
 			 	 double tiempoPromedioRGMINUTOS;
 
 			 	 if(contTRealizadas!=0){
-			 		 tiempoPromedioTMINUTOS = ((((double)tiempoSumaT)/ CLOCKS_PER_SEC)/60)/contTRealizadas;
+			 		bool esTransformacion(duracionJob* elem){
+			 					return (elem->header==TRANSFORMACION);
+			 				}
+			 		t_list* listaTransformacion = list_create();
+			 		listaTransformacion = list_filter(duracionesJob,(void*)esTransformacion);
+			 		double tiempoTotalT = sumListaDuraciones(listaTransformacion);
+
+			 		 tiempoPromedioT = tiempoTotalT/contTRealizadas;
 				 }
 				 else {
-				 tiempoPromedioTMINUTOS = 0;
+				 tiempoPromedioT = 0;
 				 }
 
 				  if(contRLRealizadas!=0){
@@ -575,7 +613,7 @@ int main(int argc, char* argv[]){
 					 tiempoPromedioRGMINUTOS = 0;
 				 }
 
-			 	 printf("2.Tiempo promedio de ejecucion de cada etapa principal del Job:\n Transformacion: %f\n Reduccion Local: %f\n Reduccion Global:%f\n\n",tiempoPromedioTMINUTOS,tiempoPromedioRLMINUTOS,tiempoPromedioRGMINUTOS );
+			 	 printf("2.Tiempo promedio de ejecucion de cada etapa principal del Job:\n Transformacion: %f\n Reduccion Local: %f\n Reduccion Global:%f\n\n",tiempoPromedioT,tiempoPromedioRLMINUTOS,tiempoPromedioRGMINUTOS );
 			 	 printf("3.Cantidad maxima de tareas de Transformacion y Reduccion Local ejecutadas de forma paralela \n Transformacion: %d \n Reduccion Local %d\n\n",contTMaxP,contRLMaxP);
 			 	 printf("4.Cantidad total de tareas realizadas en cada etapa principal del Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTRealizadas,contRLRealizadas,contRGRealizadas);
 			 	 printf("5. Cantidad de fallos obtenidos en la realizacion de un Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTfallos,contRLfallos,contRGfallos);
@@ -587,7 +625,7 @@ int main(int argc, char* argv[]){
 	list_destroy_and_destroy_elements(listaHilos, LAMBDA(void _(void* elem) {
 		pthread_join(((hiloWorker*)elem)->hilo, NULL);
 		free(elem); }));
-
+	list_destroy_and_destroy_elements(duracionesJob,free);
 
 	return 0;
 }
