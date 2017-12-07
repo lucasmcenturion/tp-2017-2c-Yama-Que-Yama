@@ -940,6 +940,7 @@ void accion(void* socket) {
 							datosAEnviar += tamanioAEnviar;
 							tamanioAEnviar+=tam;
 							//serializacion elemento
+							*((uint32_t*)datosAEnviar) = ((info_datanode*)list_get(datanodes, i))->puertoworker;
 							datosAEnviar += sizeof(uint32_t);
 							strcpy(datosAEnviar,((info_datanode*)list_get(datanodes, i))->ip_nodo);
 							datosAEnviar+=strlen(((info_datanode*)list_get(datanodes, i))->ip_nodo)+1;
