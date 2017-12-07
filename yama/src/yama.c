@@ -533,9 +533,9 @@ void accion(void* socket){
 						r->estado = ERROR;
 						MostrarRegistroTablaDeEstados(r);
 						printf("Debido a un la desconexion del nodo asignado en la transformación del bloque  %i del job %i, "
-								"se procederá a replanificar la misma en el nodo que posee la otra copia.", r->bloque, r.job);
+								"se procederá a replanificar la misma en el nodo que posee la otra copia.", r->bloque, r->job);
 						fflush(stdout);
-						RealizarReplanificacion(r);
+						RealizarReplanificacion(r, socketFD);
 					}
 				}
 				break;

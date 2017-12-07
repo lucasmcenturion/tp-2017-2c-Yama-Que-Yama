@@ -265,6 +265,58 @@ int main(){
 
 		}
 		break;
+		case SOLICITUDBLOQUECPTO:{
+			datos_solicitud=paquete.Payload;
+			bloque_archivo = *((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int bloque_nodo = *((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int bloques_totales=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int index_directorio=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int tamanio_bloque=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int tamanio_archivo=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			char*nombre_archivo=malloc(100);
+			strcpy(nombre_archivo,datos_solicitud);
+			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+			datos_solicitud+=strlen(nombre_archivo)+1;
+			char*ruta_a_guardar=malloc(100);
+			strcpy(ruta_a_guardar,datos_solicitud);
+			ruta_a_guardar=realloc(ruta_a_guardar,strlen(ruta_a_guardar)+1);
+			datos_solicitud+=strlen(ruta_a_guardar)+1;
+			void *bloque=getBloque(bloque_nodo,tamanio_bloque);
+			int tamanio_a_enviar = sizeof(uint32_t) * 5  + sizeof(char)*strlen(nombre_archivo)+1
+					+sizeof(char)*strlen(ruta_a_guardar)+1+tamanio_bloque;
+
+			datos_solicitud = calloc(1,tamanio_a_enviar);
+
+			*((uint32_t*)datos_solicitud) = bloque_archivo;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = bloques_totales;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = index_directorio;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = tamanio_bloque;
+			datos_solicitud += sizeof(uint32_t);
+			*((uint32_t*)datos_solicitud) = tamanio_archivo;
+			datos_solicitud += sizeof(uint32_t);
+			strcpy(datos_solicitud, nombre_archivo);
+			datos_solicitud +=  strlen(nombre_archivo) + 1;
+			strcpy(datos_solicitud,ruta_a_guardar);
+			datos_solicitud+=strlen(ruta_a_guardar)+1;
+			memmove(datos_solicitud,bloque,tamanio_bloque);
+			datos_solicitud+=tamanio_bloque;
+			datos_solicitud -= tamanio_a_enviar;
+
+			EnviarDatosTipo(socketFS,DATANODE,datos_solicitud,tamanio_a_enviar,RESPUESTASOLICITUDCPTO);
+
+			free(bloque);
+
+		}
+		break;
 		case GETBLOQUE:
 		{
 		}
