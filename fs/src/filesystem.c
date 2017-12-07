@@ -809,9 +809,13 @@ void accion(void* socket) {
 				datos += tamanio_bloque;
 				if(strcmp(ruta_a_guardar,"cat")==0){
 					pthread_mutex_unlock(&mutex_cpto);
+					fflush(stdout);
 					printf("%s",(char*)bloque);
+					fflush(stdout);
 					if(bloques_totales==1){
+						fflush(stdout);
 						printf("%s\n",(char*)bloque);
+						fflush(stdout);
 					}
 				}else{
 					escribir_archivo_cpto(tamanio_archivo, bloque_archivo,index_directorio, bloque, tamanio_bloque,nombre_archivo);
@@ -1379,6 +1383,45 @@ int obtener_socket(char*nombre) {
 	}
 	return ((info_datanode*) list_find(datanodes, (void*) nombre_igual))->socket;
 }
+existe_en_datanode(char *nombre){
+	bool igual_nombre(info_datanode*elemento){
+		if(strcmp(elemento->nodo,nombre)==0){
+			return true;
+		}
+		return false;
+	}
+	return list_find(datanodes,(void*) igual_nombre);
+}
+t_list*inicializar_lista(t_list*lista){
+	void inicializar(info_datanode*elemento){
+		t_solicitudes*aux=malloc(sizeof(t_solicitudes));
+		aux->cantidad=0;
+		aux->nombre_nodo=elemento->nodo;
+		list_add(lista,aux);
+	}
+	list_iterate(datanodes,(void*) inicializar);
+	return lista;
+}
+bool existe_en_lista(t_list*lista,char *nombre){
+	bool esta(t_solicitudes*elemento){
+		return !strcmp(elemento->nombre_nodo,nombre);
+	}
+	return list_find(lista,(void*) esta);
+}
+void subir_uno(t_list*lista,char*nombre){
+	void subir(t_solicitudes*elemento){
+		if(strcmp(elemento->nombre_nodo,nombre)==0){
+			elemento->cantidad++;
+		}
+	}
+	list_iterate(lista,(void*) subir);
+}
+int cantidad_de(t_list* lista,char*nombre){
+	bool esta(t_solicitudes*elemento){
+			return !strcmp(elemento->nombre_nodo,nombre);
+		}
+	return ((t_solicitudes*)list_find(lista,(void*) esta))->cantidad;
+}
 void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	char*ruta = malloc(100);
 	strcpy(ruta, RUTA_ARCHIVOS);
@@ -1388,6 +1431,7 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	strcat(ruta, nombre_archivo);
 	t_config*archivo = config_create(ruta);
 	t_list*disponibilidad_datanodes=list_create();
+	disponibilidad_datanodes=inicializar_lista(disponibilidad_datanodes);
 	int cantidad = 0;
 	while (1) {
 		char*bloque_bytes = calloc(1, 50);
@@ -1404,6 +1448,7 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	}
 	int aux = cantidad;
 	int i = 0;
+	bool flag=false;
 	while (aux > 0) {
 		pthread_mutex_lock(&mutex_md5);
 		char*bloque_bytes = calloc(1, 50);
@@ -1421,117 +1466,157 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		strcat(segundo_bloque, integer_to_string(i));
 		strcat(segundo_bloque, "COPIA1");
 		segundo_bloque = realloc(segundo_bloque, strlen(segundo_bloque) + 1);
+		char*tercer_bloque=calloc(1,50);
+		strcpy(tercer_bloque,"BLOQUE");
+		strcat(tercer_bloque,integer_to_string(i));
+		strcat(tercer_bloque,"COPIA2");
+		tercer_bloque=realloc(tercer_bloque,strlen(tercer_bloque)+1);
+		if(config_has_property(archivo,tercer_bloque)){
+			flag=true;
+		}
 		t_solicitud_bloque*bloque = malloc(sizeof(t_solicitud_bloque));
 		if (config_has_property(archivo, primer_bloque) && config_has_property(archivo, segundo_bloque)){
 			char**datos_primer_bloque = config_get_array_value(archivo,primer_bloque);
 			if (i == 0) {
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_primer_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+					subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
+					bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
+					bloque->nombre_nodo = malloc(20);
+					strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
+					bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				}else{
+					char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
+					if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(flag){
+							char**datos_tercer_bloque = config_get_array_value(archivo,tercer_bloque);
+							if(existe_en_lista(disponibilidad_datanodes,datos_tercer_bloque[0])){
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
+					}
+				}
 			} else {
 				char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
-				bool primer_copia(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				bool segunda_copia(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				void subir_primero(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-							elemento->cantidad++;
-					}
-				}
-				void subir_segundo(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-							elemento->cantidad++;
-					}
-				}
-				bool cantidad_primero(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				bool cantidad_segundo(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				if ((list_any_satisfy(disponibilidad_datanodes,(void*) primer_copia)) && (list_any_satisfy(disponibilidad_datanodes,(void*) segunda_copia))){
-					if (((t_solicitudes*)list_find(disponibilidad_datanodes,(void*) cantidad_primero))->cantidad <=((t_solicitudes*)list_find(disponibilidad_datanodes,(void*) cantidad_segundo))->cantidad){
-						list_iterate(disponibilidad_datanodes,(void*) subir_primero);
+				if ((existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])) && (existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0]))){
+					if (cantidad_de(disponibilidad_datanodes,datos_primer_bloque[0]) <= cantidad_de(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
 					} else {
-						list_iterate(disponibilidad_datanodes,(void*) subir_segundo);
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
 					}
-				} else {
-					//alguno de los dos nunca se seteo
-					if (list_any_satisfy(disponibilidad_datanodes,(void*) primer_copia)){
-						t_solicitudes *aux_2=malloc(sizeof(t_solicitudes));
-						aux_2->nombre_nodo=malloc(10);
-						strcpy(aux_2->nombre_nodo,datos_segundo_bloque[0]);
-						aux_2->cantidad=1;
-						list_add(disponibilidad_datanodes,aux_2);
-						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
-						bloque->nombre_nodo = malloc(20);
-						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
-						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
-					} else {
-						t_solicitudes *aux_2=malloc(sizeof(t_solicitudes));
-						aux_2->nombre_nodo=malloc(10);
-						strcpy(aux_2->nombre_nodo,datos_primer_bloque[0]);
-						aux_2->cantidad=1;
-						list_add(disponibilidad_datanodes,aux_2);
+				} else{
+					//alguno de los dos no esta conectado
+					if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+							subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}else{
+							if(flag){
+								char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
 					}
 				}
 			}
-		} else {
-			if (config_has_property(archivo, primer_bloque)){
+		}else{
+			if(config_has_property(archivo,primer_bloque)){
 				char**datos_primer_bloque = config_get_array_value(archivo,primer_bloque);
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_primer_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
-			} else {
-				char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_segundo_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+					subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
+					bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
+					bloque->nombre_nodo = malloc(20);
+					strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
+					bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				}else{
+					if(config_has_property(archivo,segundo_bloque)){
+						char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
+						if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+							subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}else{
+							if(flag){
+								char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
+					}else{
+						if(flag){
+							char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+							subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}
+					}
+				}
+			}else{
+				if(config_has_property(archivo,segundo_bloque)){
+					char**datos_segundo_bloque=config_get_array_value(archivo,segundo_bloque);
+					if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(flag){
+							char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+							subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}
+					}
+				}else{
+					if(flag){
+						char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+						subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}
+				}
 			}
 		}
 		bloque->bloque_archivo = i;
@@ -1568,12 +1653,15 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		free(bloque_bytes);
 		free(primer_bloque);
 		free(segundo_bloque);
+		free(tercer_bloque);
 		i++;
 		aux--;
 		cantidad--;
 	}
 	free(ruta);
 	config_destroy(archivo);
+	list_destroy_and_destroy_elements(disponibilidad_datanodes,free);
+
 }
 int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
 
@@ -1650,8 +1738,8 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 	strcat(ruta, "/");
 	strcat(ruta, nombre_archivo);
 	t_config*archivo = config_create(ruta);
-	//t_dictionary*datanodes_dictionary=dictionary_create();
-	t_list *disponibilidad_datanodes=list_create();
+	t_list*disponibilidad_datanodes=list_create();
+	disponibilidad_datanodes=inicializar_lista(disponibilidad_datanodes);
 	int cantidad = 0;
 	while (1) {
 		char*bloque_bytes = calloc(1, 50);
@@ -1668,6 +1756,7 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 	}
 	int aux = cantidad;
 	int i = 0;
+	bool flag=false;
 	while (aux > 0) {
 		char*bloque_bytes = calloc(1, 50);
 		strcpy(bloque_bytes, "BLOQUE");
@@ -1684,117 +1773,154 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 		strcat(segundo_bloque, integer_to_string(i));
 		strcat(segundo_bloque, "COPIA1");
 		segundo_bloque = realloc(segundo_bloque, strlen(segundo_bloque) + 1);
+		char*tercer_bloque=calloc(1,50);
+		strcpy(tercer_bloque,"BLOQUE");
+		strcat(tercer_bloque,integer_to_string(i));
+		strcat(tercer_bloque,"COPIA2");
+		tercer_bloque=realloc(tercer_bloque,strlen(tercer_bloque)+1);
 		t_solicitud_bloque*bloque = malloc(sizeof(t_solicitud_bloque));
 		if (config_has_property(archivo, primer_bloque) && config_has_property(archivo, segundo_bloque)){
 			char**datos_primer_bloque = config_get_array_value(archivo,primer_bloque);
 			if (i == 0) {
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_primer_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+					subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
+					bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
+					bloque->nombre_nodo = malloc(20);
+					strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
+					bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				}else{
+					char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
+					if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(flag){
+							char**datos_tercer_bloque = config_get_array_value(archivo,tercer_bloque);
+							if(existe_en_lista(disponibilidad_datanodes,datos_tercer_bloque[0])){
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
+					}
+				}
 			} else {
 				char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
-				bool primer_copia(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				bool segunda_copia(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				void subir_primero(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-							elemento->cantidad++;
-					}
-				}
-				void subir_segundo(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-							elemento->cantidad++;
-					}
-				}
-				bool cantidad_primero(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_primer_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				bool cantidad_segundo(t_solicitudes*elemento){
-					if(strcmp(elemento->nombre_nodo,datos_segundo_bloque[0])==0){
-						return true;
-					}
-					return false;
-				}
-				if ((list_any_satisfy(disponibilidad_datanodes,(void*) primer_copia)) && (list_any_satisfy(disponibilidad_datanodes,(void*) segunda_copia))){
-					if (((t_solicitudes*)list_find(disponibilidad_datanodes,(void*) cantidad_primero))->cantidad <=((t_solicitudes*)list_find(disponibilidad_datanodes,(void*) cantidad_segundo))->cantidad){
-						list_iterate(disponibilidad_datanodes,(void*) subir_primero);
+				if ((existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])) && (existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0]))){
+					if (cantidad_de(disponibilidad_datanodes,datos_primer_bloque[0]) <= cantidad_de(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
 					} else {
-						list_iterate(disponibilidad_datanodes,(void*) subir_segundo);
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
 					}
-				} else {
-					//alguno de los dos nunca se seteo
-					if (list_any_satisfy(disponibilidad_datanodes,(void*) primer_copia)){
-						t_solicitudes *aux_2=malloc(sizeof(t_solicitudes));
-						aux_2->nombre_nodo=malloc(10);
-						strcpy(aux_2->nombre_nodo,datos_segundo_bloque[0]);
-						aux_2->cantidad=1;
-						list_add(disponibilidad_datanodes,aux_2);
-						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
-						bloque->nombre_nodo = malloc(20);
-						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
-						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
-					} else {
-						t_solicitudes *aux_2=malloc(sizeof(t_solicitudes));
-						aux_2->nombre_nodo=malloc(10);
-						strcpy(aux_2->nombre_nodo,datos_primer_bloque[0]);
-						aux_2->cantidad=1;
-						list_add(disponibilidad_datanodes,aux_2);
+				} else{
+					//alguno de los dos no esta conectado
+					if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
 						bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
 						bloque->nombre_nodo = malloc(20);
 						strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
 						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+							subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}else{
+							if(flag){
+								char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
 					}
 				}
 			}
-		} else {
-			if (config_has_property(archivo, primer_bloque)){
+		}else{
+			if(config_has_property(archivo,primer_bloque)){
 				char**datos_primer_bloque = config_get_array_value(archivo,primer_bloque);
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_primer_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
-			} else {
-				char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
-				t_solicitudes *aux=malloc(sizeof(t_solicitudes));
-				aux->nombre_nodo=malloc(10);
-				strcpy(aux->nombre_nodo,datos_segundo_bloque[0]);
-				aux->cantidad=1;
-				list_add(disponibilidad_datanodes,aux);
-				bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
-				bloque->nombre_nodo = malloc(20);
-				strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
-				bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				if(existe_en_lista(disponibilidad_datanodes,datos_primer_bloque[0])){
+					subir_uno(disponibilidad_datanodes,datos_primer_bloque[0]);
+					bloque->bloque_nodo = atoi(datos_primer_bloque[1]);
+					bloque->nombre_nodo = malloc(20);
+					strcpy(bloque->nombre_nodo, datos_primer_bloque[0]);
+					bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+				}else{
+					if(config_has_property(archivo,segundo_bloque)){
+						char**datos_segundo_bloque = config_get_array_value(archivo,segundo_bloque);
+						if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+							subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}else{
+							if(flag){
+								char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+								subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+								bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+								bloque->nombre_nodo = malloc(20);
+								strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+								bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+							}
+						}
+					}else{
+						if(flag){
+							char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+							subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}
+					}
+				}
+			}else{
+				if(config_has_property(archivo,segundo_bloque)){
+					char**datos_segundo_bloque=config_get_array_value(archivo,segundo_bloque);
+					if(existe_en_lista(disponibilidad_datanodes,datos_segundo_bloque[0])){
+						subir_uno(disponibilidad_datanodes,datos_segundo_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_segundo_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_segundo_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}else{
+						if(flag){
+							char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+							subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+							bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+							bloque->nombre_nodo = malloc(20);
+							strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+							bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+						}
+					}
+				}else{
+					if(flag){
+						char**datos_tercer_bloque=config_get_array_value(archivo,tercer_bloque);
+						subir_uno(disponibilidad_datanodes,datos_tercer_bloque[0]);
+						bloque->bloque_nodo = atoi(datos_tercer_bloque[1]);
+						bloque->nombre_nodo = malloc(20);
+						strcpy(bloque->nombre_nodo, datos_tercer_bloque[0]);
+						bloque->nombre_nodo = realloc(bloque->nombre_nodo,strlen(bloque->nombre_nodo) + 1);
+					}
+				}
 			}
 		}
 		bloque->bloque_archivo = i;
@@ -1833,6 +1959,7 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 		free(bloque_bytes);
 		free(primer_bloque);
 		free(segundo_bloque);
+		free(tercer_bloque);
 		i++;
 		aux--;
 		cantidad--;
@@ -2292,8 +2419,9 @@ void consola() {
 				}
 			}
 		}
-		else if (!strncmp(linea, "cpblock ", 8))
-			printf("copia de bloque\n");
+		else if (!strncmp(linea, "cpblock ", 8)){
+
+		}
 		else if (!strncmp(linea, "md5 ", 4)) {
 			char **array_input = string_split(linea, " ");
 			if (!array_input[0] || !array_input[1]) {
@@ -2312,10 +2440,9 @@ void consola() {
 				} else {
 					//enviar bloques
 					md5=true;
-					//solicitar_bloques(separado_por_barras[i], index_padre);
+					solicitar_bloques(separado_por_barras[i], index_padre);
 					//trabate con el semaforo
 					//se_trabo=true;
-					printf("lock");
 					pthread_mutex_lock(&mutex_orden_md5);
 					char*string_system=malloc(100);
 					strcpy(string_system,"md5sum ");
