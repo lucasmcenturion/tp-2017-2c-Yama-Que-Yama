@@ -535,10 +535,10 @@ int main(int argc, char* argv[]){
 	listaHilos = list_create();
 	duracionesJob = list_create();
 	bool finalizado = false;
-	char* programaTrans = argv[1];
-	char* programaReduc = argv[2];
-	char* archivoParaYAMA = argv[3];
-	char* archivoFinal = argv[4];
+	char* programaTrans = argv[2];
+	char* programaReduc = argv[3];
+	char* archivoParaYAMA = argv[4];
+	char* archivoFinal = argv[5];
 
 
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
