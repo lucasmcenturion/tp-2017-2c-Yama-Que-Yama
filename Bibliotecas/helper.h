@@ -172,6 +172,11 @@ typedef struct{
 }__attribute__((packed)) t_directory;
 
 typedef struct{
+ int index;
+ int socket;
+ int cantidad;
+}__attribute__((packed)) t_dtdisponible;
+typedef struct{
  int tamanio;
  char*nombre_nodo;
  void*datos;

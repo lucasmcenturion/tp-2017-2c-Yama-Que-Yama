@@ -47,7 +47,10 @@ pthread_mutex_t mutex_respuesta_solicitud_cpto;
 pthread_mutex_t mutex_cpto;
 pthread_mutex_t orden_cpto;
 pthread_mutex_t orden_cpblock;
-//pthread_mutex_t mutex_archivos_almacenados;
+
+void config_remove_key(t_config *config, char *key) {
+	dictionary_remove(config->properties, key);
+}
 t_directory **obtener_directorios() {
 	int fd_directorio = open(RUTA_DIRECTORIOS, O_RDWR);
 	if (fd_directorio == -1) {
@@ -66,8 +69,7 @@ t_directory **obtener_directorios() {
 			} else {
 				t_directory **directorios_yamafs = malloc(sizeof(t_directory*));
 				(*directorios_yamafs) = malloc(100 * sizeof(t_directory));
-				memmove((*directorios_yamafs), directorios,
-						100 * sizeof(t_directory));
+				memmove((*directorios_yamafs), directorios,100 * sizeof(t_directory));
 				munmap(directorios, mystat.st_size);
 				close(fd_directorio);
 				return directorios_yamafs;
@@ -128,19 +130,18 @@ void eliminar_ea_nodos(char*nombre) {
 	if (cantidad_comas == 1) {
 		//tiene un solo elemento
 		char *substring = malloc(100);
-		substring = string_substring(separado_por_comas[0], 1,
-				strlen(separado_por_comas[0]) - 2);
+		strcpy(substring,string_substring(separado_por_comas[0], 1,strlen(separado_por_comas[0]) - 2));
 		substring = realloc(substring, strlen(substring) + 1);
 		if (strcmp(nombre, substring) == 0) {
 			config_set_value(nodos, "NODOS", "");
 		}
+		free(substring);
 	} else {
 		//tiene mas de un elemento
+		char * substring = malloc(100);
 		while (i < cantidad_comas) {
-			char * substring = malloc(100);
 			if (i == 0) {
-				substring = string_substring(separado_por_comas[i], 1,
-						strlen(separado_por_comas[i]) - 1);
+				strcpy(substring,string_substring(separado_por_comas[i], 1,strlen(separado_por_comas[i]) - 1));
 				substring = realloc(substring, strlen(substring) + 1);
 				if (strcmp(nombre, substring) == 0) {
 					strcpy(nuevos_nodos, "[");
@@ -149,8 +150,8 @@ void eliminar_ea_nodos(char*nombre) {
 				}
 			} else {
 				if (i == (cantidad_comas - 1)) {
-					substring = string_substring(separado_por_comas[i], 0,
-							strlen(separado_por_comas[i]) - 1);
+					strcpy(substring,string_substring(separado_por_comas[i], 0,
+							strlen(separado_por_comas[i]) - 1));
 					if (strcmp(nombre, substring) == 0) {
 						strcat(nuevos_nodos, "]");
 					} else {
@@ -158,7 +159,7 @@ void eliminar_ea_nodos(char*nombre) {
 					}
 
 				} else {
-					substring = separado_por_comas[i];
+					strcpy(substring,separado_por_comas[i]);
 					if (strcmp(nombre, substring) == 0) {
 						strcat(nuevos_nodos, ",");
 					} else {
@@ -169,46 +170,49 @@ void eliminar_ea_nodos(char*nombre) {
 			}
 			i++;
 		}
+		free(substring);
 	}
 	config_set_value(nodos, "NODOS", nuevos_nodos);
 	char *libre = malloc(100);
 	strcpy(libre, nombre);
 	strcat(libre, "Libre");
+	char *string_libre_total_a_actualizar = malloc(100);
 	if (config_has_property(nodos, libre)) {
 		int libre_nodo_a_eliminar = config_get_int_value(nodos, libre);
 		int libre_total = config_get_int_value(nodos, "LIBRE");
 		int libre_total_a_actualizar =
 				libre_total > libre_nodo_a_eliminar ?
 						libre_total - libre_nodo_a_eliminar : 0;
-		char *string_libre_total_a_actualizar = malloc(100);
 		sprintf(string_libre_total_a_actualizar, "%i",
 				libre_total_a_actualizar);
 		string_libre_total_a_actualizar = realloc(
 				string_libre_total_a_actualizar,
 				strlen(string_libre_total_a_actualizar) + 1);
 		config_set_value(nodos, "LIBRE", string_libre_total_a_actualizar);
-		config_set_value(nodos, libre, "0");
 		config_save_in_file(nodos, "/home/utnso/metadata/nodos.bin");
 	}
 	char *total = malloc(100);
 	strcpy(total, nombre);
 	strcat(total, "Total");
+	char *string_total_total_a_actualizar = malloc(100);
 	if (config_has_property(nodos, total)) {
 		int total_nodo_a_eliminar = config_get_int_value(nodos, total);
 		int total_total = config_get_int_value(nodos, "TAMANIO");
-		int total_total_a_actualizar =
-				total_total > total_nodo_a_eliminar ?
-						total_total - total_nodo_a_eliminar : 0;
-		char *string_total_total_a_actualizar = malloc(100);
-		sprintf(string_total_total_a_actualizar, "%i",
-				total_total_a_actualizar);
-		string_total_total_a_actualizar = realloc(
-				string_total_total_a_actualizar,
-				strlen(string_total_total_a_actualizar) + 1);
-		config_set_value(nodos, total, "0");
+		int total_total_a_actualizar =total_total > total_nodo_a_eliminar ?total_total - total_nodo_a_eliminar : 0;
+		sprintf(string_total_total_a_actualizar, "%i",total_total_a_actualizar);
+		string_total_total_a_actualizar = realloc(string_total_total_a_actualizar,strlen(string_total_total_a_actualizar) + 1);
 		config_set_value(nodos, "TAMANIO", string_total_total_a_actualizar);
 	}
+	config_remove_key(nodos,total);
+	config_remove_key(nodos,libre);
 	config_save_in_file(nodos, "/home/utnso/metadata/nodos.bin");
+	config_destroy(nodos);
+	free(nodos_actuales);
+	free(nuevos_nodos);
+	free(libre);
+	free(total);
+	free(string_total_total_a_actualizar);
+	free(string_libre_total_a_actualizar);
 }
 
 t_archivo_actual *obtener_elemento(t_list*lista, char*nombre_archivo) {
@@ -319,9 +323,9 @@ void actualizar_nodos_bin(info_datanode *data) {
 	strcat(nodo_actual_libre, "Libre");
 	char *string_bloques_libres = calloc(1, 100);
 	sprintf(string_bloques_libres, "%i", data->bloques_libres);
-	string_bloques_libres = realloc(string_bloques_libres,
-			strlen(string_bloques_libres) + 1);
+	string_bloques_libres = realloc(string_bloques_libres,strlen(string_bloques_libres) + 1);
 	config_set_value(nodos, nodo_actual_libre, string_bloques_libres);
+	//free(nodos_actuales);
 	config_save_in_file(nodos, ruta_nodos);
 }
 
@@ -1375,7 +1379,7 @@ bool existe_ruta(char *ruta_fs) {
 			}
 			if (cantidad == 1) {
 				//ruta con un solo directorio
-				return existe(separado_por_barras[cantidad - 1], -1, aux);
+				return existe(separado_por_barras[cantidad - 1], 0, aux);
 			} else {
 				//ruta formada por mas de un directorio
 				int index_padre_anterior = 0;
@@ -2044,6 +2048,7 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 		datos+=strlen(ruta_a_guardar)+1;
 		datos -= tamanio;
 		pthread_mutex_lock(&mutex_datanodes);
+		printf("%s\n",bloque->nombre_nodo);
 		int socket = obtener_socket(bloque->nombre_nodo);
 		pthread_mutex_unlock(&mutex_datanodes);
 		pthread_mutex_lock(&mutex_cpto);
@@ -2216,9 +2221,6 @@ void consola() {
 							strcat(copia_a_eliminar,array_input[3]);
 							strcat(copia_a_eliminar,"COPIA");
 							strcat(copia_a_eliminar,array_input[4]);
-							void config_remove_key(t_config *config, char *key) {
-								dictionary_remove(config->properties, key);
-							}
 							if(existe_una_copia_sola(archivo,array_input[3])){
 								printf("Error, existe una sola copia del archivo \n");
 							}
@@ -2411,68 +2413,72 @@ void consola() {
 				ruta_destino=realloc(ruta_destino,strlen(ruta_destino)+1);
 				if(tipo==0){
 					//es un archivo
-					int index_directorio_padre_original=index_ultimo_directorio(ruta_original,"a");
-					int index_directorio_padre_destino=index_ultimo_directorio(ruta_destino,"d");
-					strcpy(nombre_archivo,obtener_nombre_archivo(ruta_original));
-					nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
-					if(!existe_archivo(nombre_archivo,index_directorio_padre_original)){
-						printf("Error,no existe el archivo original \n");
+					if(!existe_ruta(ruta_destino)){
+						printf("Error, no existe la ruta destino");
 					}else{
-						strcpy(ruta_archivo_original,RUTA_ARCHIVOS);
-						strcat(ruta_archivo_original,"/");
-						strcat(ruta_archivo_original,integer_to_string(index_directorio_padre_original));
-						strcat(ruta_archivo_original,"/");
-						strcat(ruta_archivo_original,nombre_archivo);
-						ruta_archivo_original=realloc(ruta_archivo_original,strlen(ruta_archivo_original)+1);
-						t_config*archivo_original=config_create(ruta_archivo_original);
-						strcpy(directorio_destino,RUTA_ARCHIVOS);
-						strcat(directorio_destino,"/");
-						strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
-						directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
-						DIR*d;
-						d=opendir(directorio_destino);
-						if(!d){
-							mkdir(directorio_destino,0700);
-						}
-						closedir(directorio_destino);
-						directorio_destino=malloc(100);
-						strcpy(directorio_destino,RUTA_ARCHIVOS);
-						strcat(directorio_destino,"/");
-						strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
-						strcat(directorio_destino,"/");
-						strcat(directorio_destino,nombre_archivo);
-						directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
-						if(access(directorio_destino,F_OK)==-1){
-							FILE*f=fopen(directorio_destino,"w");
-							fclose(f);
-						}
-						config_save_in_file(archivo_original,directorio_destino);
-						config_destroy(archivo_original);
-						remove(ruta_archivo_original);
-						char*directorio_original=malloc(100);
-						strcpy(directorio_original,RUTA_ARCHIVOS);
-						strcat(directorio_original,"/");
-						strcat(directorio_original,integer_to_string(index_directorio_padre_original));
-						directorio_original=realloc(directorio_original,strlen(directorio_original)+1);
-						struct dirent *dir;
-						DIR*directory;
-						directory= opendir(directorio_original);
-						int i=0;
-						if (directory){
-							while ((dir = readdir(directory)) != NULL)
-							{
-								if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
-									i++;
-								}else{
+						int index_directorio_padre_original=index_ultimo_directorio(ruta_original,"a");
+						int index_directorio_padre_destino=index_ultimo_directorio(ruta_destino,"d");
+						strcpy(nombre_archivo,obtener_nombre_archivo(ruta_original));
+						nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+						if(!existe_archivo(nombre_archivo,index_directorio_padre_original)){
+							printf("Error,no existe el archivo original \n");
+						}else{
+							strcpy(ruta_archivo_original,RUTA_ARCHIVOS);
+							strcat(ruta_archivo_original,"/");
+							strcat(ruta_archivo_original,integer_to_string(index_directorio_padre_original));
+							strcat(ruta_archivo_original,"/");
+							strcat(ruta_archivo_original,nombre_archivo);
+							ruta_archivo_original=realloc(ruta_archivo_original,strlen(ruta_archivo_original)+1);
+							t_config*archivo_original=config_create(ruta_archivo_original);
+							strcpy(directorio_destino,RUTA_ARCHIVOS);
+							strcat(directorio_destino,"/");
+							strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+							directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
+							DIR*d;
+							d=opendir(directorio_destino);
+							if(!d){
+								mkdir(directorio_destino,0700);
+							}
+							closedir(directorio_destino);
+							directorio_destino=malloc(100);
+							strcpy(directorio_destino,RUTA_ARCHIVOS);
+							strcat(directorio_destino,"/");
+							strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+							strcat(directorio_destino,"/");
+							strcat(directorio_destino,nombre_archivo);
+							directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
+							if(access(directorio_destino,F_OK)==-1){
+								FILE*f=fopen(directorio_destino,"w");
+								fclose(f);
+							}
+							config_save_in_file(archivo_original,directorio_destino);
+							config_destroy(archivo_original);
+							remove(ruta_archivo_original);
+							char*directorio_original=malloc(100);
+							strcpy(directorio_original,RUTA_ARCHIVOS);
+							strcat(directorio_original,"/");
+							strcat(directorio_original,integer_to_string(index_directorio_padre_original));
+							directorio_original=realloc(directorio_original,strlen(directorio_original)+1);
+							struct dirent *dir;
+							DIR*directory;
+							directory= opendir(directorio_original);
+							int i=0;
+							if (directory){
+								while ((dir = readdir(directory)) != NULL)
+								{
+									if(!(strcmp(dir->d_name,".")==0 || strcmp(dir->d_name,"..")==0)){
+										i++;
+									}else{
 
+									}
 								}
 							}
+							closedir(directory);
+							if(i==0){
+								rmdir(directorio_original);
+							}
+							closedir(d);
 						}
-						closedir(directory);
-						if(i==0){
-							rmdir(directorio_original);
-						}
-						closedir(d);
 					}
 				}else{
 					//es un directorio
@@ -3473,6 +3479,16 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_direc
 	t_list *datanodes_a_enviar = list_create();
 	t_list *disponibles = list_create();
 	t_list *bloques_enviados = list_create();
+	int index=0;
+	/*t_dtdisponible*datanodes_disponibles(info_datanode*elemento){
+		t_dtdisponible*aux=malloc(sizeof(t_dtdisponible));
+		aux->socket=elemento->socket;
+		aux->cantidad=(elemento->bloques_totales-elemento->bloques_libres) >0 ? elemento->bloques_totales-elemento->bloques_libres : 0;
+		aux->index=index;
+		index++;
+		list_add(datanodes_a_enviar,aux);
+	}*/
+
 	pthread_mutex_lock(&mutex_datanodes);
 	datanodes_a_enviar = list_map(datanodes, (void*) datanodes_disponibles);
 	pthread_mutex_unlock(&mutex_datanodes);
@@ -3611,8 +3627,10 @@ int main(int argc, char* argv[]) {
 	 return 0;
 	  */
 	if(strcmp(argumento,"--clean")==0){
-		rmtree(PUNTO_MONTAJE);
-		mkdir(PUNTO_MONTAJE,0700);
+		rmtree(RUTA_ARCHIVOS);
+		rmtree(RUTA_BITMAPS);
+		remove(RUTA_NODOS);
+		remove(RUTA_DIRECTORIOS);
 		mkdir(RUTA_ARCHIVOS,0700);
 		mkdir(RUTA_BITMAPS,0700);
 		if(access(RUTA_NODOS,F_OK)==-1){
@@ -3685,9 +3703,13 @@ int main(int argc, char* argv[]) {
 	pthread_mutex_lock(&orden_cpto);
 	pthread_mutex_lock(&mutex_orden_md5);
 	pthread_mutex_lock(&orden_cpblock);
-	//pthread_mutex_init(&mutex_archivos_almacenados,NULL);
 	pthread_create(&hiloConsola, NULL, (void*) consola, NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);
 	pthread_join(hiloConsola, NULL);
+	free(PUNTO_MONTAJE);
+	free(RUTA_ARCHIVOS);
+	free(RUTA_BITMAPS);
+	free(RUTA_DIRECTORIOS);
+	free(IP);
 	return 0;
 }
