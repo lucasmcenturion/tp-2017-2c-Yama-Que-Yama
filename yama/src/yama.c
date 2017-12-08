@@ -430,7 +430,7 @@ void RealizarReplanificacion(registroEstado* reg, int socket){
 	}
 }
 
-void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob){
+void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMaster){
 	char* rutaTemporalRL = string_from_format("/tmp/Master%i-%s", idMaster,w->nodo);
 	int tamanio = sizeof(uint32_t)*2 + strlen(w->nodo) + strlen(w->ip) + strlen(rutaTemporalRL) + 3 ;
 	void * datos = malloc(tamanio);
@@ -459,6 +459,7 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob){
 		datos+=strlen(r->archivoTemporal)+1;
 	}
 	datos-=tamanio;
+	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONLOCAL);
 	registroEstado* reg = malloc(sizeof(registroEstado));
 	reg->archivoTemporal = string_new();
 	strcpy(reg->archivoTemporal, rutaTemporalRL);
@@ -525,7 +526,7 @@ void accion(void* socket){
 						//si todos están en estado finalizadook, puede hacer reducción local
 						if (list_all_satisfy(tablaFiltradaPorNodoYTransformacionYJob,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->estado == FINALIZADOOK;})))
 						{
-							realizarRL(tablaFiltradaPorNodoYTransformacionYJob, w, r->master, r->job);
+							realizarRL(tablaFiltradaPorNodoYTransformacionYJob, w, r->master, r->job, socketFD);
 						}
 					}
 					else
