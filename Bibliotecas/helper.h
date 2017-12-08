@@ -172,6 +172,12 @@ typedef struct{
 }__attribute__((packed)) t_directory;
 
 typedef struct{
+ int tamanio;
+ char*nombre_nodo;
+ void*datos;
+}__attribute__((packed)) t_cpblock;
+
+typedef struct{
  int index_padre;
  int total_bloques;
  int tipo;

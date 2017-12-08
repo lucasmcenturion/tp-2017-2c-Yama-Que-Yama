@@ -11,6 +11,7 @@ char *RUTA_BITMAPS;
 int PUERTO;
 int socketFS;
 int socketYAMA;
+t_cpblock *cpblock;
 t_list* listaHilos;
 t_list* datanodes;
 t_list* datanodes_anteriores;
@@ -45,6 +46,7 @@ pthread_mutex_t mutex_orden_md5;
 pthread_mutex_t mutex_respuesta_solicitud_cpto;
 pthread_mutex_t mutex_cpto;
 pthread_mutex_t orden_cpto;
+pthread_mutex_t orden_cpblock;
 //pthread_mutex_t mutex_archivos_almacenados;
 t_directory **obtener_directorios() {
 	int fd_directorio = open(RUTA_DIRECTORIOS, O_RDWR);
@@ -745,7 +747,46 @@ void escribir_archivo_cpto(int tamanio_archivo, int bloque_archivo,int index_dir
 		}
 	}
 }
-
+void crear_copia(char *ruta_archivo,char *nombre_nodo,int bloque_archivo,int bloque_datanode){
+	t_config*archivo=config_create(ruta_archivo);
+	char*primer_copia=malloc(30);
+	char*segunda_copia=malloc(30);
+	char*tercera_copia=malloc(30);
+	strcpy(primer_copia,"BLOQUE");
+	strcat(primer_copia,integer_to_string(bloque_archivo));
+	strcat(primer_copia,"COPIA0");
+	primer_copia=realloc(primer_copia,strlen(primer_copia)+1);
+	strcpy(segunda_copia,"BLOQUE");
+	strcat(segunda_copia,integer_to_string(bloque_archivo));
+	strcat(segunda_copia,"COPIA1");
+	segunda_copia=realloc(segunda_copia,strlen(segunda_copia)+1);
+	strcpy(tercera_copia,"BLOQUE");
+	strcat(tercera_copia,integer_to_string(bloque_archivo));
+	strcat(tercera_copia,"COPIA2");
+	tercera_copia=realloc(tercera_copia,strlen(tercera_copia)+1);
+	char*value=malloc(50);
+	strcpy(value,"[");
+	strcat(value,nombre_nodo);
+	strcat(value,",");
+	strcat(value,integer_to_string(bloque_datanode));
+	strcat(value,"]");
+	value=realloc(value,strlen(value)+1);
+	if(config_has_property(archivo,primer_copia) && config_has_property(archivo,segunda_copia)){
+		config_set_value(archivo,tercera_copia,value);
+	}else{
+		if(config_has_property(archivo,primer_copia)){
+			config_set_value(archivo,segunda_copia,value);
+		}else{
+			config_set_value(archivo,primer_copia,value);
+		}
+	}
+	config_save(archivo);
+	config_save_in_file(archivo,ruta_archivo);
+	free(primer_copia);
+	free(segunda_copia);
+	free(tercera_copia);
+	free(value);
+}
 void accion(void* socket) {
 	int socketFD = *(int*) socket;
 	Paquete paquete;
@@ -753,6 +794,57 @@ void accion(void* socket) {
 	while (RecibirPaqueteServidorFS(socketFD, FILESYSTEM, &paquete) > 0) {
 		if (!strcmp(paquete.header.emisor, DATANODE)) {
 			switch (paquete.header.tipoMensaje) {
+			case RESPUESTASETBLOQUECPTO:{
+				datos=paquete.Payload;
+				int bloque_archivo=*((uint32_t*) datos);
+				datos += sizeof(uint32_t);
+				int bloque_datanode=*((uint32_t*) datos);
+				datos += sizeof(uint32_t);
+				int index_padre=*((uint32_t*) datos);
+				datos += sizeof(uint32_t);
+				int resultado=*((uint32_t*) datos);
+				datos += sizeof(uint32_t);
+				char*nombre_archivo=malloc(50);
+				strcpy(nombre_archivo,datos);
+				datos+=strlen(nombre_archivo)+1;
+				nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+				char*nombre_nodo=malloc(10);
+				strcpy(nombre_nodo,datos);
+				nombre_nodo=realloc(nombre_nodo,strlen(nombre_nodo)+1);
+				datos+=strlen(nombre_nodo)+1;
+
+				if(resultado==1){
+					char*ruta_archivo=malloc(100);
+					strcpy(ruta_archivo,RUTA_ARCHIVOS);
+					strcat(ruta_archivo,"/");
+					strcat(ruta_archivo,integer_to_string(index_padre));
+					strcat(ruta_archivo,"/");
+					strcat(ruta_archivo,nombre_archivo);
+					ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
+					crear_copia(ruta_archivo,nombre_nodo,bloque_archivo,bloque_datanode);
+					free(ruta_archivo);
+				}else{
+					printf("Error en el guardado de datos\n");
+				}
+				free(nombre_archivo);
+				free(nombre_nodo);
+			}
+			break;
+			case RESPUESTAGETBLOQUE:{
+				datos=paquete.Payload;
+				cpblock=malloc(sizeof(t_cpblock));
+				cpblock->tamanio=*((uint32_t*) datos);
+				datos += sizeof(uint32_t);
+				cpblock->nombre_nodo=malloc(50);
+				strcpy(cpblock->nombre_nodo,datos);
+				cpblock->nombre_nodo=realloc(cpblock->nombre_nodo,strlen(cpblock->nombre_nodo)+1);
+				datos+=strlen(cpblock->nombre_nodo)+1;
+				cpblock->datos=calloc(1,cpblock->tamanio);
+				memmove(cpblock->datos,datos,cpblock->tamanio);
+				datos+=cpblock->tamanio;
+				pthread_mutex_unlock(&orden_cpblock);
+			}
+			break;
 			case RESPUESTASOLICITUD: {
 				pthread_mutex_lock(&mutex_respuesta_solicitud);
 				datos = paquete.Payload;
@@ -1185,7 +1277,7 @@ void actualizar_index_directorios(t_directory aux[100]) {
 	int i;
 	for (i = 0; i < 100; ++i) {
 		if ((strcmp(aux[i].nombre, "/0") != 0)
-				&& (aux[i].index > index_directorio)) {
+				&& (aux[i].index >= index_directorio)) {
 			index_directorio = aux[i].index + 1;
 		}
 	}
@@ -2019,6 +2111,57 @@ void consola() {
 		else if (!strncmp(linea, "rm ", 3)) {
 			linea += 3;
 			if (!strncmp(linea, "-d", 2)) {
+				linea -= 3;
+				char **array_input=string_split(linea," ");
+				if(!array_input[0] || !array_input[1] || !array_input[2]){
+					printf("Error,verifique los parámetros \n");
+				}else{
+					int index=index_ultimo_directorio(array_input[2],"d");
+					DIR*d;
+					struct dirent *ep;
+					int i=0;
+					char*ruta_directorio=malloc(100);
+					strcpy(ruta_directorio,RUTA_ARCHIVOS);
+					strcat(ruta_directorio,"/");
+					strcat(ruta_directorio,integer_to_string(index));
+					ruta_directorio=realloc(ruta_directorio,strlen(ruta_directorio)+1);
+					d=opendir(ruta_directorio);
+					bool flag_closedir=false;
+					if(d){
+						while ((ep = readdir (d))!=NULL){
+							if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")){
+								continue;
+							}else{
+								i++;
+							}
+						}
+						closedir(d);
+						flag_closedir=true;
+					}
+					if(i!=0){
+						printf("Error, el directorio no está vacío \n");
+					}else{
+						t_directory**directorios=obtener_directorios();
+						t_directory *aux=(*directorios);
+						int var;
+						for (var = 0; var < 100; ++var) {
+							if(aux[var].index==index){
+								aux[var].index=-4518;
+								strcpy(aux[var].nombre,"/0");
+								pthread_mutex_lock(&mutex_directorios_ocupados);
+								directorios_ocupados[var]=false;
+								pthread_mutex_unlock(&mutex_directorios_ocupados);
+								break;
+							}
+						}
+						guardar_directorios(directorios);
+						free((*directorios));
+						free(directorios);
+						if(!flag_closedir){
+							free(ruta_directorio);
+						}
+					}
+				}
 
 			} else if (!strncmp(linea, "-b", 2))
 				printf("remover bloque\n");
@@ -2026,6 +2169,7 @@ void consola() {
 				linea -= 3;
 				char **array_input=string_split(linea," ");
 				if(!array_input[0] || !array_input[1] ){
+					printf("Error,verifique los parámetros \n");
 				}else{
 					char *nombre_archivo=malloc(100);
 					strcpy(nombre_archivo,obtener_nombre_archivo(array_input[1]));
@@ -2421,7 +2565,141 @@ void consola() {
 			}
 		}
 		else if (!strncmp(linea, "cpblock ", 8)){
-
+			char **array_input = string_split(linea, " ");
+			if (!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3]) {
+				printf("Error, verificar parametros\n");
+				fflush(stdout);
+			} else {
+				char*nombre_archivo=malloc(100);
+				strcpy(nombre_archivo,obtener_nombre_archivo(array_input[1]));
+				nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+				int index=index_ultimo_directorio(array_input[1],"a");
+				if(!existe_archivo(nombre_archivo,index)){
+					printf("Error, no existe el archivo \n");
+				}else{
+					bool mismo_nombre(info_datanode*elemento){
+						return !strcmp(elemento->nodo,array_input[3]);
+					}
+					if(!list_find(datanodes,(void*) mismo_nombre)){
+						printf("El %s no se encuentra conectado \n",array_input[3]);
+					}else{
+						char*ruta_config=malloc(150);
+						strcpy(ruta_config,RUTA_ARCHIVOS);
+						strcat(ruta_config,"/");
+						strcat(ruta_config,integer_to_string(index));
+						strcat(ruta_config,"/");
+						strcat(ruta_config,nombre_archivo);
+						ruta_config=realloc(ruta_config,strlen(ruta_config)+1);
+						t_config*archivo=config_create(ruta_config);
+						char*bloque=malloc(50);
+						strcpy(bloque,"BLOQUE");
+						strcat(bloque,array_input[2]);
+						strcat(bloque,"COPIA0");
+						char**array=malloc(2*sizeof(char*));
+						array[0]=malloc(10);
+						array[1]=malloc(5);
+						char*tamanio_bloque=malloc(50);
+						strcpy(tamanio_bloque,"BLOQUE");
+						strcat(tamanio_bloque,array_input[2]);
+						strcat(tamanio_bloque,"BYTES");
+						tamanio_bloque=realloc(tamanio_bloque,strlen(tamanio_bloque)+1);
+						if(config_has_property(archivo,bloque)){
+							array=config_get_array_value(archivo,bloque);
+							bool mismo_nombre(info_datanode*elemento){
+								return !strcmp(elemento->nodo,array[0]);
+							}
+							int tamanio=sizeof(uint32_t)*2;
+							void*datos=malloc(tamanio);
+							*((uint32_t*)datos)=config_get_int_value(archivo,tamanio_bloque);
+							datos+=sizeof(uint32_t);
+							*((uint32_t*)datos)=atoi(array[1]);
+							datos+=sizeof(uint32_t);
+							datos-=tamanio;
+							EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+									FILESYSTEM,datos,tamanio,GETBLOQUE);
+							free(datos);
+							free(array[0]);
+							free(array[1]);
+							free(array);
+						}
+						free(bloque);
+						free(tamanio_bloque);
+						free(ruta_config);
+						config_destroy(archivo);
+						pthread_mutex_lock(&orden_cpblock);
+						char*ruta_bitmap=malloc(50);
+						strcpy(ruta_bitmap,RUTA_BITMAPS);
+						strcat(ruta_bitmap,"/");
+						strcat(ruta_bitmap,array_input[3]);
+						strcat(ruta_bitmap,".dat");
+						int bitmap=open(ruta_bitmap,O_RDWR);
+						int rv=1;
+						void *bitarray_mmap;
+						t_config*nodos_bin=config_create(RUTA_NODOS);
+						char*total_string=malloc(100);
+						strcpy(total_string,array_input[3]);
+						strcat(total_string,"Total");
+						int total=config_get_int_value(nodos_bin,total_string);
+						int bloque_nodo;
+						if(bitmap==-1){
+							printf("Error al abrir el archivo, no existe \n");
+							close(bitmap);
+						}else{
+							struct stat mystat;
+							if (fstat(bitmap, &mystat) < 0) {
+										printf("Error al establecer fstat\n");
+										close(bitmap);
+							}else{
+								bitarray_mmap=mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ,MAP_SHARED, bitmap, 0);
+							if (mmap == MAP_FAILED) {
+								printf("Error al mapear a memoria: %s\n", strerror(errno));
+							} else {
+								int size_bitarray =total % 8 > 0 ? ((int) (total / 8)) + 1 : (int) (total / 8);
+								t_bitarray *bitarray = bitarray_create_with_mode(bitarray_mmap,size_bitarray, MSB_FIRST);
+								int j;
+								for (j = 0; j < total; j++) {
+									if (bitarray_test_bit(bitarray, j) == 0) {
+										bitarray_set_bit(bitarray, j);
+										break;
+									}
+								}
+								bloque_nodo=j;
+								if(j==(total-1)){
+									rv=-1;
+								}
+								munmap(bitarray_mmap,mystat.st_size);
+								close(bitmap);
+							}
+						}
+						if(rv==-1){
+							printf("Error, ese nodo no tiene más lugar\n");
+						}else{
+							bool mismo_nombre(info_datanode*elemento){
+								return !strcmp(elemento->nodo,cpblock->nombre_nodo);
+							}
+							int tamanio_a_enviar= 4 *sizeof(uint32_t)+sizeof(char)*strlen(nombre_archivo)+1+cpblock->tamanio;
+							void*datos_a_enviar=calloc(1,tamanio_a_enviar);
+							*((uint32_t*)datos_a_enviar) = atoi(array_input[2]);//numero de bloque archivo
+							datos_a_enviar += sizeof(uint32_t);
+							*((uint32_t*)datos_a_enviar) = bloque_nodo; //bloque a setear
+							datos_a_enviar+=sizeof(uint32_t);
+							*((uint32_t*)datos_a_enviar) =index ; //bloque a setear
+							datos_a_enviar+=sizeof(uint32_t);
+							*((uint32_t*)datos_a_enviar) = cpblock->tamanio; //bloque a setear
+							datos_a_enviar+=sizeof(uint32_t);
+							strcpy(datos_a_enviar,nombre_archivo);
+							datos_a_enviar+=strlen(nombre_archivo)+1;
+							memmove(datos_a_enviar,cpblock->datos,cpblock->tamanio);
+							datos_a_enviar+=cpblock->tamanio;
+							datos_a_enviar-=tamanio_a_enviar;
+							EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+									FILESYSTEM,datos_a_enviar,tamanio_a_enviar,SETBLOQUECPTO);
+							free(datos_a_enviar);
+						}
+						}
+					}
+				}
+			}
 		}
 		else if (!strncmp(linea, "md5 ", 4)) {
 			char **array_input = string_split(linea, " ");
@@ -3124,14 +3402,14 @@ int main(int argc, char* argv[]) {
 	}
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
 
-	 /*t_directory **directorios=obtener_directorios();
+	 t_directory **directorios=obtener_directorios();
 	 t_directory *aux=(*directorios);
 	 int var;
 	 for (var = 0; var < 10; ++var) {
 	 printf("%i,%i,%s\n",aux[var].index,aux[var].padre,aux[var].nombre);
 	 }
 	 return 0;
-	*/
+
 	if(strcmp(argumento,"--clean")==0){
 		rmtree(PUNTO_MONTAJE);
 		mkdir(PUNTO_MONTAJE,0700);
@@ -3203,8 +3481,10 @@ int main(int argc, char* argv[]) {
 	pthread_mutex_init(&mutex_respuesta_solicitud_cpto,NULL);
 	pthread_mutex_init(&mutex_cpto,NULL);
 	pthread_mutex_init(&orden_cpto,NULL);
+	pthread_mutex_init(&orden_cpblock,NULL);
 	pthread_mutex_lock(&orden_cpto);
 	pthread_mutex_lock(&mutex_orden_md5);
+	pthread_mutex_lock(&orden_cpblock);
 	//pthread_mutex_init(&mutex_archivos_almacenados,NULL);
 	pthread_create(&hiloConsola, NULL, (void*) consola, NULL);
 	ServidorConcurrente(IP, PUERTO, FILESYSTEM, &listaHilos, &end, accion);

@@ -171,30 +171,6 @@ int main(){
 	socketFS = ConectarAServidorDatanode(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake,enviarHandshakeDatanode);
 	fflush( stdout );
 
-	/*int tamanio = sizeof(uint32_t) * 6 + sizeof(char) * strlen(IP_NODO) + sizeof(char) * strlen(NOMBRE_NODO) + 2;
-	void* datos = malloc(tamanio);
-	*((uint32_t*)datos) = strlen(NOMBRE_NODO);
-	datos += sizeof(uint32_t);
-	strcpy(datos, NOMBRE_NODO);
-	datos +=  strlen(NOMBRE_NODO) + 1;
-	*((uint32_t*)datos) = PUERTO_WORKER;
-	datos += sizeof(uint32_t);
-	*((uint32_t*)datos) = strlen(IP_NODO);
-	datos += sizeof(uint32_t);
-	strcpy(datos, IP_NODO);
-	datos += strlen(IP_NODO) + 1;
-	*((uint32_t*)datos) = 0;
-	datos += sizeof(uint32_t);
-	*((uint32_t*)datos) = 0;
-	datos += sizeof(uint32_t);
-	*((uint32_t*)datos) = 0;
-	datos += sizeof(uint32_t);
-	datos -= tamanio;
-
-	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, NUEVOWORKER);
-
-	free(datos);
-	 */
 	//escribirEnArchivoLog("operacion",&LogDatanode);
 	int tamanio = sizeof(uint32_t) * 2  +  sizeof(char) * strlen(IP_NODO) +1+sizeof(char) * strlen(NOMBRE_NODO) + 1;
 	void*datos = malloc(tamanio);
@@ -319,6 +295,27 @@ int main(){
 		break;
 		case GETBLOQUE:
 		{
+			datos_solicitud=paquete.Payload;
+			int tamanio_bloque= *((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int numero_bloque=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			void*bloque=malloc(tamanio_bloque);
+			bloque=getBloque(numero_bloque,tamanio_bloque);
+
+			int tamanio_a_enviar=sizeof(uint32_t)+strlen(NOMBRE_NODO)+1+tamanio_bloque;
+			void* datos2=malloc(tamanio_a_enviar);
+			*((uint32_t*)datos2)=tamanio_bloque;
+			datos2+=sizeof(uint32_t);
+			strcpy(datos2,NOMBRE_NODO);
+			datos2+=strlen(NOMBRE_NODO)+1;
+			memmove(datos2,bloque,tamanio_bloque);
+			datos2+=tamanio_bloque;
+			datos2-=tamanio_a_enviar;
+
+			EnviarDatosTipo(socketFS,DATANODE,datos2,tamanio_a_enviar,RESPUESTAGETBLOQUE);
+			free(bloque);
+			//free(datos2);
 		}
 		break;
 		case SETBLOQUE:
@@ -370,6 +367,47 @@ int main(){
 
 			EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
 			free(datos);
+			free(bloque);
+		}
+		break;
+		case SETBLOQUECPTO:{
+			datos_solicitud=paquete.Payload;
+			bloque_archivo=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int bloque_a_setear=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int index_padre=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			int tamanio_bloque=*((uint32_t*)datos_solicitud);
+			datos_solicitud+=sizeof(uint32_t);
+			char*nombre_archivo=malloc(100);
+			strcpy(nombre_archivo,datos_solicitud);
+			datos_solicitud+=strlen(nombre_archivo)+1;
+			nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+			void*bloque=malloc(tamanio_bloque);
+			memmove(bloque,datos_solicitud,tamanio_bloque);
+			datos_solicitud+=tamanio_bloque;
+			int resultado=setBloque(bloque_a_setear,bloque,tamanio_bloque);
+
+			int tamanio_a_enviar=4*sizeof(uint32_t)+strlen(nombre_archivo)+1+strlen(NOMBRE_NODO)+1;
+			void*datos_a_enviar=malloc(tamanio_a_enviar);
+			*((uint32_t*)datos_a_enviar) = bloque_archivo;
+			datos_a_enviar += sizeof(uint32_t);
+			*((uint32_t*)datos_a_enviar) = bloque_a_setear;
+			datos_a_enviar += sizeof(uint32_t);
+			*((uint32_t*)datos_a_enviar) = index_padre;
+			datos_a_enviar += sizeof(uint32_t);
+			*((uint32_t*)datos_a_enviar) = resultado;
+			datos_a_enviar += sizeof(uint32_t);
+			strcpy(datos_a_enviar,nombre_archivo);
+			datos_a_enviar+=strlen(nombre_archivo)+1;
+			strcpy(datos_a_enviar,NOMBRE_NODO);
+			datos_a_enviar+=strlen(NOMBRE_NODO)+1;
+			datos_a_enviar-=tamanio_a_enviar;
+
+			EnviarDatosTipo(socketFS,DATANODE,datos_a_enviar,tamanio_a_enviar,RESPUESTASETBLOQUECPTO);
+			free(datos_a_enviar);
+			free(bloque);
 		}
 		break;
 		}
