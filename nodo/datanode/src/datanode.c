@@ -300,15 +300,18 @@ int main(){
 			datos_solicitud+=sizeof(uint32_t);
 			int numero_bloque=*((uint32_t*)datos_solicitud);
 			datos_solicitud+=sizeof(uint32_t);
+			char*nombre_nodo_a_setear=malloc(100);
+			strcpy(nombre_nodo_a_setear,datos_solicitud);
+			datos_solicitud+=strlen(nombre_nodo_a_setear)+1;
 			void*bloque=malloc(tamanio_bloque);
 			bloque=getBloque(numero_bloque,tamanio_bloque);
 
-			int tamanio_a_enviar=sizeof(uint32_t)+strlen(NOMBRE_NODO)+1+tamanio_bloque;
+			int tamanio_a_enviar=sizeof(uint32_t)+strlen(nombre_nodo_a_setear)+1+tamanio_bloque;
 			void* datos2=malloc(tamanio_a_enviar);
 			*((uint32_t*)datos2)=tamanio_bloque;
 			datos2+=sizeof(uint32_t);
-			strcpy(datos2,NOMBRE_NODO);
-			datos2+=strlen(NOMBRE_NODO)+1;
+			strcpy(datos2,nombre_nodo_a_setear);
+			datos2+=strlen(nombre_nodo_a_setear)+1;
 			memmove(datos2,bloque,tamanio_bloque);
 			datos2+=tamanio_bloque;
 			datos2-=tamanio_a_enviar;

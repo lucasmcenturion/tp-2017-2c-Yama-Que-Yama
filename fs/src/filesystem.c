@@ -2061,6 +2061,31 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 	config_destroy(archivo);
 	list_destroy_and_destroy_elements(disponibilidad_datanodes,free);
 }
+bool existe_una_copia_sola(t_config *archivo,char*numero_bloque){
+	char*primera_copia=malloc(100);
+	char*segunda_copia=malloc(100);
+	char*tercera_copia=malloc(100);
+	strcpy(primera_copia,"BLOQUE");
+	strcpy(segunda_copia,"BLOQUE");
+	strcpy(tercera_copia,"BLOQUE");
+	strcat(primera_copia,numero_bloque);
+	strcat(segunda_copia,numero_bloque);
+	strcat(tercera_copia,numero_bloque);
+	strcat(primera_copia,"COPIA0");
+	strcat(segunda_copia,"COPIA1");
+	strcat(tercera_copia,"COPIA2");
+	int cantidad=0;
+	if(config_has_property(archivo,primera_copia)){
+		cantidad++;
+	}
+	if(config_has_property(archivo,segunda_copia)){
+		cantidad++;
+	}
+	if(config_has_property(archivo,tercera_copia)){
+		cantidad++;
+	}
+	return cantidad==1 ? true :false;
+}
 void consola() {
 	char * linea;
 	while (true) {
@@ -2163,8 +2188,87 @@ void consola() {
 					}
 				}
 
-			} else if (!strncmp(linea, "-b", 2))
-				printf("remover bloque\n");
+			} else if (!strncmp(linea, "-b", 2)){
+				linea -= 3;
+				char **array_input=string_split(linea," ");
+				if(!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3] || !array_input[4]){
+					printf("Error,verifique los parámetros \n");
+				}else{
+					char *ruta_archivo=malloc(100);
+					strcpy(ruta_archivo,RUTA_ARCHIVOS);
+					strcat(ruta_archivo,"/");
+					int index_padre=index_ultimo_directorio(array_input[2],"a");
+					strcat(ruta_archivo,integer_to_string(index_padre));
+					strcat(ruta_archivo,"/");
+					strcat(ruta_archivo,((char*)obtener_nombre_archivo(array_input[2])));
+					if(!existe_archivo(((char*)obtener_nombre_archivo(array_input[2])),index_padre)){
+						printf("Error, el archivo no existe \n");
+					}else{
+						if(!strcmp(array_input[4],"0") || !strcmp(array_input[4],"1") || !strcmp(array_input[4],"2")){
+							t_config*archivo=config_create(ruta_archivo);
+							char*copia_a_eliminar=malloc(100);
+							char**array=malloc(sizeof(char*)*2);
+							char*nodo_a_limpiar=malloc(10);
+							int bloque_a_limpiar;
+							array[0]=malloc(10);
+							array[1]=malloc(5);
+							strcpy(copia_a_eliminar,"BLOQUE");
+							strcat(copia_a_eliminar,array_input[3]);
+							strcat(copia_a_eliminar,"COPIA");
+							strcat(copia_a_eliminar,array_input[4]);
+							void config_remove_key(t_config *config, char *key) {
+								dictionary_remove(config->properties, key);
+							}
+							if(existe_una_copia_sola(archivo,array_input[3])){
+								printf("Error, existe una sola copia del archivo \n");
+							}
+							if(config_has_property(archivo,copia_a_eliminar)){
+								array=config_get_array_value(archivo,copia_a_eliminar);
+								strcpy(nodo_a_limpiar,((char*)array[0]));
+								bloque_a_limpiar=atoi(array[1]);
+								config_remove_key(archivo,copia_a_eliminar);
+								config_save_in_file(archivo,ruta_archivo);
+								char*ruta_bitmap=malloc(100);
+								strcpy(ruta_bitmap,RUTA_BITMAPS);
+								strcat(ruta_bitmap,"/");
+								strcat(ruta_bitmap,nodo_a_limpiar);
+								strcat(ruta_bitmap,".dat");
+								void *bitarray_mmap;
+								int bitmap=open(ruta_bitmap,O_RDWR);
+								if(bitmap==-1){
+									printf("Error al abrir el archivo, no existe \n");
+									close(bitmap);
+								}else{
+									struct stat mystat;
+									if (fstat(bitmap, &mystat) < 0) {
+										printf("Error al establecer fstat\n");
+										close(bitmap);
+									}else{
+										bitarray_mmap=mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ,MAP_SHARED, bitmap, 0);
+										if (mmap == MAP_FAILED) {
+											printf("Error al mapear a memoria: %s\n", strerror(errno));
+										}else{
+											t_bitarray *bitarray = bitarray_create_with_mode(bitarray_mmap,mystat.st_size, MSB_FIRST);
+											printf("%i\n",bitarray_test_bit(bitarray,bloque_a_limpiar));
+											bitarray_clean_bit(bitarray,bloque_a_limpiar);
+											printf("%i\n",bitarray_test_bit(bitarray,bloque_a_limpiar));
+											bitarray_destroy(bitarray);
+										}
+										munmap(bitarray_mmap,mystat.st_size);
+										close(bitmap);
+									}
+								}
+								free(ruta_bitmap);
+							}else{
+								printf("Error, no existe una copia del bloque %s en %s \n",array_input[3],array_input[4]);
+							}
+						}else{
+							printf("Error, no existe una copia con ese valor \n");
+						}
+					}
+
+				}
+			}
 			else{
 				linea -= 3;
 				char **array_input=string_split(linea," ");
@@ -2595,107 +2699,203 @@ void consola() {
 						strcpy(bloque,"BLOQUE");
 						strcat(bloque,array_input[2]);
 						strcat(bloque,"COPIA0");
-						char**array=malloc(2*sizeof(char*));
-						array[0]=malloc(10);
-						array[1]=malloc(5);
-						char*tamanio_bloque=malloc(50);
-						strcpy(tamanio_bloque,"BLOQUE");
-						strcat(tamanio_bloque,array_input[2]);
-						strcat(tamanio_bloque,"BYTES");
-						tamanio_bloque=realloc(tamanio_bloque,strlen(tamanio_bloque)+1);
-						if(config_has_property(archivo,bloque)){
-							array=config_get_array_value(archivo,bloque);
-							bool mismo_nombre(info_datanode*elemento){
-								return !strcmp(elemento->nodo,array[0]);
+						char*segundo_bloque=malloc(50);
+						strcpy(segundo_bloque,"BLOQUE");
+						strcat(segundo_bloque,array_input[2]);
+						strcat(segundo_bloque,"COPIA1");
+						char*tercer_bloque=malloc(50);
+						strcpy(tercer_bloque,"BLOQUE");
+						strcat(tercer_bloque,array_input[2]);
+						strcat(tercer_bloque,"COPIA2");
+						bool flag_existe=false;
+						while(1){
+							if(config_has_property(archivo,bloque)){
+								char**primera_copia=malloc(2*sizeof(char*));
+								primera_copia[0]=malloc(10);
+								primera_copia[1]=malloc(5);
+								primera_copia=config_get_array_value(archivo,bloque);
+								if(strcmp(primera_copia[0],array_input[3])==0){
+									flag_existe=true;
+								}
+								free(primera_copia[0]);
+								free(primera_copia[1]);
+								free(primera_copia);
 							}
-							int tamanio=sizeof(uint32_t)*2;
-							void*datos=malloc(tamanio);
-							*((uint32_t*)datos)=config_get_int_value(archivo,tamanio_bloque);
-							datos+=sizeof(uint32_t);
-							*((uint32_t*)datos)=atoi(array[1]);
-							datos+=sizeof(uint32_t);
-							datos-=tamanio;
-							EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
-									FILESYSTEM,datos,tamanio,GETBLOQUE);
-							free(datos);
-							free(array[0]);
-							free(array[1]);
-							free(array);
+							if(config_has_property(archivo,segundo_bloque)){
+								char**segunda_copia=malloc(2*sizeof(char*));
+								segunda_copia[0]=malloc(10);
+								segunda_copia[1]=malloc(5);
+								segunda_copia=config_get_array_value(archivo,segundo_bloque);
+								if(strcmp(segunda_copia[0],array_input[3])==0){
+									flag_existe=true;
+								}
+								free(segunda_copia[0]);
+								free(segunda_copia[1]);
+								free(segunda_copia);
+							}
+							if(config_has_property(archivo,tercer_bloque)){
+								char**tercera_copia=malloc(2*sizeof(char*));
+								tercera_copia[0]=malloc(10);
+								tercera_copia[1]=malloc(5);
+								tercera_copia=config_get_array_value(archivo,tercer_bloque);
+								if(strcmp(tercera_copia[0],array_input[3])==0){
+									flag_existe=true;
+								}
+								free(tercera_copia[0]);
+								free(tercera_copia[1]);
+								free(tercera_copia);
+							}
+							break;
 						}
-						free(bloque);
-						free(tamanio_bloque);
-						free(ruta_config);
-						config_destroy(archivo);
-						pthread_mutex_lock(&orden_cpblock);
-						char*ruta_bitmap=malloc(50);
-						strcpy(ruta_bitmap,RUTA_BITMAPS);
-						strcat(ruta_bitmap,"/");
-						strcat(ruta_bitmap,array_input[3]);
-						strcat(ruta_bitmap,".dat");
-						int bitmap=open(ruta_bitmap,O_RDWR);
-						int rv=1;
-						void *bitarray_mmap;
-						t_config*nodos_bin=config_create(RUTA_NODOS);
-						char*total_string=malloc(100);
-						strcpy(total_string,array_input[3]);
-						strcat(total_string,"Total");
-						int total=config_get_int_value(nodos_bin,total_string);
-						int bloque_nodo;
-						if(bitmap==-1){
-							printf("Error al abrir el archivo, no existe \n");
-							close(bitmap);
+						if(flag_existe){
+							printf("Error, ya existe una copia en ese nodo, por favor elija otro \n");
 						}else{
-							struct stat mystat;
-							if (fstat(bitmap, &mystat) < 0) {
-										printf("Error al establecer fstat\n");
-										close(bitmap);
+							char**array=malloc(2*sizeof(char*));
+							array[0]=malloc(10);
+							array[1]=malloc(5);
+							char*tamanio_bloque=malloc(50);
+							strcpy(tamanio_bloque,"BLOQUE");
+							strcat(tamanio_bloque,array_input[2]);
+							strcat(tamanio_bloque,"BYTES");
+							tamanio_bloque=realloc(tamanio_bloque,strlen(tamanio_bloque)+1);
+							if(config_has_property(archivo,bloque)){
+								array=config_get_array_value(archivo,bloque);
+								bool mismo_nombre(info_datanode*elemento){
+									return !strcmp(elemento->nodo,array[0]);
+								}
+								int tamanio=sizeof(uint32_t)*2+strlen(array_input[3])+1;
+								void*datos=malloc(tamanio);
+								*((uint32_t*)datos)=config_get_int_value(archivo,tamanio_bloque);
+								datos+=sizeof(uint32_t);
+								*((uint32_t*)datos)=atoi(array[1]);
+								datos+=sizeof(uint32_t);
+								strcpy(datos,array_input[3]);
+								datos+=strlen(array_input[3])+1;
+								datos-=tamanio;
+								EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+										FILESYSTEM,datos,tamanio,GETBLOQUE);
+								free(datos);
+								free(array[0]);
+								free(array[1]);
+								free(array);
 							}else{
-								bitarray_mmap=mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ,MAP_SHARED, bitmap, 0);
-							if (mmap == MAP_FAILED) {
-								printf("Error al mapear a memoria: %s\n", strerror(errno));
-							} else {
-								int size_bitarray =total % 8 > 0 ? ((int) (total / 8)) + 1 : (int) (total / 8);
-								t_bitarray *bitarray = bitarray_create_with_mode(bitarray_mmap,size_bitarray, MSB_FIRST);
-								int j;
-								for (j = 0; j < total; j++) {
-									if (bitarray_test_bit(bitarray, j) == 0) {
-										bitarray_set_bit(bitarray, j);
-										break;
+								if(config_has_property(archivo,segundo_bloque)){
+									array=config_get_array_value(archivo,segundo_bloque);
+									bool mismo_nombre(info_datanode*elemento){
+										return !strcmp(elemento->nodo,array[0]);
+									}
+									int tamanio=sizeof(uint32_t)*2;
+									void*datos=malloc(tamanio);
+									*((uint32_t*)datos)=config_get_int_value(archivo,tamanio_bloque);
+									datos+=sizeof(uint32_t);
+									*((uint32_t*)datos)=atoi(array[1]);
+									datos+=sizeof(uint32_t);
+									datos-=tamanio;
+									EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+											FILESYSTEM,datos,tamanio,GETBLOQUE);
+									free(datos);
+									free(array[0]);
+									free(array[1]);
+									free(array);
+								}else{
+									array=config_get_array_value(archivo,tercer_bloque);
+									bool mismo_nombre(info_datanode*elemento){
+										return !strcmp(elemento->nodo,array[0]);
+									}
+									int tamanio=sizeof(uint32_t)*2;
+									void*datos=malloc(tamanio);
+									*((uint32_t*)datos)=config_get_int_value(archivo,tamanio_bloque);
+									datos+=sizeof(uint32_t);
+									*((uint32_t*)datos)=atoi(array[1]);
+									datos+=sizeof(uint32_t);
+									datos-=tamanio;
+									EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+											FILESYSTEM,datos,tamanio,GETBLOQUE);
+									free(datos);
+									free(array[0]);
+									free(array[1]);
+									free(array);
+								}
+							}
+							free(bloque);
+							free(tamanio_bloque);
+							free(ruta_config);
+							config_destroy(archivo);
+							pthread_mutex_lock(&orden_cpblock);
+							char*ruta_bitmap=malloc(50);
+							strcpy(ruta_bitmap,RUTA_BITMAPS);
+							strcat(ruta_bitmap,"/");
+							strcat(ruta_bitmap,array_input[3]);
+							strcat(ruta_bitmap,".dat");
+							int bitmap=open(ruta_bitmap,O_RDWR);
+							int rv=1;
+							void *bitarray_mmap;
+							t_config*nodos_bin=config_create(RUTA_NODOS);
+							char*total_string=malloc(100);
+							strcpy(total_string,array_input[3]);
+							strcat(total_string,"Total");
+							int total=config_get_int_value(nodos_bin,total_string);
+							int bloque_nodo;
+							if(bitmap==-1){
+								printf("Error al abrir el archivo, no existe \n");
+								close(bitmap);
+							}else{
+								struct stat mystat;
+								if (fstat(bitmap, &mystat) < 0) {
+											printf("Error al establecer fstat\n");
+											close(bitmap);
+								}else{
+									bitarray_mmap=mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ,MAP_SHARED, bitmap, 0);
+									if (mmap == MAP_FAILED) {
+										printf("Error al mapear a memoria: %s\n", strerror(errno));
+									}else{
+										int size_bitarray =total % 8 > 0 ? ((int) (total / 8)) + 1 : (int) (total / 8);
+										t_bitarray *bitarray = bitarray_create_with_mode(bitarray_mmap,size_bitarray, MSB_FIRST);
+										int j;
+										for (j = 0; j < total; j++) {
+											if (bitarray_test_bit(bitarray, j) == 0) {
+												bitarray_set_bit(bitarray, j);
+												break;
+											}
+										}
+										bloque_nodo=j;
+										if(j==(total-1)){
+											rv=-1;
+										}
+										munmap(bitarray_mmap,mystat.st_size);
+										close(bitmap);
 									}
 								}
-								bloque_nodo=j;
-								if(j==(total-1)){
-									rv=-1;
+								if(rv==-1){
+									printf("Error, ese nodo no tiene más lugar\n");
+								}else{
+									bool mismo_nombre(info_datanode*elemento){
+										return !strcmp(elemento->nodo,cpblock->nombre_nodo);
+									}
+									int tamanio_a_enviar= 4 *sizeof(uint32_t)+sizeof(char)*strlen(nombre_archivo)+1+cpblock->tamanio;
+									void*datos_a_enviar=calloc(1,tamanio_a_enviar);
+									*((uint32_t*)datos_a_enviar) = atoi(array_input[2]);//numero de bloque archivo
+									datos_a_enviar += sizeof(uint32_t);
+									*((uint32_t*)datos_a_enviar) = bloque_nodo; //bloque a setear
+									datos_a_enviar+=sizeof(uint32_t);
+									*((uint32_t*)datos_a_enviar) =index ; //bloque a setear
+									datos_a_enviar+=sizeof(uint32_t);
+									*((uint32_t*)datos_a_enviar) = cpblock->tamanio; //bloque a setear
+									datos_a_enviar+=sizeof(uint32_t);
+									strcpy(datos_a_enviar,nombre_archivo);
+									datos_a_enviar+=strlen(nombre_archivo)+1;
+									memmove(datos_a_enviar,cpblock->datos,cpblock->tamanio);
+									datos_a_enviar+=cpblock->tamanio;
+									datos_a_enviar-=tamanio_a_enviar;
+									EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
+											FILESYSTEM,datos_a_enviar,tamanio_a_enviar,SETBLOQUECPTO);
+									free(datos_a_enviar);
 								}
-								munmap(bitarray_mmap,mystat.st_size);
-								close(bitmap);
 							}
-						}
-						if(rv==-1){
-							printf("Error, ese nodo no tiene más lugar\n");
-						}else{
-							bool mismo_nombre(info_datanode*elemento){
-								return !strcmp(elemento->nodo,cpblock->nombre_nodo);
-							}
-							int tamanio_a_enviar= 4 *sizeof(uint32_t)+sizeof(char)*strlen(nombre_archivo)+1+cpblock->tamanio;
-							void*datos_a_enviar=calloc(1,tamanio_a_enviar);
-							*((uint32_t*)datos_a_enviar) = atoi(array_input[2]);//numero de bloque archivo
-							datos_a_enviar += sizeof(uint32_t);
-							*((uint32_t*)datos_a_enviar) = bloque_nodo; //bloque a setear
-							datos_a_enviar+=sizeof(uint32_t);
-							*((uint32_t*)datos_a_enviar) =index ; //bloque a setear
-							datos_a_enviar+=sizeof(uint32_t);
-							*((uint32_t*)datos_a_enviar) = cpblock->tamanio; //bloque a setear
-							datos_a_enviar+=sizeof(uint32_t);
-							strcpy(datos_a_enviar,nombre_archivo);
-							datos_a_enviar+=strlen(nombre_archivo)+1;
-							memmove(datos_a_enviar,cpblock->datos,cpblock->tamanio);
-							datos_a_enviar+=cpblock->tamanio;
-							datos_a_enviar-=tamanio_a_enviar;
-							EnviarDatosTipo(((info_datanode*)list_find(datanodes,(void*) mismo_nombre))->socket,
-									FILESYSTEM,datos_a_enviar,tamanio_a_enviar,SETBLOQUECPTO);
-							free(datos_a_enviar);
-						}
+							free(ruta_bitmap);
+							free(total_string);
+							config_destroy(nodos_bin);
+							free(cpblock);
 						}
 					}
 				}
@@ -3402,14 +3602,14 @@ int main(int argc, char* argv[]) {
 	}
 	//TODO ACLARACION -----> CODIGO PARA PROBAR LOS DIRECTORIOS PERSISTIDOS
 
-	 t_directory **directorios=obtener_directorios();
+	 /*t_directory **directorios=obtener_directorios();
 	 t_directory *aux=(*directorios);
 	 int var;
 	 for (var = 0; var < 10; ++var) {
 	 printf("%i,%i,%s\n",aux[var].index,aux[var].padre,aux[var].nombre);
 	 }
 	 return 0;
-
+	  */
 	if(strcmp(argumento,"--clean")==0){
 		rmtree(PUNTO_MONTAJE);
 		mkdir(PUNTO_MONTAJE,0700);
