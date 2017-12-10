@@ -231,24 +231,30 @@ void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker)
 
 }
 
-void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA){
-	// bllque - idJob - strLen - noodo - bool
+void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA, tipo header){
+	// bllque - idJob - noodo - bool
 	int mov = 0;
-	bool boolAux;
-	int size = sizeof(int)*2 + strlen(resultado->nodo)+1+sizeof(bool);
-	void* datos = malloc(size);
+	int size;
+	void* datos;
+	if(resultado->bloque != -1){//Para chequear si es transformacion
+		size = sizeof(int)*2 + strlen(resultado->nodo)+1+sizeof(bool);
+		datos = malloc(size);
 
-	memcpy(datos+mov,resultado->bloque,sizeof(int));
-	mov += sizeof(int);
-	memcpy(datos+mov,resultado->idJob,sizeof(int));
+		memcpy(datos+mov,&(resultado->bloque),sizeof(int));
+		mov += sizeof(int);
+	}
+	else{
+		size = sizeof(int) + strlen(resultado->nodo)+1+sizeof(bool);
+		datos = malloc(size);
+	}
+	memcpy(datos+mov,&(resultado->idJob),sizeof(int));
 	mov += sizeof(int);
 	strcpy(datos+mov,resultado->nodo);
 	mov += strlen(resultado->nodo)+1;
-	boolAux = resultado->exito;
-	memcpy(datos+mov,&boolAux,sizeof(bool));
+	memcpy(datos+mov,&(resultado->exito),sizeof(bool));
 	mov += sizeof(bool);
 
-	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, size, VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de T");
+	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, size, header))) perror("No se puedo enviar validacion del Worker a YAMA");
 }
 
 
@@ -290,17 +296,19 @@ void accionHilo(void* solicitud){
 		if(contTActuales>contTMaxP) contTMaxP = contTActuales;
 		pthread_mutex_unlock(&mutex_TActuales);
 
-		nodoT* datosT = malloc(sizeof(nodoT));
+		nodoT* datosT;
+		*datosT = *(nodoT*)solicitud;
+		/*malloc(sizeof(nodoT));
 		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
 		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
-		*datosT = *(nodoT*)solicitud;
+		*datosT = *(nodoT*)solicitud;*/
 
 		solicitud=NULL;
 
 		rtaEstado* resultado = malloc(sizeof(resultado));
-		resultado->bloque = datosT->bloque; //TODO TRABAJANDO
-		resultado->nodo = malloc(strlen(datosT->programaT)+1);
-		strcpy(resultado->nodo,datosT->programaT);
+		resultado->bloque = datosT->bloque;
+		resultado->nodo = malloc(strlen(datosT->worker.nodo)+1);
+		strcpy(resultado->nodo,datosT->worker.nodo);
 		resultado->exito = true;
 		resultado->idJob = obtenerIdJobDeRuta(datosT->archivoTemporal);
 
@@ -311,7 +319,7 @@ void accionHilo(void* solicitud){
 			perror("Error: No se recibio validacion del worker en T"); //manejo desconexion
 
 			resultado->exito = false;
-			serializacionDeRTAyEnvio(resultado,socketYAMA);
+			serializacionDeRTAyEnvio(resultado,socketYAMA,FINTRANSFORMACION);
 
 			pthread_mutex_lock(&mutex_Tfallos);
 			contTfallos++;
@@ -335,8 +343,7 @@ void accionHilo(void* solicitud){
 					pthread_mutex_lock(&mutex_TRealizadas);
 					contTRealizadas++;
 					pthread_mutex_unlock(&mutex_TRealizadas);
-					//Aca de deberia serializar y enviar resultado
-					if(!(EnviarDatosTipo(socketYAMA, MASTER ,resultado, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar la verificacion a YAMA en el caso de T");
+					serializacionDeRTAyEnvio(resultado,socketYAMA,FINTRANSFORMACION);
 				}
 				else {
 					perror("Worker notifico que hubo una falla"); //no contemplado en Worker
@@ -350,24 +357,32 @@ void accionHilo(void* solicitud){
 	}
 
 	case REDUCCIONLOCAL:{
-		nodoRL* datosRL = malloc(sizeof(nodoRL));
+		/*nodoRL* datosRL = malloc(sizeof(nodoRL));
 		datosRL->archivoTemporal = malloc(strlen(((nodoRL*)solicitud)->archivoTemporal));
 		datosRL->programaR = malloc(strlen(((nodoRL*)solicitud)->programaR));
-		datosRL->listaArchivosTemporales = list_create();
+		datosRL->listaArchivosTemporales = list_create();*/
 
+		nodoRL* datosRL;
 		*datosRL = *(nodoRL*)solicitud;
 
 		solicitud=NULL;
+
+		rtaEstado* resultado = malloc(sizeof(resultado));
+		resultado->bloque = -1;
+		resultado->nodo = malloc(strlen(datosRL->worker.nodo)+1);
+		strcpy(resultado->nodo,datosRL->worker.nodo);
+		resultado->exito = true;
+		resultado->idJob = obtenerIdJobDeRuta(datosRL->archivoTemporal);
 
 		int socketWorker = ConectarAServidor(datosRL->worker.puerto, datosRL->worker.ip, WORKER, MASTER, RecibirHandshake);
 
 		serializacionRLyEnvio(datosRL,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<=0){
 			perror("Error: No se recibio validacion del worker en RL");//manejo desconexion
 
-			bool* ok = false;
-			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RL");
+			resultado->bloque = false;
+			serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
 			pthread_mutex_lock(&mutex_RLfallos);
 			contRLfallos++;
 			pthread_mutex_unlock(&mutex_RLfallos);
@@ -376,8 +391,7 @@ void accionHilo(void* solicitud){
 		else {
 		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 			if((bool*)paquete->Payload) {
-				bool* ok = true;
-				if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RL");
+				serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
 			}
 			else {
 				perror("No se puedo realizar la operacion de Reduccion Local"); //Este caso  no se contempla en Worker, no se como puede ocurrir
@@ -392,11 +406,12 @@ void accionHilo(void* solicitud){
 	}
 
 	case REDUCCIONGLOBAL:{
-		solicitudRG* datosRG = malloc(sizeof(solicitudRG));
+		/*solicitudRG* datosRG = malloc(sizeof(solicitudRG));
 		datosRG->programaR = malloc(strlen(((solicitudRG*)solicitud)->programaR));
 		datosRG->archRG = malloc(strlen(((solicitudRG*)solicitud)->archRG));
-		datosRG->nodos = list_create();
+		datosRG->nodos = list_create();*/
 
+		solicitudRG* datosRG;
 		*datosRG = *(solicitudRG*)solicitud;
 
 		solicitud=NULL;
@@ -406,6 +421,13 @@ void accionHilo(void* solicitud){
 		}
 		nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 
+		rtaEstado* resultado = malloc(sizeof(resultado));
+		resultado->bloque = -1;
+		resultado->nodo = malloc(strlen(workerEncargado->worker.nodo)+1);
+		strcpy(resultado->nodo,workerEncargado->worker.nodo);
+		resultado->exito = true;
+		resultado->idJob = obtenerIdJobDeRuta(datosRG->archRG);
+
 		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
 
 		serializacionRGyEnvio(datosRG,socketWorker);
@@ -413,8 +435,8 @@ void accionHilo(void* solicitud){
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
 			perror("Error: no se recibio validacion del worker en RG");//manejo desconexion
 
-			bool* ok = false;
-			if(!(EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA))) perror("No se puedo enviar mensaje de que Worker fallo a YAMA en el caso de RG");
+			resultado->exito = false;
+			serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONGLOBAL);
 			pthread_mutex_lock(&mutex_RGfallos);
 			contRGfallos++;
 			pthread_mutex_unlock(&mutex_RGfallos);
@@ -422,8 +444,7 @@ void accionHilo(void* solicitud){
 		} else {
 			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 				if((bool*)paquete->Payload) {
-					bool* ok = true;
-					EnviarDatosTipo(socketYAMA, MASTER ,ok, sizeof(bool), VALIDACIONYAMA);
+					serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONGLOBAL);
 				}
 				else {
 					perror("No se puedo realizar la operacion de Reduccion Global");
@@ -479,25 +500,95 @@ void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deseriali
 
 
 void realizarReduccionLocal(Paquete* paquete, char* programaR){
-	solicitudPrograma* datosParaReducLocal = malloc(sizeof(solicitudPrograma));
+	nodoRL* datosParaRL = malloc(sizeof(nodoRL));
+	void* datos = paquete->Payload;
+	int cantArchTemp = ((int*)datos)[0];
+	datosParaRL->worker.puerto = ((int*)datos)[1];
+	datos += sizeof(int)*2;
+	datosParaRL->worker.ip = string_new();
+	strcpy(datosParaRL->worker.ip,datos);
+	datos += strlen(datos) +1;
+	datosParaRL->worker.nodo = string_new();
+	strcpy(datosParaRL->worker.nodo,datos);
+	datos += strlen(datos) +1;
+	datosParaRL->archivoTemporal = string_new();
+	strcpy(datosParaRL->archivoTemporal,datos);
+	datos += strlen(datos) +1;
+
+	datosParaRL->listaArchivosTemporales = list_create();
+	int i;
+	for(i=0;i<cantArchTemp;i++){
+		char* bufferAux = string_new();
+		strcpy(bufferAux,datos);
+		datos += strlen(datos)+1;
+		list_add(datosParaRL->listaArchivosTemporales,bufferAux);
+	}
+
+
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
+	itemNuevo->worker = datosParaRL->worker;
 
-	datosParaReducLocal->programa = programaR;
-	datosParaReducLocal->worker = ((reduccionLocalDatos*)paquete->Payload)->worker;
-	datosParaReducLocal->ListaArchivosTemporales = ((reduccionLocalDatos*)paquete->Payload)->listaArchivosTemps;
-	datosParaReducLocal->archivoTemporal = ((reduccionLocalDatos*)paquete->Payload)->archTemp;
+	datosParaRL->programaR = string_new();
+	strcpy(datosParaRL->programaR,programaR);
+	datosParaRL->header = REDUCCIONLOCAL;
 
-	datosParaReducLocal->header = REDUCCIONLOCAL;
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaReducLocal);
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaRL);
 	list_add(listaHilos, itemNuevo);
 
 
 }
 
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
+	int cantNodos;
+	void* datos = paquete->Payload;
+	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
+	char* nodoEncargado = string_new();
+	strcpy(nodoEncargado,datos);
+	datos += strlen(datos)+1;
+	datosParaRG->archRG = string_new();
+	strcpy(datosParaRG->archRG,datos);
+	datos += strlen(datos)+1;
+
+	datosParaRG->nodos = list_create();
+
+	cantNodos = ((int*)datos)[0];
+	int i;
+	for(i=0;i<cantNodos;i++){
+		nodoRG* nodo = malloc(sizeof(nodoRG));
+		nodo->worker.nodo = string_new();
+		strcpy(nodo->worker.nodo,datos);
+		datos += strlen(nodo->worker.nodo)+1;
+		nodo->worker.ip = string_new();
+		strcpy(nodo->worker.ip,datos);
+		datos += strlen(nodo->worker.ip)+1;
+		nodo->worker.puerto = ((int*)datos)[0];
+		datos += sizeof(int);
+		nodo->archTempRL = string_new();
+		strcpy(nodo->archTempRL,datos);
+		datos += strlen(nodo->archTempRL)+1;
+
+		if(!strcmp(nodo->worker.nodo,nodoEncargado)){
+			nodo->encargado = true;
+		}
+		else {
+			nodo->encargado = false;
+		}
+		list_add(datosParaRG->nodos,nodo);
+	}
+
+	bool buscarEncargado(nodoRG* elem){
+		return elem->encargado;
+	}
+
+	datosParaRG->programaR = string_new();
+	strcpy(datosParaRG->programaR,programaR);
+	datosParaRG->header = REDUCCIONGLOBAL;
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+	nodoRG* workerEncargado = list_find(datosParaRG->nodos,(void*)buscarEncargado);
+	itemNuevo->worker = workerEncargado->worker;
+	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaRG);
+	list_add(listaHilos, itemNuevo);
 
 }
  void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
@@ -553,7 +644,7 @@ int main(int argc, char* argv[]){
 				realizarTransformacion(paquete, programaTrans);
 				break;
 			}
-			case REDLOCALWORKER:{
+			case SOLICITUDREDUCCIONLOCAL:{
 				contRLActuales++;
 				if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
 				clock_t tiempoInicio = clock();
