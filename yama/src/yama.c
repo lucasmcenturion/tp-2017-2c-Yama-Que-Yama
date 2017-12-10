@@ -473,6 +473,52 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	MostrarRegistroTablaDeEstados(reg);
 }
 
+void realizarRG(registroEstado* r, int socketMaster){
+	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
+	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
+	datosWorker* workerEncargado = list_get(lista,0);
+	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", r->master);
+	t_list* nodos = list_filter(tablaDeEstados, LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->estado = FINALIZADOOK;}));
+	int tamanio = sizeof(uint32_t) + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2 ;
+	void * datos = malloc(tamanio);
+	strcpy(datos, workerEncargado->nodo);
+	datos += strlen(workerEncargado->nodo) +1;
+	strcpy(datos, rutaTemporalRG);
+	datos += strlen(rutaTemporalRG)+1;
+	*((uint32_t*)datos) = list_size(nodos);
+	datos += sizeof(uint32_t*);
+	int i;
+	for (i = 0; i < list_size(nodos); i++){
+		registroEstado* r = list_get(nodos, i);
+		datosWorker* w = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,r->nodo); }));
+		datos -= tamanio;
+		datos = realloc(datos, tamanio+sizeof(uint32_t)+strlen(w->nodo) + strlen(w->ip) + strlen(r->archivoTemporal)+3);
+		datos += tamanio;
+		tamanio+=sizeof(uint32_t)+strlen(w->nodo) + strlen(w->ip)+strlen(r->archivoTemporal)+3;
+		strcpy(datos,w->nodo);
+		datos+=strlen(w->nodo)+1;
+		strcpy(datos,w->ip);
+		datos+=strlen(w->ip)+1;
+		*((uint32_t*)datos) =  w->puerto;
+		datos+=sizeof(uint32_t);
+		strcpy(datos,r->archivoTemporal);
+		datos+=strlen(r->archivoTemporal)+1;
+	}
+	datos-=tamanio;
+	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONGLOBAL);
+	/*registroEstado* reg = malloc(sizeof(registroEstado));
+	reg->archivoTemporal = string_new();
+	strcpy(reg->archivoTemporal, rutaTemporalRL);
+	reg->estado = ENPROCESO;
+	reg->etapa = REDUCCIONLOCAL;
+	reg->job = idJob;
+	reg->master = idMaster;
+	reg->nodo = string_new();
+	strcpy(reg->nodo, w->nodo);
+	list_add(tablaDeEstados, reg);
+	MostrarRegistroTablaDeEstados(reg);*/
+}
+
 void accion(void* socket){
 	int socketFD = *(int*)socket;
 	Paquete paquete;
@@ -509,13 +555,18 @@ void accion(void* socket){
 					//idJob
 					//nodo
 					//bool
-					int bloque;
-					int idJob;
-					bool estado;
-					char* nodo;
+					int bloque = ((uint32_t*)datos)[0];
+					int idJob = ((uint32_t*)datos)[1];
+					datos += sizeof(uint32_t*)*2;
+					char* nodo = string_new();
+					strcpy(nodo, datos);
+					datos += strlen(datos)+1;
+					bool exito = *((bool*)datos);
+					datos += sizeof(bool);
+					datos -= paquete.header.tamPayload;
 					//actualizar el registro correspondiente
 					registroEstado* r = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->bloque == bloque && ((registroEstado*)item1)->job == idJob;}));
-					if (estado)
+					if (exito)
 					{
 						r->estado = FINALIZADOOK;
 						datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, r->nodo);}));
@@ -538,6 +589,53 @@ void accion(void* socket){
 						fflush(stdout);
 						RealizarReplanificacion(r, socketFD);
 					}
+				}
+				break;
+				case FINREDUCCIONLOCAL:
+				{
+					void* datos = paquete.Payload;
+					int idJob = *((uint32_t*)datos);
+					datos += sizeof(uint32_t);
+					char* nodo = string_new();
+					strcpy(nodo, datos);
+					datos += strlen(datos) + 1;
+					bool exito = *((uint32_t*)datos);
+					datos += sizeof(bool);
+					datos -= paquete.header.tamPayload;
+					//actualizar el registro correspondiente
+					registroEstado* r = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return !strcmp(((registroEstado*)item1)->nodo,nodo) && ((registroEstado*)item1)->job == idJob;}));
+					if (exito)
+					{
+						r->estado = FINALIZADOOK;
+						datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, r->nodo);}));
+						w->contTareasRealizadas++;
+						MostrarRegistroTablaDeEstados(r);
+						t_list* tablaFiltradaPorNodoYReduccionYJob = list_filter(tablaDeEstados,LAMBDA(bool _(void* item1) { return !strcmp(((registroEstado*)item1)->nodo, nodo) && ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->job == idJob;}));
+						//filtra todos los registros de ese nodo que se hayen en transformacion
+						//si todos están en estado finalizadook, puede hacer reducción local
+						realizarRG(r, socketFD);
+
+					}
+					else
+					{
+						printf("Falló la reducción local. Se abortará el job.");
+						fflush(stdout);
+						r->estado = ERROR;
+						MostrarRegistroTablaDeEstados(r);
+					}
+				}
+				break;
+				case FINREDUCCIONGLOBAL:
+				{
+					void* datos = paquete.Payload;
+					int idJob = *((uint32_t*)datos);
+					datos += sizeof(uint32_t);
+					char* nodo = string_new();
+					strcpy(nodo, datos);
+					datos += strlen(datos) + 1;
+					bool exito = *((uint32_t*)datos);
+					datos += sizeof(bool);
+					datos -= paquete.header.tamPayload;
 				}
 				break;
 
