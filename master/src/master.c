@@ -24,10 +24,18 @@ pthread_mutex_t mutex_Tfallos;
 pthread_mutex_t mutex_TActuales;
 pthread_mutex_t mutex_TRealizadas;
 
+pthread_mutex_t mutex_RLfallos;
+pthread_mutex_t mutex_RLActuales;
+pthread_mutex_t mutex_RLRealizadas;
+
+pthread_mutex_t mutex_RGfallos;
+pthread_mutex_t mutex_RGRealizadas;
+
+
 pthread_mutex_t mutex_listaJobs;
 
-pthread_mutex_t mutex_RLfallos;
-pthread_mutex_t mutex_RGfallos;
+
+
 
 
 
@@ -72,7 +80,7 @@ double sumListaDuraciones(t_list* duraciones){
 }
 
 void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
-//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
+	//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
 	int mov = 0;
 	int sizeAux;
 	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1;//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
@@ -104,7 +112,7 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 }
 
 void serializacionRLyEnvio(nodoRL* nodoDeRL, int socketWorker){
-//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
+	//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
 	int mov=0;
 	int sizeAux;
 	int sizeList = obtenerSizeListdeString(nodoDeRL->listaArchivosTemporales);
@@ -156,7 +164,7 @@ int obtenerSizeListNodoRG(t_list* lista){
 }
 
 void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
-//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
+	//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
 	int mov = 0;
 	int sizeAux;
 	bool boolAux;
@@ -209,7 +217,7 @@ void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
 }
 
 void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker){//TODO terminar el camino de AF
-// tamString - ResultRG - tamString - rutaArchivoF
+	// tamString - ResultRG - tamString - rutaArchivoF
 	int mov = 0;
 	int sizeAux;
 	int size = sizeof(int)+strlen(resultRG)+1+sizeof(int);
@@ -287,7 +295,7 @@ void accionHilo(void* solicitud){
 	Paquete* paquete = malloc(sizeof(Paquete));
 	switch (((nodoT*)solicitud)->header){
 
-	case TRANSFORMACION:{ //TODO recibir de YAMA y deserializar, arreglar los manejo de errores con mismo formato que tranfs.
+	case TRANSFORMACION:{
 		duracionJob* duracionDelJob = malloc(sizeof(duracionJob));
 		duracionDelJob->header = TRANSFORMACION;
 		time_t inicio = time(0);
@@ -296,12 +304,11 @@ void accionHilo(void* solicitud){
 		if(contTActuales>contTMaxP) contTMaxP = contTActuales;
 		pthread_mutex_unlock(&mutex_TActuales);
 
-		nodoT* datosT;
-		*datosT = *(nodoT*)solicitud;
+		nodoT* datosT = (nodoT*)solicitud;
 		/*malloc(sizeof(nodoT));
 		datosT->programaT = malloc(strlen(((nodoT*)solicitud)->programaT));
 		datosT->archivoTemporal = malloc(strlen(((nodoT*)solicitud)->archivoTemporal));
-		*datosT = *(nodoT*)solicitud;*/
+		 *datosT = *(nodoT*)solicitud;*/
 
 		solicitud=NULL;
 
@@ -357,13 +364,20 @@ void accionHilo(void* solicitud){
 	}
 
 	case REDUCCIONLOCAL:{
+		duracionJob* duracionDelJob = malloc(sizeof(duracionJob));
+		duracionDelJob->header = REDUCCIONLOCAL;
+		time_t inicio = time(0);
+		pthread_mutex_lock(&mutex_RLActuales);
+		contRLActuales++;
+		if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
+		pthread_mutex_unlock(&mutex_RLActuales);
+
 		/*nodoRL* datosRL = malloc(sizeof(nodoRL));
 		datosRL->archivoTemporal = malloc(strlen(((nodoRL*)solicitud)->archivoTemporal));
 		datosRL->programaR = malloc(strlen(((nodoRL*)solicitud)->programaR));
 		datosRL->listaArchivosTemporales = list_create();*/
 
-		nodoRL* datosRL;
-		*datosRL = *(nodoRL*)solicitud;
+		nodoRL* datosRL = (nodoRL*)solicitud;
 
 		solicitud=NULL;
 
@@ -381,38 +395,55 @@ void accionHilo(void* solicitud){
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<=0){
 			perror("Error: No se recibio validacion del worker en RL");//manejo desconexion
 
-			resultado->bloque = false;
+			resultado->exito = false;
 			serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
+
 			pthread_mutex_lock(&mutex_RLfallos);
 			contRLfallos++;
 			pthread_mutex_unlock(&mutex_RLfallos);
+			pthread_mutex_lock(&mutex_RLActuales);
+			contRLActuales--;
+			pthread_mutex_unlock(&mutex_RLActuales);
 
 		}
 		else {
-		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
-			if((bool*)paquete->Payload) {
-				serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
+			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+				if((bool*)paquete->Payload) {
+					duracionDelJob->time = difftime(time(0),inicio);
+
+					pthread_mutex_lock(&mutex_listaJobs);
+					list_add(duracionesJob,duracionDelJob);
+					pthread_mutex_unlock(&mutex_listaJobs);
+					pthread_mutex_lock(&mutex_RLActuales);
+					contRLActuales--;
+					pthread_mutex_unlock(&mutex_RLActuales);
+					pthread_mutex_lock(&mutex_RLRealizadas);
+					contRLRealizadas++;
+					pthread_mutex_unlock(&mutex_RLRealizadas);
+					serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
+				}
+				else {
+					perror("No se puedo realizar la operacion de Reduccion Local"); //Este caso  no se contempla en Worker, no se como puede ocurrir
+				}
 			}
-			else {
-				perror("No se puedo realizar la operacion de Reduccion Local"); //Este caso  no se contempla en Worker, no se como puede ocurrir
+			else{
+				perror("Error en el header, se esperaba VALIDACIONWORKER"); //Este caso ocurriria por error de programacion, no se contempla para notificar a YAMA
 			}
-		}
-		else{
-			perror("Error en el header, se esperaba VALIDACIONWORKER"); //Este caso ocurriria por error de programacion, no se contempla para notificar a YAMA
-		}
 		}
 		break;
 
 	}
 
 	case REDUCCIONGLOBAL:{
+		duracionJob* duracionDelJob = malloc(sizeof(duracionJob));
+		duracionDelJob->header = REDUCCIONGLOBAL;
+		time_t inicio = time(0);
 		/*solicitudRG* datosRG = malloc(sizeof(solicitudRG));
 		datosRG->programaR = malloc(strlen(((solicitudRG*)solicitud)->programaR));
 		datosRG->archRG = malloc(strlen(((solicitudRG*)solicitud)->archRG));
 		datosRG->nodos = list_create();*/
 
-		solicitudRG* datosRG;
-		*datosRG = *(solicitudRG*)solicitud;
+		solicitudRG* datosRG = (solicitudRG*)solicitud;
 
 		solicitud=NULL;
 
@@ -444,6 +475,14 @@ void accionHilo(void* solicitud){
 		} else {
 			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 				if((bool*)paquete->Payload) {
+					duracionDelJob->time = difftime(time(0),inicio);
+
+					pthread_mutex_lock(&mutex_listaJobs);
+					list_add(duracionesJob,duracionDelJob);
+					pthread_mutex_unlock(&mutex_listaJobs);
+					pthread_mutex_lock(&mutex_RGRealizadas);
+					contRGRealizadas++;
+					pthread_mutex_unlock(&mutex_RGRealizadas);
 					serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONGLOBAL);
 				}
 				else {
@@ -461,7 +500,7 @@ void accionHilo(void* solicitud){
 
 
 
-void realizarTransformacion(Paquete* paquete, char* programaT){ //TODO deserializar el resto
+void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	nodoT* datosParaT = malloc(sizeof(nodoT));
 	void* datos = paquete->Payload;
@@ -591,30 +630,38 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	list_add(listaHilos, itemNuevo);
 
 }
- void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
-	 //YAMA me da IP y Puerto de Worker
-	 char* ipWorker;
-	 int puertoWorker;
-	 //YAMA me da nombre de archivo resultado de la reduccion Global
-	 char* resultRG;
-	 //Yo tengo la ruta final del archivo
+void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
+	//YAMA me da IP y Puerto de Worker
+	char* ipWorker;
+	int puertoWorker;
+	//YAMA me da nombre de archivo resultado de la reduccion Global
+	char* resultRG;
+	//Yo tengo la ruta final del archivo
 
 
-	 int socketWorker = ConectarAServidor(puertoWorker,ipWorker, WORKER, MASTER, RecibirHandshake);
-	 serializacionAFyEnvio(resultRG,rutaArchivoF,socketWorker);
-	 //Espero conf de worker
-	 //Mando conf a YAMA
+	int socketWorker = ConectarAServidor(puertoWorker,ipWorker, WORKER, MASTER, RecibirHandshake);
+	serializacionAFyEnvio(resultRG,rutaArchivoF,socketWorker);
+	//Espero conf de worker
+	//Mando conf a YAMA
 
- }
+}
 
- void inicializarSemaforos(){
-	 pthread_mutex_init(&mutex_Tfallos, NULL);
-	 pthread_mutex_init(&mutex_TActuales, NULL);
-	 pthread_mutex_init(&mutex_TRealizadas, NULL);
-	 pthread_mutex_init(&mutex_RLfallos, NULL);
-	 pthread_mutex_init(&mutex_RGfallos, NULL);
-	 pthread_mutex_init(&mutex_listaJobs,NULL);
- }
+void inicializarSemaforos(){
+	pthread_mutex_init(&mutex_Tfallos, NULL);
+	pthread_mutex_init(&mutex_TActuales, NULL);
+	pthread_mutex_init(&mutex_TRealizadas, NULL);
+
+	pthread_mutex_init(&mutex_RLfallos,NULL);
+	pthread_mutex_init(&mutex_RLActuales,NULL);
+	pthread_mutex_init(&mutex_RLRealizadas,NULL);
+
+	pthread_mutex_init(&mutex_RGfallos,NULL);
+	pthread_mutex_init(&mutex_RGRealizadas,NULL);
+
+	pthread_mutex_init(&mutex_RLfallos, NULL);
+	pthread_mutex_init(&mutex_RGfallos, NULL);
+	pthread_mutex_init(&mutex_listaJobs,NULL);
+}
 
 int main(int argc, char* argv[]){
 	time_t tiempoInicioPrograma = time(0);
@@ -645,70 +692,75 @@ int main(int argc, char* argv[]){
 				break;
 			}
 			case SOLICITUDREDUCCIONLOCAL:{
-				contRLActuales++;
-				if(contRLActuales>contRLMaxP) contRLMaxP = contRLActuales;
-				clock_t tiempoInicio = clock();
 				realizarReduccionLocal(paquete, programaReduc);
-				tiempoSumaRL += clock() - tiempoInicio;
-				contRLActuales--;
-				contRLRealizadas++;
 				break;
 			}
 			case REDGLOBALWORKER:{
-				clock_t tiempoInicio = clock();
 				realizarReduccionGlobal(paquete, programaReduc);
-				tiempoSumaRG += clock() - tiempoInicio;
-				contRGRealizadas++;
 				break;
 			}
 			//case FINALIZAR:
 
-				realizarAlmacenamientoFinal(paquete,archivoFinal);
+			realizarAlmacenamientoFinal(paquete,archivoFinal);
 
-				//Aca deberia haber pthread join del AF
+			//Aca deberia haber pthread join del AF
 
-			 	 double tiempoDemoradoJobCompleto = difftime(time(0),tiempoInicioPrograma);
+			double tiempoDemoradoJobCompleto = difftime(time(0),tiempoInicioPrograma);
 
-			 	 printf("\nSe procede a mostrar las metricas del Job:\n\n");
-			 	 printf("1.Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompleto);
+			printf("\nSe procede a mostrar las metricas del Job:\n\n");
+			printf("1.Tiempo total de ejecucion del Job (Minutos): %f\n", tiempoDemoradoJobCompleto);
 
-			 	 double tiempoPromedioT;
-			 	 double tiempoPromedioRLMINUTOS;
-			 	 double tiempoPromedioRGMINUTOS;
+			double tiempoPromedioT;
+			double tiempoPromedioRL;
+			double tiempoPromedioRG;
+//T
+			if(contTRealizadas!=0){
+				bool esTransformacion(duracionJob* elem){
+					return (elem->header==TRANSFORMACION);
+				}
+				t_list* listaTransformacion = list_create();
+				listaTransformacion = list_filter(duracionesJob,(void*)esTransformacion);
+				double tiempoTotalT = sumListaDuraciones(listaTransformacion);
 
-			 	 if(contTRealizadas!=0){
-			 		bool esTransformacion(duracionJob* elem){
-			 					return (elem->header==TRANSFORMACION);
-			 				}
-			 		t_list* listaTransformacion = list_create();
-			 		listaTransformacion = list_filter(duracionesJob,(void*)esTransformacion);
-			 		double tiempoTotalT = sumListaDuraciones(listaTransformacion);
+				tiempoPromedioT = tiempoTotalT/contTRealizadas;
+			}
+			else {
+				tiempoPromedioT = 0;
+			}
+//RL
+			if(contRLRealizadas!=0){
+				bool esReduccionL(duracionJob* elem){
+					return (elem->header==REDUCCIONLOCAL);
+				}
+				t_list* listaReduccionLocal = list_create();
+				listaReduccionLocal = list_filter(duracionesJob,(void*)esReduccionL);
+				double tiempoTotalRL = sumListaDuraciones(listaReduccionLocal);
 
-			 		 tiempoPromedioT = tiempoTotalT/contTRealizadas;
-				 }
-				 else {
-				 tiempoPromedioT = 0;
-				 }
+				tiempoPromedioRL = tiempoTotalRL / contRLRealizadas;
+			}
+			else {
+				tiempoPromedioRL = 0;
+			}
+//RG
+			if(contRGRealizadas!=0){
+				bool esReduccionG(duracionJob* elem){
+					return (elem->header==REDUCCIONGLOBAL);
+				}
+				t_list* listaReduccionGlobal = list_create();
+				listaReduccionGlobal = list_filter(duracionesJob,(void*)esReduccionG);
+				double tiempoTotalRG = sumListaDuraciones(listaReduccionGlobal);
 
-				  if(contRLRealizadas!=0){
-					  tiempoPromedioRLMINUTOS = ((((double)tiempoSumaRL)/ CLOCKS_PER_SEC)/60)/contRLRealizadas;
-				 }
-				 else {
-					 tiempoPromedioRLMINUTOS = 0;
-				 }
+				tiempoPromedioRG = tiempoTotalRG / contRGRealizadas;
+			}
+			else {
+				tiempoPromedioRG = 0;
+			}
 
-				  if(contTRealizadas!=0){
-					  tiempoPromedioRGMINUTOS = ((((double)tiempoSumaRG)/ CLOCKS_PER_SEC)/60)/contRGRealizadas;
-				 }
-				 else {
-					 tiempoPromedioRGMINUTOS = 0;
-				 }
-
-			 	 printf("2.Tiempo promedio de ejecucion de cada etapa principal del Job:\n Transformacion: %f\n Reduccion Local: %f\n Reduccion Global:%f\n\n",tiempoPromedioT,tiempoPromedioRLMINUTOS,tiempoPromedioRGMINUTOS );
-			 	 printf("3.Cantidad maxima de tareas de Transformacion y Reduccion Local ejecutadas de forma paralela \n Transformacion: %d \n Reduccion Local %d\n\n",contTMaxP,contRLMaxP);
-			 	 printf("4.Cantidad total de tareas realizadas en cada etapa principal del Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTRealizadas,contRLRealizadas,contRGRealizadas);
-			 	 printf("5. Cantidad de fallos obtenidos en la realizacion de un Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTfallos,contRLfallos,contRGfallos);
-			 	 finalizado = true;
+			printf("2.Tiempo promedio de ejecucion de cada etapa principal del Job:\n Transformacion: %f\n Reduccion Local: %f\n Reduccion Global:%f\n\n",tiempoPromedioT,tiempoPromedioRL,tiempoPromedioRG );
+			printf("3.Cantidad maxima de tareas de Transformacion y Reduccion Local ejecutadas de forma paralela \n Transformacion: %d \n Reduccion Local %d\n\n",contTMaxP,contRLMaxP);
+			printf("4.Cantidad total de tareas realizadas en cada etapa principal del Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTRealizadas,contRLRealizadas,contRGRealizadas);
+			printf("5. Cantidad de fallos obtenidos en la realizacion de un Job:\n Transformacion: %d\n Reduccion Local: %d\n Reduccion Global: %d\n\n",contTfallos,contRLfallos,contRGfallos);
+			finalizado = true;
 			}
 		}
 	}
