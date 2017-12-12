@@ -7,7 +7,6 @@ t_list* listaMasters;
 t_list* listaWorkers;
 t_list* listaHilos;
 t_list* tablaDeEstados;
-t_list* listaJobsxMasterxBloques;
 datosWorker* punteroClock;
 bool end;
 pthread_mutex_t mutex_plani;
@@ -44,25 +43,38 @@ void imprimirArchivoConfiguracion(){
 				ALGORITMO_BALANCEO,
 				DISP_BASE
 				);
+	fflush(stdout);
 }
 
 
-void CrearListasEInicializarSemaforos() {
+void HacerInicializaciones() {
 	listaWorkers = list_create();
 	listaHilos = list_create();
 	listaMasters = list_create();
 	tablaDeEstados = list_create();
-	listaJobsxMasterxBloques = list_create();
 	pthread_mutex_init(&mutex_plani, NULL);
 }
 
-void LiberarListas() {
-	list_destroy_and_destroy_elements(listaWorkers, free);
+void LiberarCosas() {
+	void liberarDatosWorker(datosWorker* w){
+		free(w->ip);
+		free(w->nodo);
+		free(w);
+	}
+	void liberarRegistroEstado(registroEstado* r){
+			free(r->archivoTemporal);
+			free(r->nodo);
+			free(r->nodoConOtraCopia);
+			free(r);
+	}
+	list_destroy_and_destroy_elements(listaWorkers, liberarDatosWorker);
 	list_destroy_and_destroy_elements(listaHilos, free);
 	list_destroy_and_destroy_elements(listaMasters, free);
-	list_destroy_and_destroy_elements(tablaDeEstados, free);
-	list_destroy_and_destroy_elements(listaJobsxMasterxBloques, free);
+	list_destroy_and_destroy_elements(tablaDeEstados, liberarRegistroEstado);
 	pthread_mutex_destroy(&mutex_plani);
+	free(IP);
+	free(FS_IP);
+	free(ALGORITMO_BALANCEO);
 }
 
 void calcularDisponibilidad(t_list* list, char* ab, int db){
@@ -78,7 +90,7 @@ void calcularDisponibilidad(t_list* list, char* ab, int db){
 			list_sort(listaWorkers, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo >= ((datosWorker*)item2)->cargaDeTrabajo;}));
 			//obtengo el que mayor carga de trabajo tiene
 			uint32_t WLMax = ((datosWorker*)list_get(listaWorkers, 0))->cargaDeTrabajo;
-			 worker->disponibilidad = db + WLMax - worker->cargaDeTrabajo;
+			worker->disponibilidad = db + WLMax - worker->cargaDeTrabajo;
 		}
 		else
 			perror("El algortimo de balanceo no es ni Clock ni W-Clock");
@@ -280,6 +292,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 				{
 					t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
 					calcularDisponibilidad(listaAux, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
+					list_destroy(listaAux);
 				}
 				else
 				{
@@ -289,7 +302,9 @@ void planificacionT(t_list* bloques, master* elmaster){
 			}
 		}while(!salio);
 	}
-
+	list_destroy(lista);
+	list_destroy(disponibles);
+	free(ALGORITMO_BALANCEO_ACTUAL);
 }
 
 void RecibirPaqueteFilesystem(Paquete* paquete){
@@ -315,7 +330,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			indiceWorker++;
 			list_add(listaWorkers,worker);
 		}
-		if(paquete->header.tipoMensaje == LISTAWORKERS){
+		else if(paquete->header.tipoMensaje == LISTAWORKERS){
 			void* datos = paquete->Payload;
 			int listSize = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
@@ -341,10 +356,15 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		}
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
+			void liberarDatosWorker(datosWorker* w){
+					free(w->ip);
+					free(w->nodo);
+					free(w);
+			}
 			char* nodoAEliminar = string_new();
 			strcpy(nodoAEliminar,paquete->Payload);
 			int indiceEliminado = ((datosWorker*)list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);})))->indice;
-			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}), free);
+			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}),liberarDatosWorker);
 			void actualizarIndice(void* w){
 				datosWorker* worker = (datosWorker*)w;
 				if (worker->indice > indiceEliminado)
@@ -352,8 +372,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			}
 			list_iterate(listaWorkers,actualizarIndice);
 			indiceWorker--;
-
-
+			free(nodoAEliminar);
 		}
 		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
 		{
@@ -384,8 +403,16 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			pthread_mutex_lock(&mutex_plani);
 			planificacionT(listaBloques, m);
 			pthread_mutex_unlock(&mutex_plani);
-
+			void liberarBloqueYama(t_bloque_yama* b){
+				free(b->primer_nombre_nodo);
+				free(b->segundo_nombre_nodo);
+				free(b);
+			}
+			list_destroy_and_destroy_elements(listaBloques, liberarBloqueYama);
 		}
+
+		if (paquete->Payload != NULL)
+			free(paquete->Payload);
 	}
 	printf("La conexión de filesystem ha sido rechazada porque no se encontraba en un estado seguro.\nIntente nuevamente.");
 	fflush(stdout);
@@ -460,6 +487,7 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	}
 	datos-=tamanio;
 	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONLOCAL);
+	free(datos);
 	registroEstado* reg = malloc(sizeof(registroEstado));
 	reg->archivoTemporal = string_new();
 	strcpy(reg->archivoTemporal, rutaTemporalRL);
@@ -471,6 +499,7 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	strcpy(reg->nodo, w->nodo);
 	list_add(tablaDeEstados, reg);
 	MostrarRegistroTablaDeEstados(reg);
+	free(rutaTemporalRL);
 }
 
 void realizarRG(registroEstado* r, int socketMaster){
@@ -506,6 +535,10 @@ void realizarRG(registroEstado* r, int socketMaster){
 	}
 	datos-=tamanio;
 	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONGLOBAL);
+	free(datos);
+	free(rutaTemporalRG);
+	list_destroy(lista);
+	list_destroy(nodos);
 	/*registroEstado* reg = malloc(sizeof(registroEstado));
 	reg->archivoTemporal = string_new();
 	strcpy(reg->archivoTemporal, rutaTemporalRL);
@@ -550,11 +583,6 @@ void accion(void* socket){
 				case FINTRANSFORMACION:
 				{
 					void* datos = paquete.Payload;
-					//Recibir los datos de master:
-					//Bloque
-					//idJob
-					//nodo
-					//bool
 					int bloque = ((uint32_t*)datos)[0];
 					int idJob = ((uint32_t*)datos)[1];
 					datos += sizeof(uint32_t*)*2;
@@ -579,6 +607,7 @@ void accion(void* socket){
 						{
 							realizarRL(tablaFiltradaPorNodoYTransformacionYJob, w, r->master, r->job, socketFD);
 						}
+						list_destroy(tablaFiltradaPorNodoYTransformacionYJob);
 					}
 					else
 					{
@@ -589,6 +618,7 @@ void accion(void* socket){
 						fflush(stdout);
 						RealizarReplanificacion(r, socketFD);
 					}
+					free(nodo);
 				}
 				break;
 				case FINREDUCCIONLOCAL:
@@ -610,11 +640,7 @@ void accion(void* socket){
 						datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, r->nodo);}));
 						w->contTareasRealizadas++;
 						MostrarRegistroTablaDeEstados(r);
-						t_list* tablaFiltradaPorNodoYReduccionYJob = list_filter(tablaDeEstados,LAMBDA(bool _(void* item1) { return !strcmp(((registroEstado*)item1)->nodo, nodo) && ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->job == idJob;}));
-						//filtra todos los registros de ese nodo que se hayen en transformacion
-						//si todos están en estado finalizadook, puede hacer reducción local
 						realizarRG(r, socketFD);
-
 					}
 					else
 					{
@@ -623,6 +649,7 @@ void accion(void* socket){
 						r->estado = ERROR;
 						MostrarRegistroTablaDeEstados(r);
 					}
+					free(nodo);
 				}
 				break;
 				case FINREDUCCIONGLOBAL:
@@ -636,6 +663,10 @@ void accion(void* socket){
 					bool exito = *((uint32_t*)datos);
 					datos += sizeof(bool);
 					datos -= paquete.header.tamPayload;
+
+					//HACERCOSAS
+
+					free(nodo);
 				}
 				break;
 
@@ -654,6 +685,7 @@ void accion(void* socket){
 }
 
 void rutina(int n){
+	free(ALGORITMO_BALANCEO);
 	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/yama/yamaCFG.txt");
 	RETARDO_PLANIFICACION = config_get_int_value(arch, "RETARDO_PLANIFICACION");
 	ALGORITMO_BALANCEO = string_duplicate(config_get_string_value(arch, "ALGORITMO_BALANCEO"));
@@ -668,7 +700,7 @@ int main(){
 	signal(SIGUSR1, rutina);
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
-	CrearListasEInicializarSemaforos();
+	HacerInicializaciones();
 	socketFS = ConectarAServidor(FS_PUERTO, FS_IP, FILESYSTEM, YAMA, RecibirHandshake);
 	Paquete* paquete = malloc(sizeof(Paquete));
 	pthread_t conexionFilesystem;
@@ -676,6 +708,6 @@ int main(){
 	ServidorConcurrente(IP, PUERTO, YAMA, &listaHilos, &end ,accion);
 	pthread_join(conexionFilesystem, NULL);
 	free(paquete);
-	LiberarListas();
+	LiberarCosas();
 	return 0;
 } 
