@@ -175,6 +175,7 @@ typedef struct{
  int index;
  int socket;
  int cantidad;
+ char* nombre;
 }__attribute__((packed)) t_dtdisponible;
 typedef struct{
  int tamanio;

@@ -222,9 +222,9 @@ t_archivo_actual *obtener_elemento(t_list*lista, char*nombre_archivo) {
 		}
 		return false;
 	}
-	t_archivo_actual *elemento = malloc(sizeof(t_archivo_actual));
-	elemento = list_find(lista, (void*) nombre_igual);
-	return elemento;
+	//t_archivo_actual *elemento = malloc(sizeof(t_archivo_actual));
+	//elemento = list_find(lista, (void*) nombre_igual);
+	return list_find(lista, (void*) nombre_igual);
 }
 void actualizar_nodos_bin(info_datanode *data) {
 	char *ruta_nodos = malloc(100);
@@ -235,40 +235,35 @@ void actualizar_nodos_bin(info_datanode *data) {
 	int tamanio_actual;
 	tamanio_actual = config_get_int_value(nodos, "TAMANIO");
 	tamanio_actual =tamanio_actual == 0 ?data->bloques_totales :tamanio_actual + data->bloques_totales;
-	char *string_tamanio_actual = malloc(100);
-	sprintf(string_tamanio_actual, "%i", tamanio_actual);
-	string_tamanio_actual = realloc(string_tamanio_actual,strlen(string_tamanio_actual) + 1);
-	config_set_value(nodos, "TAMANIO", string_tamanio_actual);
+	config_set_value(nodos, "TAMANIO", integer_to_string(tamanio_actual));
 	config_save_in_file(nodos, ruta_nodos);
 	int libre;
 	libre = config_get_int_value(nodos, "LIBRE");
 	libre = libre == 0 ? data->bloques_libres : libre + data->bloques_libres;
-	char *string_libre = malloc(100);
-	sprintf(string_libre, "%i", libre);
-	string_libre = realloc(string_libre, strlen(string_libre) + 1);
-	config_set_value(nodos, "LIBRE", string_libre);
+	config_set_value(nodos, "LIBRE", integer_to_string(libre));
 	config_save_in_file(nodos, ruta_nodos);
 	char *nodos_actuales = calloc(1, 100);
+	char *nuevos_nodos = calloc(1, 300);
+	char* nodo_nuevo = calloc(1, 120);
 	if (config_has_property(nodos,"NODOS")){
-		nodos_actuales = config_get_string_value(nodos, "NODOS");
+		strcpy(nodos_actuales,config_get_string_value(nodos, "NODOS"));
 		char **separado_por_comas = string_split(nodos_actuales, ",");
 		int cantidad_comas = 0;
 		while (separado_por_comas[cantidad_comas]) {
 			cantidad_comas++;
 		}
 		int iterate = 0;
-		char *nuevos_nodos = calloc(1, 300);
 		while (iterate < cantidad_comas) {
 			if (cantidad_comas == 1) {
 				char *substring = calloc(1, 100);
-				substring = string_substring(
-						separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)]) - 1);
+				strcpy(substring,string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)]) - 1));
 				substring = realloc(substring, strlen(substring) + 1);
 				strcpy(nuevos_nodos, substring);
 				strcat(nuevos_nodos, ",");
 				strcat(nuevos_nodos, data->nodo);
 				strcat(nuevos_nodos, "]");
 				nuevos_nodos = realloc(nuevos_nodos, strlen(nuevos_nodos) + 1);
+				free(substring);
 			} else {
 				if (iterate == 0) {
 					strcpy(nuevos_nodos, separado_por_comas[iterate]);
@@ -276,17 +271,14 @@ void actualizar_nodos_bin(info_datanode *data) {
 				} else {
 					if (iterate == (cantidad_comas - 1)) {
 						char *substring = calloc(1, 200);
-						substring = string_substring(
-								separado_por_comas[(cantidad_comas - 1)], 0,
-								strlen(separado_por_comas[(cantidad_comas - 1)])
-										- 1);
+						strcpy(substring,string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)])- 1));
 						substring = realloc(substring, strlen(substring) + 1);
 						strcat(nuevos_nodos, substring);
 						strcat(nuevos_nodos, ",");
 						strcat(nuevos_nodos, data->nodo);
 						strcat(nuevos_nodos, "]");
-						nuevos_nodos = realloc(nuevos_nodos,
-								strlen(nuevos_nodos) + 1);
+						nuevos_nodos = realloc(nuevos_nodos,strlen(nuevos_nodos) + 1);
+						free(substring);
 					} else {
 						strcat(nuevos_nodos, separado_por_comas[iterate]);
 						strcat(nuevos_nodos, ",");
@@ -300,7 +292,6 @@ void actualizar_nodos_bin(info_datanode *data) {
 		config_set_value(nodos, "NODOS", nuevos_nodos);
 		config_save_in_file(nodos, ruta_nodos);
 	} else {
-		char* nodo_nuevo = calloc(1, 120);
 		strcpy(nodo_nuevo, "[");
 		strcat(nodo_nuevo, data->nodo);
 		strcat(nodo_nuevo, "]");
@@ -314,8 +305,7 @@ void actualizar_nodos_bin(info_datanode *data) {
 	strcat(nodo_actual_total, "Total");
 	char *string_bloques_totales = calloc(1, 100);
 	sprintf(string_bloques_totales, "%i", data->bloques_totales);
-	string_bloques_totales = realloc(string_bloques_totales,
-			strlen(string_bloques_totales) + 1);
+	string_bloques_totales = realloc(string_bloques_totales,strlen(string_bloques_totales) + 1);
 	config_set_value(nodos, nodo_actual_total, string_bloques_totales);
 	config_save_in_file(nodos, ruta_nodos);
 	char *nodo_actual_libre = calloc(1, 100);
@@ -325,8 +315,16 @@ void actualizar_nodos_bin(info_datanode *data) {
 	sprintf(string_bloques_libres, "%i", data->bloques_libres);
 	string_bloques_libres = realloc(string_bloques_libres,strlen(string_bloques_libres) + 1);
 	config_set_value(nodos, nodo_actual_libre, string_bloques_libres);
-	//free(nodos_actuales);
 	config_save_in_file(nodos, ruta_nodos);
+	config_destroy(nodos);
+	free(ruta_nodos);
+	free(nodos_actuales);
+	free(nuevos_nodos);
+	free(nodo_nuevo);
+	free(nodo_actual_total);
+	free(string_bloques_totales);
+	free(nodo_actual_libre);
+	free(string_bloques_libres);
 }
 
 void guardar_directorios(t_directory **directorios) {
@@ -551,7 +549,7 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 		int tamanio_bloque, int numero_copia, char*nombre_nodo,char*nombre_archivo) {
 	struct stat mystat;
 	char *index_directorio_padre = malloc(100);
-	index_directorio_padre = integer_to_string(elemento->index_padre);
+	strcpy(index_directorio_padre,((char*)integer_to_string(elemento->index_padre)));
 	index_directorio_padre = realloc(index_directorio_padre,strlen(index_directorio_padre) + 1);
 	char *ruta_directorio = malloc(100);
 	strcpy(ruta_directorio, RUTA_ARCHIVOS);
@@ -561,7 +559,7 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	if (stat(ruta_directorio, &mystat) == -1) {
 		mkdir(ruta_directorio, 0700);
 	}
-	free(ruta_directorio);
+	//free(ruta_directorio);
 	ruta_directorio = calloc(1, 100);
 	strcpy(ruta_directorio, RUTA_ARCHIVOS);
 	strcat(ruta_directorio, "/");
@@ -623,6 +621,13 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 		config_save(archivo);
 	}
 	config_save_in_file(archivo, ruta_directorio);
+	config_destroy(archivo);
+	free(index_directorio_padre);
+	free(ruta_directorio);
+	free(key);
+	free(value);
+	free(tamanio);
+	free(tipo_archivo);
 }
 void eliminar_archivo(char*nombre_nodo, char*nombre_archivo) {
 	t_list*lista = dictionary_get(archivos_actuales, nombre_nodo);
@@ -634,7 +639,8 @@ void eliminar_archivo(char*nombre_nodo, char*nombre_archivo) {
 	}
 	t_archivo_actual *archivo = malloc(sizeof(t_archivo_actual));
 	archivo = list_remove_by_condition(lista, (void*) tiene_nombre);
-	//free(archivo);
+	free(archivo->nombre_archivo);
+	free(archivo);
 	dictionary_put(archivos_actuales, nombre_nodo, lista);
 }
 void escribir_archivo_temporal(int tamanio_archivo, int numero_bloque,
@@ -1071,28 +1077,30 @@ void accion(void* socket) {
 				datos += strlen(nombre_archivo) + 1;
 				pthread_mutex_lock(&mutex_archivos_actuales);
 				t_list*archivos = dictionary_get(archivos_actuales,nombre_nodo);
-				t_archivo_actual *elemento = obtener_elemento(archivos,nombre_archivo);
+				//t_archivo_actual *elemento = obtener_elemento(archivos,nombre_archivo);
 				pthread_mutex_unlock(&mutex_archivos_actuales);
 				if (dictionary_has_key(archivos_terminados, nombre_archivo)) {
 					//termino el archivo,hay que eliminarlo y sacarlo de la lista de archivos actuales
 					pthread_mutex_lock(&mutex_archivos_actuales);
 					if(unico_bloque){
-						crear_y_actualizar_archivo(elemento,numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
+						crear_y_actualizar_archivo(((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo)),
+								numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
 						unico_bloque=false;
 					}
-					crear_y_actualizar_archivo(elemento,numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
+					crear_y_actualizar_archivo(((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo))
+							,numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
 					eliminar_archivo(nombre_nodo, nombre_archivo);
 					pthread_mutex_unlock(&mutex_archivos_actuales);
 				} else {
 					if (resultado == 1 && !dictionary_has_key(archivos_erroneos,nombre_archivo)) {
 						//escribir y crear directorio y archivo
 						pthread_mutex_lock(&mutex_archivos_actuales);
-						elemento->total_bloques -= 1;
-						crear_y_actualizar_archivo(elemento,numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
+						((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo))->total_bloques -= 1;
+						crear_y_actualizar_archivo(((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo)),numero_bloque_enviado, numero_bloque_datanode,tamanio_bloque, numero_copia, nombre_nodo,nombre_archivo);
 						pthread_mutex_unlock(&mutex_archivos_actuales);
 					} else {
 						pthread_mutex_lock(&mutex_archivos_actuales);
-						elemento->total_bloques = -1;
+						((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo))->total_bloques = -1;
 						pthread_mutex_unlock(&mutex_archivos_actuales);
 						//eliminar lo que se hizo en el archivo
 					}
@@ -1412,6 +1420,7 @@ bool existe_ruta(char *ruta_fs) {
 				return true;
 			}
 		}
+		free(ruta);
 	}
 }
 bool existe_archivo(char *nombre_archivo, int index_directorio_padre) {
@@ -1790,10 +1799,10 @@ int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
 	config_set_value(nodos,"NODOS",config_get_string_value(nodos,"NODOS"));
 	config_save(nodos);
 	config_save_in_file(nodos,RUTA_NODOS);
+	config_destroy(nodos);
 	free(total_nodo);
 	free(libre_nodo);
 	free(nombre_nodo);
-	config_destroy(nodos);
 	return tamanio_nodo;
 }
 void formatear_bitarray(char*nombre_archivo,bool primera_vez){
@@ -1820,8 +1829,12 @@ void formatear_bitarray(char*nombre_archivo,bool primera_vez){
 			for (var = 0; var < size_databin; ++var) {
 				bitarray_clean_bit(bitarray,var);
 			}
+			bitarray_destroy(bitarray);
+			munmap(bmap,mystat.st_size);
+			close(bitmap);
 		}
 	}
+	free(ruta);
 }
 void igualar(info_datanode*elemento){
 	//printf(elemento->bloques_libres);
@@ -3243,7 +3256,7 @@ t_list*obtener_disponibles(t_list*datanodes_a_enviar, int cantidad_datanodes,
 }
 void actualizar_archivos_actuales(char*nombre_nodo, int index_directorio_padre,
 		int tipo_archivo, char*nombre_archivo) {
-	if (!dictionary_has_key(archivos_actuales, nombre_nodo)) {
+	if (!dictionary_has_key(archivos_actuales, nombre_nodo)){
 		//primera vez que se manda un archivo a este nodo
 		t_list*lista_archivos = list_create();
 		t_archivo_actual *un_archivo = malloc(sizeof(t_archivo_actual));
@@ -3252,8 +3265,7 @@ void actualizar_archivos_actuales(char*nombre_nodo, int index_directorio_padre,
 		un_archivo->tipo = tipo_archivo;
 		un_archivo->nombre_archivo = malloc(100);
 		strcpy(un_archivo->nombre_archivo, nombre_archivo);
-		un_archivo->nombre_archivo = realloc(un_archivo->nombre_archivo,
-				strlen(un_archivo->nombre_archivo) + 1);
+		un_archivo->nombre_archivo = realloc(un_archivo->nombre_archivo,strlen(un_archivo->nombre_archivo) + 1);
 		pthread_mutex_lock(&mutex_archivos_actuales);
 		list_add(lista_archivos, un_archivo);
 		dictionary_put(archivos_actuales, nombre_nodo, lista_archivos);
@@ -3264,9 +3276,8 @@ void actualizar_archivos_actuales(char*nombre_nodo, int index_directorio_padre,
 		t_list *archivos = dictionary_get(archivos_actuales, nombre_nodo);
 		if (verificar_existencia_lista_archivos(archivos, nombre_archivo)) {
 			//existe el archivo, hay que aumentar el numero de bloque
-			t_archivo_actual*un_archivo = obtener_elemento(archivos,
-					nombre_archivo);
-			un_archivo->total_bloques += 1;
+			//t_archivo_actual*un_archivo = obtener_elemento(archivos,nombre_archivo);
+			((t_archivo_actual*)obtener_elemento(archivos,nombre_archivo))->total_bloques += 1;
 			pthread_mutex_unlock(&mutex_archivos_actuales);
 		} else {
 			//no existe el archivo, lo creamos
@@ -3282,12 +3293,12 @@ void actualizar_archivos_actuales(char*nombre_nodo, int index_directorio_padre,
 		}
 	}
 }
-t_resultado_envio* enviar_bloque(t_list *disponibles, t_list*bloques_a_enviar,
+t_resultado_envio* enviar_bloque(t_list*bloques_a_enviar,
 		int i_bloques_a_enviar, int index_copia, char *nombre_archivo,
 		int index_directorio_padre, int tipo_archivo, int numero_copia) {
 	char *nombre = malloc(100);
 	strcpy(nombre,
-			((t_datanode_a_enviar*) list_get(disponibles, index_copia))->nombre);
+			((info_datanode*) list_get(datanodes, index_copia))->nodo);
 	nombre = realloc(nombre, strlen(nombre) + 1);
 
 	//Se obtiene el numero de bloque del datanode
@@ -3328,6 +3339,7 @@ t_resultado_envio* enviar_bloque(t_list *disponibles, t_list*bloques_a_enviar,
 			int numero_bloque = j;
 			munmap(bmap, mystat.st_size);
 			close(bitmap);
+			bitarray_destroy(bitarray);
 
 			//creamos tipo de dato a enviar y lo inicializamos
 			bloque *primer_bloque = malloc(sizeof(bloque));
@@ -3336,13 +3348,10 @@ t_resultado_envio* enviar_bloque(t_list *disponibles, t_list*bloques_a_enviar,
 			primer_bloque->copia = numero_copia;
 			primer_bloque->nombre_archivo = malloc(100);
 			strcpy(primer_bloque->nombre_archivo, nombre_archivo);
-			primer_bloque->nombre_archivo = realloc(
-					primer_bloque->nombre_archivo,
-					strlen(primer_bloque->nombre_archivo) + 1);
+			primer_bloque->nombre_archivo = realloc(primer_bloque->nombre_archivo,strlen(primer_bloque->nombre_archivo) + 1);
 
 			//enviamos al datanode el bloque y el tamaño de bloque
-			int tamanio = sizeof(uint32_t) * 4 + primer_bloque->tamanio
-					+ sizeof(char) * strlen(primer_bloque->nombre_archivo) + 1;
+			int tamanio = sizeof(uint32_t) * 4 + primer_bloque->tamanio+ sizeof(char) * strlen(primer_bloque->nombre_archivo) + 1;
 			void *datos = malloc(tamanio);
 			*((uint32_t*) datos) = primer_bloque->numero;
 			datos += sizeof(uint32_t);
@@ -3358,18 +3367,25 @@ t_resultado_envio* enviar_bloque(t_list *disponibles, t_list*bloques_a_enviar,
 			datos += strlen(primer_bloque->nombre_archivo) + 1;
 			datos -= tamanio;
 			//actualizo archivos actuales
-			actualizar_archivos_actuales(nombre, index_directorio_padre,
-					tipo_archivo, nombre_archivo);
+			actualizar_archivos_actuales(nombre, index_directorio_padre,tipo_archivo, nombre_archivo);
 			//enviamos datos
-			int socket = ((t_datanode_a_enviar*) list_get(disponibles,
-					index_copia))->socket;
+			int socket = ((info_datanode*) list_get(datanodes,index_copia))->socket;
 			t_resultado_envio*resultado = malloc(sizeof(t_resultado_envio));
 			resultado->bloque = numero_bloque;
 			resultado->nombre_nodo = malloc(100);
 			strcpy(resultado->nombre_nodo, nombre);
-			resultado->nombre_nodo = realloc(resultado->nombre_nodo,
-					strlen(resultado->nombre_nodo) + 1);
+			resultado->nombre_nodo = realloc(resultado->nombre_nodo,strlen(resultado->nombre_nodo) + 1);
 			resultado->resultado = EnviarDatosTipo(socket, FILESYSTEM, datos,tamanio, SETBLOQUE);
+			free(ruta);
+			free(nombre);
+			config_destroy(nodos);
+			free(nombre_total);
+			//free(primer_bloque);
+			free(datos);
+			if(numero_copia==1){
+				free(primer_bloque->nombre_archivo);
+				free(primer_bloque);
+			}
 			return resultado;
 		}
 	}
@@ -3474,51 +3490,169 @@ void actualizar_luego_de_cpfrom(){
 		free(string_libre);
 	}
 }
+void actualizar_datanodes_global(t_list* datanodes_a_enviar){
+	void actualizar(t_dtdisponible*elemento){
+		((info_datanode*)list_get(datanodes,elemento->index))->bloques_libres=elemento->cantidad;
+	}
+	list_iterate(datanodes_a_enviar,(void*) actualizar);
+}
 int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_directorio_padre, int tipo_archivo) {
 
 	t_list *datanodes_a_enviar = list_create();
 	t_list *disponibles = list_create();
 	t_list *bloques_enviados = list_create();
+	t_list *index_a_enviar=list_create();
 	int index=0;
-	/*t_dtdisponible*datanodes_disponibles(info_datanode*elemento){
+	t_dtdisponible*datanodes_disponibles(info_datanode*elemento){
 		t_dtdisponible*aux=malloc(sizeof(t_dtdisponible));
 		aux->socket=elemento->socket;
-		aux->cantidad=(elemento->bloques_totales-elemento->bloques_libres) >0 ? elemento->bloques_totales-elemento->bloques_libres : 0;
+		aux->cantidad=elemento->bloques_libres;
 		aux->index=index;
+		aux->nombre=malloc(sizeof(elemento->nodo)+1);
+		strcpy(aux->nombre,elemento->nodo);
 		index++;
-		list_add(datanodes_a_enviar,aux);
-	}*/
-
+		return aux;
+	}
+	bool se_puede_enviar(){
+		int i=0;
+		int aux=list_size(bloques_a_enviar);
+		int primera_copia;
+		int segunda_copia;
+		bool primera_vez=true;
+		bool error=false;
+		while(aux>0){
+			if(!primera_vez){
+				i=i+1>list_size(datanodes_a_enviar)-1 ? 0 : i+1;
+			}
+			if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+				primera_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+				list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+				((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+			}else{
+				i=i+1>list_size(bloques_a_enviar)-1 ? -1 : i+1;
+				if(i==-1){
+					error=true;
+					break;
+				}else{
+					if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+						primera_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+						list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+						((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+					}else{
+						i=i+1>list_size(datanodes_a_enviar)-1 ? -1 : i+1;
+						if(i==-1){
+							error=true;
+							break;;
+						}else{
+							if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+								primera_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+								list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+								((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+							}else{
+								i=i+1>list_size(datanodes_a_enviar)-1 ? -1 : i+1;
+								if(i==-1){
+									error=true;
+									break;
+								}else{
+									if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+										primera_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+										list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+										((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+									}else{
+										error=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			i=i+1>list_size(datanodes_a_enviar)-1 ? 0 : i+1;
+			if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+				segunda_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+				list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+				((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+			}else{
+				i=i+1>list_size(datanodes_a_enviar)-1 ? -1 : i+1;
+				if(i==-1){
+					error=true;
+					break;
+				}else{
+					if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+						segunda_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+						list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+						((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+					}else{
+						i=i+1>list_size(bloques_a_enviar)-1 ? -1 : i+1;
+						if(i==-1 ){
+							error=true;
+							break;;
+						}else{
+							if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+								segunda_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+								list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+								((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+							}else{
+								i=i+1>list_size(datanodes_a_enviar)-1 ? -1 : i+1;
+								if(i==-1){
+									error=true;
+									break;
+								}else{
+									if(((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad>0){
+										segunda_copia=((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index;
+										list_add(index_a_enviar,((t_dtdisponible*)list_get(datanodes_a_enviar,i))->index);
+										((t_dtdisponible*)list_get(datanodes_a_enviar,i))->cantidad--;
+									}else{
+										error=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if(primera_copia==segunda_copia){
+				error=true;
+				break;
+			}
+			if(primera_vez){
+				primera_vez=false;
+			}
+			aux--;
+		}
+		if(error){
+			return false;
+		}else{
+			return true;
+		}
+	}
 	pthread_mutex_lock(&mutex_datanodes);
 	datanodes_a_enviar = list_map(datanodes, (void*) datanodes_disponibles);
 	pthread_mutex_unlock(&mutex_datanodes);
-	int cantidad_datanodes_a_enviar;
 	bool error = false;
-	if (!(cantidad_datanodes_a_enviar = se_puede_enviar(datanodes_a_enviar,
-			list_size(bloques_a_enviar)))) {
-		printf("No hay lugar disponbile\n");
-		fflush(stdout);
-		error = true;
-
-	} else {
-		//datanodes que tengo que enviar
-		disponibles = obtener_disponibles(datanodes_a_enviar,cantidad_datanodes_a_enviar, list_size(bloques_a_enviar) * 2);
+	if(!se_puede_enviar()){
+		printf("Error, no hay lugar disponible");
+		error=true;
 	}
 	int size_bloques = list_size(bloques_a_enviar);
 	int i_lista_disponibles = 0;
 	int i_bloques_a_enviar = 0;
+	int index_lista=0;
 	if (!error) {
 		while (size_bloques){
 			//obtenemos datos del  datanode para enviarle la primer copia del bloque
 			//primer copia es i_lista_disponibles
-			int index_primer_copia = i_lista_disponibles;
-			int index_segunda_copia =index_primer_copia + 1 > (list_size(disponibles) - 1) ? 0 : index_primer_copia + 1;
+			int index_primer_copia = list_get(index_a_enviar,index_lista);
+			index_lista++;
+			int index_segunda_copia =list_get(index_a_enviar,index_lista);
 			t_resultado_envio*resultado_primer_copia;
 			t_resultado_envio*resultado_segunda_copia;
 			pthread_mutex_lock(&mutex_cpfrom);
-			resultado_primer_copia = enviar_bloque(disponibles,bloques_a_enviar, i_bloques_a_enviar, index_primer_copia,nombre_archivo, index_directorio_padre, tipo_archivo, 0);
+			resultado_primer_copia = enviar_bloque(bloques_a_enviar, i_bloques_a_enviar, index_primer_copia,nombre_archivo, index_directorio_padre, tipo_archivo, 0);
 			pthread_mutex_lock(&mutex_cpfrom);
-			resultado_segunda_copia = enviar_bloque(disponibles,bloques_a_enviar, i_bloques_a_enviar, index_segunda_copia,nombre_archivo, index_directorio_padre, tipo_archivo, 1);
+			resultado_segunda_copia = enviar_bloque(bloques_a_enviar, i_bloques_a_enviar, index_segunda_copia,nombre_archivo, index_directorio_padre, tipo_archivo, 1);
 			if (!(resultado_primer_copia->resultado)|| !(resultado_segunda_copia->resultado)) {
 				//limpio todos los bloques enviados
 				limpiar_bitarrays(bloques_enviados);
@@ -3543,21 +3677,22 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_direc
 				actualizar_datanodes(primer_copia->nombre_nodo);
 				list_add(bloques_enviados, segunda_copia);
 			}
-			i_lista_disponibles = i_lista_disponibles == (list_size(disponibles) - 1) ? 1 : i_lista_disponibles == (list_size(disponibles) - 2) ? 0 : i_lista_disponibles + 2;
 			size_bloques--;
 			i_bloques_a_enviar++;
+			index_lista++;
 			if (size_bloques <= 0) {
 				dictionary_put(archivos_terminados, nombre_archivo,nombre_archivo);
 			}
 		}
+		actualizar_datanodes_global(datanodes_a_enviar);
 		pthread_mutex_lock(&mutex_datanodes);
 		actualizar_luego_de_cpfrom();
 		pthread_mutex_unlock(&mutex_datanodes);
 	}
 	list_destroy(datanodes_a_enviar);
 	list_destroy(disponibles);
-	list_destroy(bloques_enviados);
-	list_destroy_and_destroy_elements(bloques_a_enviar, free);
+	list_destroy_and_destroy_elements(bloques_enviados,free);
+	list_destroy(bloques_a_enviar);
 	if (error) {
 		return -1;
 	} else {
