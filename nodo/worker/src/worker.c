@@ -10,8 +10,9 @@ t_list* listaDeProcesos;
 bool end;
 nodoRG* workerEncargado;
 
-void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("../nodoCFG.txt");
+void obtenerValoresArchivoConfiguracion(char* valor) {
+	char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
+	t_config* arch = config_create(a);
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
@@ -250,6 +251,9 @@ void realizarTransformacion(nodoT* data){
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	char* strToSys = string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
+	printf("%s",data->archivoTemporal);
+	printf("%s", data->programaT);
+	fflush(stdout);
 	system(strToSys);
 
 	fclose(dataBin);
@@ -364,8 +368,8 @@ void accionHijo(void* socketM){
 }
 
 
-int main(){
-	obtenerValoresArchivoConfiguracion();
+int main(int argc, char* argv[]){
+	obtenerValoresArchivoConfiguracion(argv[1]);
 	imprimirArchivoConfiguracion();
 	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
 
