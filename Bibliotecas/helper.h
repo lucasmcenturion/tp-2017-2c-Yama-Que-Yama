@@ -191,7 +191,7 @@ typedef struct{
  pthread_mutex_t mutex;
 }__attribute__((packed)) t_archivo_actual;
 
-char* integer_to_string(int x);
+char* integer_to_string(char*string,int x);
 size_t getFileSize(const char* filename);
 
 #endif /* HELPER_*/
