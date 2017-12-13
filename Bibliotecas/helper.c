@@ -1,12 +1,13 @@
 #include "helper.h"
 
 
-char* integer_to_string(int x) {
-	char* buffer = malloc(sizeof(char) * sizeof(int) * 4 + 1);
-	if (buffer) {
-		sprintf(buffer, "%d", x);
+char* integer_to_string(char*string,int x) {
+	string = malloc(10);
+	if (string) {
+		sprintf(string, "%d", x);
 	}
-	return buffer; // caller is expected to invoke free() on this buffer to release memory
+	string=realloc(string,strlen(string)+1);
+	return string; // caller is expected to invoke free() on this buffer to release memory
 }
 
 size_t getFileSize(const char* filename) {

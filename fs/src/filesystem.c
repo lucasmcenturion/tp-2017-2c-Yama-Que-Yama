@@ -80,7 +80,7 @@ t_directory **obtener_directorios() {
 int index_ultimo_directorio(char*ruta, char* tipo) {
 	t_directory **directorios = obtener_directorios();
 	t_directory *aux = (*directorios);
-	char **separado_por_barras = string_split(ruta, "/");
+	char**separado_por_barras = string_split(ruta, "/");
 	int i = 0;
 	int padre_anterior = 0;
 	int index_actual;
@@ -113,14 +113,13 @@ int index_ultimo_directorio(char*ruta, char* tipo) {
 		free(directorios);
 		return index_actual;
 	}
-
 }
 void eliminar_ea_nodos(char*nombre) {
 	t_config *nodos = config_create(RUTA_NODOS);
 	char *nodos_actuales = malloc(100);
 	nodos_actuales = config_get_string_value(nodos, "NODOS");
 	nodos_actuales = realloc(nodos_actuales, strlen(nodos_actuales) + 1);
-	char **separado_por_comas = string_split(nodos_actuales, ",");
+	char**separado_por_comas = string_split(nodos_actuales, ",");
 	int cantidad_comas = 0;
 	int i = 0;
 	while (separado_por_comas[cantidad_comas]) {
@@ -129,8 +128,8 @@ void eliminar_ea_nodos(char*nombre) {
 	char *nuevos_nodos = malloc(100);
 	if (cantidad_comas == 1) {
 		//tiene un solo elemento
-		char *substring = malloc(100);
-		strcpy(substring,string_substring(separado_por_comas[0], 1,strlen(separado_por_comas[0]) - 2));
+		char *substring;
+		substring=string_substring(separado_por_comas[0], 1,strlen(separado_por_comas[0]) - 2);
 		substring = realloc(substring, strlen(substring) + 1);
 		if (strcmp(nombre, substring) == 0) {
 			config_set_value(nodos, "NODOS", "");
@@ -138,10 +137,10 @@ void eliminar_ea_nodos(char*nombre) {
 		free(substring);
 	} else {
 		//tiene mas de un elemento
-		char * substring = malloc(100);
+		char * substring;
 		while (i < cantidad_comas) {
 			if (i == 0) {
-				strcpy(substring,string_substring(separado_por_comas[i], 1,strlen(separado_por_comas[i]) - 1));
+				substring=string_substring(separado_por_comas[i], 1,strlen(separado_por_comas[i]) - 1);
 				substring = realloc(substring, strlen(substring) + 1);
 				if (strcmp(nombre, substring) == 0) {
 					strcpy(nuevos_nodos, "[");
@@ -150,8 +149,8 @@ void eliminar_ea_nodos(char*nombre) {
 				}
 			} else {
 				if (i == (cantidad_comas - 1)) {
-					strcpy(substring,string_substring(separado_por_comas[i], 0,
-							strlen(separado_por_comas[i]) - 1));
+					substring=string_substring(separado_por_comas[i], 0,
+							strlen(separado_por_comas[i]) - 1);
 					if (strcmp(nombre, substring) == 0) {
 						strcat(nuevos_nodos, "]");
 					} else {
@@ -159,7 +158,7 @@ void eliminar_ea_nodos(char*nombre) {
 					}
 
 				} else {
-					strcpy(substring,separado_por_comas[i]);
+					substring=separado_por_comas[i];
 					if (strcmp(nombre, substring) == 0) {
 						strcat(nuevos_nodos, ",");
 					} else {
@@ -235,19 +234,23 @@ void actualizar_nodos_bin(info_datanode *data) {
 	int tamanio_actual;
 	tamanio_actual = config_get_int_value(nodos, "TAMANIO");
 	tamanio_actual =tamanio_actual == 0 ?data->bloques_totales :tamanio_actual + data->bloques_totales;
-	config_set_value(nodos, "TAMANIO", integer_to_string(tamanio_actual));
+	char*string_actual;
+	string_actual=integer_to_string(string_actual,tamanio_actual);
+	config_set_value(nodos, "TAMANIO", string_actual);
 	config_save_in_file(nodos, ruta_nodos);
 	int libre;
 	libre = config_get_int_value(nodos, "LIBRE");
 	libre = libre == 0 ? data->bloques_libres : libre + data->bloques_libres;
-	config_set_value(nodos, "LIBRE", integer_to_string(libre));
+	char *string_libre;
+	string_libre=integer_to_string(string_libre,libre);
+	config_set_value(nodos, "LIBRE",string_libre);
 	config_save_in_file(nodos, ruta_nodos);
 	char *nodos_actuales = calloc(1, 100);
 	char *nuevos_nodos = calloc(1, 300);
 	char* nodo_nuevo = calloc(1, 120);
 	if (config_has_property(nodos,"NODOS")){
 		strcpy(nodos_actuales,config_get_string_value(nodos, "NODOS"));
-		char **separado_por_comas = string_split(nodos_actuales, ",");
+		char**separado_por_comas = string_split(nodos_actuales, ",");
 		int cantidad_comas = 0;
 		while (separado_por_comas[cantidad_comas]) {
 			cantidad_comas++;
@@ -255,8 +258,8 @@ void actualizar_nodos_bin(info_datanode *data) {
 		int iterate = 0;
 		while (iterate < cantidad_comas) {
 			if (cantidad_comas == 1) {
-				char *substring = calloc(1, 100);
-				strcpy(substring,string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)]) - 1));
+				char *substring;
+				substring=string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)]) - 1);
 				substring = realloc(substring, strlen(substring) + 1);
 				strcpy(nuevos_nodos, substring);
 				strcat(nuevos_nodos, ",");
@@ -270,8 +273,8 @@ void actualizar_nodos_bin(info_datanode *data) {
 					strcat(nuevos_nodos, ",");
 				} else {
 					if (iterate == (cantidad_comas - 1)) {
-						char *substring = calloc(1, 200);
-						strcpy(substring,string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)])- 1));
+						char *substring;
+						substring=string_substring(separado_por_comas[(cantidad_comas - 1)], 0,strlen(separado_por_comas[(cantidad_comas - 1)])- 1);
 						substring = realloc(substring, strlen(substring) + 1);
 						strcat(nuevos_nodos, substring);
 						strcat(nuevos_nodos, ",");
@@ -325,6 +328,8 @@ void actualizar_nodos_bin(info_datanode *data) {
 	free(string_bloques_totales);
 	free(nodo_actual_libre);
 	free(string_bloques_libres);
+	free(string_actual);
+	free(string_libre);
 }
 
 void guardar_directorios(t_directory **directorios) {
@@ -408,22 +413,24 @@ int verificar_estado(){
 					tercera_copia[1]=malloc(4);
 					char*key_primera_copia=malloc(30);
 					strcpy(key_primera_copia,"BLOQUE");
-					strcat(key_primera_copia,integer_to_string(i));
+					char*string;
+					string=integer_to_string(string,i);
+					strcat(key_primera_copia,string);
 					strcat(key_primera_copia,"COPIA0");
 					key_primera_copia=realloc(key_primera_copia,strlen(key_primera_copia)+1);
 					char*key_segunda_copia=malloc(30);
 					strcpy(key_segunda_copia,"BLOQUE");
-					strcat(key_segunda_copia,integer_to_string(i));
+					strcat(key_segunda_copia,string);
 					strcat(key_segunda_copia,"COPIA1");
 					key_segunda_copia=realloc(key_segunda_copia,strlen(key_segunda_copia)+1);
 					char*key_tercera_copia=malloc(30);
 					strcpy(key_tercera_copia,"BLOQUE");
-					strcat(key_tercera_copia,integer_to_string(i));
+					strcat(key_tercera_copia,string);
 					strcat(key_tercera_copia,"COPIA2");
 					key_tercera_copia=realloc(key_tercera_copia,strlen(key_tercera_copia)+1);
 					char*bytes=malloc(100);
 					strcpy(bytes,"BLOQUE");
-					strcat(bytes,integer_to_string(i));
+					strcat(bytes,string);
 					strcat(bytes,"BYTES");
 					bytes=realloc(bytes,strlen(bytes)+1);
 					bool flag;
@@ -433,6 +440,8 @@ int verificar_estado(){
 						free(segunda_copia);
 						free(key_primera_copia);
 						free(key_segunda_copia);
+						free(key_tercera_copia);
+						free(string);
 						break;
 					}
 					if(config_has_property(archivo,key_primera_copia) && config_has_property(archivo,key_segunda_copia)){
@@ -509,6 +518,7 @@ int verificar_estado(){
 					free(key_segunda_copia);
 					free(key_tercera_copia);
 					free(bytes);
+					free(string);
 					if(rv==-1){
 						rv=-1;
 						break;
@@ -549,7 +559,9 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 		int tamanio_bloque, int numero_copia, char*nombre_nodo,char*nombre_archivo) {
 	struct stat mystat;
 	char *index_directorio_padre = malloc(100);
-	strcpy(index_directorio_padre,((char*)integer_to_string(elemento->index_padre)));
+	char *string_padre;
+	string_padre=integer_to_string(string_padre,elemento->index_padre);
+	strcpy(index_directorio_padre,string_padre);
 	index_directorio_padre = realloc(index_directorio_padre,strlen(index_directorio_padre) + 1);
 	char *ruta_directorio = malloc(100);
 	strcpy(ruta_directorio, RUTA_ARCHIVOS);
@@ -559,7 +571,7 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	if (stat(ruta_directorio, &mystat) == -1) {
 		mkdir(ruta_directorio, 0700);
 	}
-	//free(ruta_directorio);
+	free(ruta_directorio);
 	ruta_directorio = calloc(1, 100);
 	strcpy(ruta_directorio, RUTA_ARCHIVOS);
 	strcat(ruta_directorio, "/");
@@ -576,38 +588,54 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	}
 	t_config *archivo = config_create(ruta_directorio);
 	char *key = malloc(100);
+	char*key_integer;
+	key_integer=integer_to_string(key_integer,numero_bloque_enviado);
+	char*key_copia;
+	key_copia=integer_to_string(key_copia,numero_copia);
 	strcpy(key, "BLOQUE");
-	strcat(key, integer_to_string(numero_bloque_enviado));
+	strcat(key, key_integer);
 	strcat(key, "COPIA");
-	strcat(key, integer_to_string(numero_copia));
+	strcat(key, key_copia);
 	key = realloc(key, strlen(key) + 1);
 	char *value = malloc(100);
+	char *value_string;
+	value_string=integer_to_string(value_string,numero_bloque_datanode);
 	strcpy(value, "[");
 	strcat(value, nombre_nodo);
 	strcat(value, ",");
-	strcat(value, integer_to_string(numero_bloque_datanode));
+	strcat(value, value_string);
 	strcat(value, "]");
 	value = realloc(value, strlen(value) + 1);
 	config_set_value(archivo, key, value);
 	config_save(archivo);
 	char *tamanio = malloc(100);
+	char *tamanio_string;
+	tamanio_string=integer_to_string(tamanio_string,numero_bloque_enviado);
 	strcpy(tamanio, "BLOQUE");
-	strcat(tamanio, integer_to_string(numero_bloque_enviado));
+	strcat(tamanio, tamanio_string);
 	strcat(tamanio, "BYTES");
 	int tamanio_anterior = 0;
+	char*string_tamanio_bloque;
 	if (!config_has_property(archivo, tamanio)) {
 		tamanio_anterior = tamanio_bloque;
-		config_set_value(archivo, tamanio, integer_to_string(tamanio_bloque));
+		string_tamanio_bloque=integer_to_string(string_tamanio_bloque,tamanio_bloque);
+		config_set_value(archivo, tamanio, string_tamanio_bloque);
 		config_save(archivo);
+		config_save_in_file(archivo, ruta_directorio);
+		free(string_tamanio_bloque);
 	}
+	char*string_tamanio_total;
 	if (config_has_property(archivo, "TAMANIO")) {
 		int tamanio_total = config_get_int_value(archivo, "TAMANIO");
 		tamanio_total += tamanio_anterior;
-		config_set_value(archivo, "TAMANIO", integer_to_string(tamanio_total));
+		string_tamanio_total=integer_to_string(string_tamanio_total,tamanio_total);
+		config_set_value(archivo, "TAMANIO",string_tamanio_total);
 		config_save(archivo);
 	} else {
-		config_set_value(archivo, "TAMANIO", integer_to_string(tamanio_bloque));
+		string_tamanio_total=integer_to_string(string_tamanio_total,tamanio_bloque);
+		config_set_value(archivo, "TAMANIO", string_tamanio_total);
 		config_save(archivo);
+		config_save_in_file(archivo, ruta_directorio);
 	}
 	char *tipo_archivo = malloc(20);
 	if (primera_vez) {
@@ -628,6 +656,12 @@ void crear_y_actualizar_archivo(t_archivo_actual*elemento,int numero_bloque_envi
 	free(value);
 	free(tamanio);
 	free(tipo_archivo);
+	free(string_padre);
+	free(key_integer);
+	free(key_copia);
+	free(value_string);
+	free(tamanio_string);
+	free(string_tamanio_total);
 }
 void eliminar_archivo(char*nombre_nodo, char*nombre_archivo) {
 	t_list*lista = dictionary_get(archivos_actuales, nombre_nodo);
@@ -637,11 +671,11 @@ void eliminar_archivo(char*nombre_nodo, char*nombre_archivo) {
 		}
 		return false;
 	}
-	t_archivo_actual *archivo = malloc(sizeof(t_archivo_actual));
-	archivo = list_remove_by_condition(lista, (void*) tiene_nombre);
-	free(archivo->nombre_archivo);
-	free(archivo);
-	dictionary_put(archivos_actuales, nombre_nodo, lista);
+	void hacer_free(t_archivo_actual*elemento){
+		free(elemento->nombre_archivo);
+		free(elemento);
+	}
+	list_remove_and_destroy_by_condition(lista, (void*) tiene_nombre,(void*)hacer_free);
 }
 void escribir_archivo_temporal(int tamanio_archivo, int numero_bloque,
 		int index_directorio, void*bloque, int tamanio_bloque,
@@ -692,16 +726,18 @@ t_list*obtener_lista_bloques(char*ruta_archivo){
 	while(existe){
 		char*bytes=malloc(100);
 		strcpy(bytes,"BLOQUE");
-		strcat(bytes,integer_to_string(i));
+		char*string_i;
+		string_i=integer_to_string(string_i,i);
+		strcat(bytes,string_i);
 		strcat(bytes,"BYTES");
 		bytes=realloc(bytes,strlen(bytes)+1);
 		char *primera_copia=malloc(100);
 		strcpy(primera_copia,"BLOQUE");
-		strcat(primera_copia,integer_to_string(i));
+		strcat(primera_copia,string_i);
 		strcat(primera_copia,"COPIA0");
 		char *segunda_copia=malloc(100);
 		strcpy(segunda_copia,"BLOQUE");
-		strcat(segunda_copia,integer_to_string(i));
+		strcat(segunda_copia,string_i);
 		strcat(segunda_copia,"COPIA1");
 		if(config_has_property(archivo,bytes)){
 			t_bloque_yama *un_bloque=malloc(sizeof(t_bloque_yama));
@@ -720,6 +756,7 @@ t_list*obtener_lista_bloques(char*ruta_archivo){
 			existe=false;
 		}
 		i++;
+		free(string_i);
 	}
 	return bloques;
 }
@@ -762,23 +799,27 @@ void crear_copia(char *ruta_archivo,char *nombre_nodo,int bloque_archivo,int blo
 	char*primer_copia=malloc(30);
 	char*segunda_copia=malloc(30);
 	char*tercera_copia=malloc(30);
+	char*string_bloque;
+	string_bloque=integer_to_string(string_bloque,bloque_archivo);
 	strcpy(primer_copia,"BLOQUE");
-	strcat(primer_copia,integer_to_string(bloque_archivo));
+	strcat(primer_copia,string_bloque);
 	strcat(primer_copia,"COPIA0");
 	primer_copia=realloc(primer_copia,strlen(primer_copia)+1);
 	strcpy(segunda_copia,"BLOQUE");
-	strcat(segunda_copia,integer_to_string(bloque_archivo));
+	strcat(segunda_copia,string_bloque);
 	strcat(segunda_copia,"COPIA1");
 	segunda_copia=realloc(segunda_copia,strlen(segunda_copia)+1);
 	strcpy(tercera_copia,"BLOQUE");
-	strcat(tercera_copia,integer_to_string(bloque_archivo));
+	strcat(tercera_copia,string_bloque);
 	strcat(tercera_copia,"COPIA2");
 	tercera_copia=realloc(tercera_copia,strlen(tercera_copia)+1);
 	char*value=malloc(50);
 	strcpy(value,"[");
 	strcat(value,nombre_nodo);
 	strcat(value,",");
-	strcat(value,integer_to_string(bloque_datanode));
+	char*string_bloque_datanode;
+	string_bloque_datanode=integer_to_string(string_bloque_datanode,bloque_datanode);
+	strcat(value,string_bloque_datanode);
 	strcat(value,"]");
 	value=realloc(value,strlen(value)+1);
 	if(config_has_property(archivo,primer_copia) && config_has_property(archivo,segunda_copia)){
@@ -792,10 +833,13 @@ void crear_copia(char *ruta_archivo,char *nombre_nodo,int bloque_archivo,int blo
 	}
 	config_save(archivo);
 	config_save_in_file(archivo,ruta_archivo);
+	config_destroy(archivo);
 	free(primer_copia);
 	free(segunda_copia);
 	free(tercera_copia);
 	free(value);
+	free(string_bloque_datanode);
+	free(string_bloque);
 }
 void accion(void* socket) {
 	int socketFD = *(int*) socket;
@@ -827,12 +871,15 @@ void accion(void* socket) {
 					char*ruta_archivo=malloc(100);
 					strcpy(ruta_archivo,RUTA_ARCHIVOS);
 					strcat(ruta_archivo,"/");
-					strcat(ruta_archivo,integer_to_string(index_padre));
+					char*index;
+					index=integer_to_string(index,index_padre);
+					strcat(ruta_archivo,index);
 					strcat(ruta_archivo,"/");
 					strcat(ruta_archivo,nombre_archivo);
 					ruta_archivo=realloc(ruta_archivo,strlen(ruta_archivo)+1);
 					crear_copia(ruta_archivo,nombre_nodo,bloque_archivo,bloque_datanode);
 					free(ruta_archivo);
+					free(index);
 				}else{
 					printf("Error en el guardado de datos\n");
 				}
@@ -1057,7 +1104,7 @@ void accion(void* socket) {
 				uint32_t numero_copia;
 				uint32_t numero_bloque_enviado;
 				char *nombre_nodo = malloc(100);
-				char *nombre_archivo = malloc(100);
+				char *nombre_archivo=malloc(100);
 
 				numero_bloque_datanode = *((uint32_t*) datos);
 				datos += sizeof(uint32_t);
@@ -1195,7 +1242,9 @@ void accion(void* socket) {
 						char*ruta_archivo_en_metadata=malloc(100);
 						strcpy(ruta_archivo_en_metadata,RUTA_ARCHIVOS);
 						strcat(ruta_archivo_en_metadata,"/");
-						strcat(ruta_archivo_en_metadata,integer_to_string(index_padre));
+						char*string_index;
+						string_index=integer_to_string(string_index,index_padre);
+						strcat(ruta_archivo_en_metadata,string_index);
 						strcat(ruta_archivo_en_metadata,"/");
 						strcat(ruta_archivo_en_metadata,separado_por_barras[i]);
 						t_list*lista_bloques =obtener_lista_bloques(ruta_archivo_en_metadata);
@@ -1232,6 +1281,7 @@ void accion(void* socket) {
 						*((uint32_t*)datos) = *((uint32_t*)(paquete.Payload+paquete.header.tamPayload-sizeof(uint32_t)));
 						datos -= tamanioAEnviar;
 						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
+						free(string_index);
 					}
 					break;
 				}
@@ -1300,7 +1350,7 @@ crear(t_directory aux[100], char *ruta) {
 	//para que al momento de asignarl
 	actualizar_index_directorios(aux);
 	pthread_mutex_unlock(&mutex_directorio);
-	char **separado_por_barras = string_split(ruta, "/");
+	char**separado_por_barras = string_split(ruta, "/");
 	int i = 0;
 	int padre_anterior = 0;
 	while (separado_por_barras[i]) {
@@ -1380,7 +1430,7 @@ bool existe_ruta(char *ruta_fs) {
 		} else {
 			t_directory aux[100];
 			memmove(aux, directorios, 100 * sizeof(t_directory));
-			char **separado_por_barras = string_split(ruta_fs, "/");
+			char**separado_por_barras= string_split(ruta_fs, "/");
 			int cantidad = 0;
 			while (separado_por_barras[cantidad]) {
 				cantidad++;
@@ -1427,7 +1477,9 @@ bool existe_archivo(char *nombre_archivo, int index_directorio_padre) {
 	char*ruta = malloc(200);
 	strcpy(ruta, PUNTO_MONTAJE);
 	strcat(ruta, "/archivos/");
-	strcat(ruta, integer_to_string(index_directorio_padre));
+	char*index_padre;
+	index_padre=integer_to_string(index_padre,index_directorio_padre);
+	strcat(ruta, index_padre);
 	strcat(ruta, "/");
 	strcat(ruta, nombre_archivo);
 	ruta = realloc(ruta, strlen(ruta) + 1);
@@ -1436,6 +1488,7 @@ bool existe_archivo(char *nombre_archivo, int index_directorio_padre) {
 		return true;
 	}
 	free(ruta);
+	free(index_padre);
 	return false;
 }
 void rmtree(const char path[]) {
@@ -1532,7 +1585,9 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	char*ruta = malloc(100);
 	strcpy(ruta, RUTA_ARCHIVOS);
 	strcat(ruta, "/");
-	strcat(ruta, integer_to_string(index_padre));
+	char*string_padre;
+	string_padre=integer_to_string(string_padre,index_padre);
+	strcat(ruta, string_padre);
 	strcat(ruta, "/");
 	strcat(ruta, nombre_archivo);
 	t_config*archivo = config_create(ruta);
@@ -1542,7 +1597,9 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 	while (1) {
 		char*bloque_bytes = calloc(1, 50);
 		strcpy(bloque_bytes, "BLOQUE");
-		strcat(bloque_bytes, integer_to_string(cantidad));
+		char*string_cantidad;
+		string_cantidad=integer_to_string(string_cantidad,cantidad);
+		strcat(bloque_bytes, string_cantidad);
 		strcat(bloque_bytes, "BYTES");
 		bloque_bytes = realloc(bloque_bytes, strlen(bloque_bytes) + 1);
 		if (config_has_property(archivo, bloque_bytes)) {
@@ -1551,30 +1608,33 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 			break;
 		}
 		free(bloque_bytes);
+		free(string_cantidad);
 	}
 	int aux = cantidad;
 	int i = 0;
 	bool flag=false;
 	while (aux > 0) {
 		pthread_mutex_lock(&mutex_md5);
+		char*string_i;
+		string_i=integer_to_string(string_i,i);
 		char*bloque_bytes = calloc(1, 50);
 		strcpy(bloque_bytes, "BLOQUE");
-		strcat(bloque_bytes, integer_to_string(i));
+		strcat(bloque_bytes, string_i);
 		strcat(bloque_bytes, "BYTES");
 		bloque_bytes = realloc(bloque_bytes, strlen(bloque_bytes) + 1);
 		char*primer_bloque = calloc(1, 50);
 		strcpy(primer_bloque, "BLOQUE");
-		strcat(primer_bloque, integer_to_string(i));
+		strcat(primer_bloque, string_i);
 		strcat(primer_bloque, "COPIA0");
 		primer_bloque = realloc(primer_bloque, strlen(primer_bloque) + 1);
 		char*segundo_bloque = calloc(1, 50);
 		strcpy(segundo_bloque, "BLOQUE");
-		strcat(segundo_bloque, integer_to_string(i));
+		strcat(segundo_bloque, string_i);
 		strcat(segundo_bloque, "COPIA1");
 		segundo_bloque = realloc(segundo_bloque, strlen(segundo_bloque) + 1);
 		char*tercer_bloque=calloc(1,50);
 		strcpy(tercer_bloque,"BLOQUE");
-		strcat(tercer_bloque,integer_to_string(i));
+		strcat(tercer_bloque,string_i);
 		strcat(tercer_bloque,"COPIA2");
 		tercer_bloque=realloc(tercer_bloque,strlen(tercer_bloque)+1);
 		if(config_has_property(archivo,tercer_bloque)){
@@ -1760,6 +1820,8 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		free(primer_bloque);
 		free(segundo_bloque);
 		free(tercer_bloque);
+		free(string_i);
+		free(string_padre);
 		i++;
 		aux--;
 		cantidad--;
@@ -1786,23 +1848,32 @@ int obtener_total_y_formatear_nodos_bin(char*nombre_archivo,bool primera_vez){
 	strcpy(libre_nodo,nombre_nodo);
 	strcat(libre_nodo,"Libre");
 	libre_nodo=realloc(libre_nodo,strlen(libre_nodo)+1);
-	config_set_value(nodos,libre_nodo,integer_to_string(tamanio_nodo));
+	char*string_tamanio_nodo;
+	string_tamanio_nodo=integer_to_string(string_tamanio_nodo,tamanio_nodo);
+	config_set_value(nodos,libre_nodo,string_tamanio_nodo);
 	config_save(nodos);
+	char*string_tamanio_anterior;
 	if(primera_vez){
-		config_set_value(nodos,"LIBRE",integer_to_string(tamanio_nodo));
+		config_set_value(nodos,"LIBRE",string_tamanio_nodo);
+		config_set_value(nodos,"NODOS",config_get_string_value(nodos,"NODOS"));
+		config_save(nodos);
+		config_save_in_file(nodos,RUTA_NODOS);
+		config_destroy(nodos);
 	}else{
 		int tamanio_anterior=config_get_int_value(nodos,"LIBRE");
 		tamanio_anterior+=tamanio_nodo;
-		config_set_value(nodos,"LIBRE",integer_to_string(tamanio_anterior));
-
+		string_tamanio_anterior=integer_to_string(string_tamanio_anterior,tamanio_anterior);
+		config_set_value(nodos,"LIBRE",string_tamanio_anterior);
+		config_set_value(nodos,"NODOS",config_get_string_value(nodos,"NODOS"));
+		config_save(nodos);
+		config_save_in_file(nodos,RUTA_NODOS);
+		config_destroy(nodos);
+		free(string_tamanio_anterior);
 	}
-	config_set_value(nodos,"NODOS",config_get_string_value(nodos,"NODOS"));
-	config_save(nodos);
-	config_save_in_file(nodos,RUTA_NODOS);
-	config_destroy(nodos);
 	free(total_nodo);
 	free(libre_nodo);
 	free(nombre_nodo);
+	free(string_tamanio_nodo);
 	return tamanio_nodo;
 }
 void formatear_bitarray(char*nombre_archivo,bool primera_vez){
@@ -1844,17 +1915,23 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 	char*ruta = malloc(100);
 	strcpy(ruta, RUTA_ARCHIVOS);
 	strcat(ruta, "/");
-	strcat(ruta, integer_to_string(index_padre));
+	char*string_index_padre;
+	string_index_padre=integer_to_string(string_index_padre,index_padre);
+	strcat(ruta,string_index_padre);
 	strcat(ruta, "/");
 	strcat(ruta, nombre_archivo);
 	t_config*archivo = config_create(ruta);
 	t_list*disponibilidad_datanodes=list_create();
 	disponibilidad_datanodes=inicializar_lista(disponibilidad_datanodes);
 	int cantidad = 0;
+	char*string_cantidad;
 	while (1) {
 		char*bloque_bytes = calloc(1, 50);
+		char*string_bytes=malloc(10);
+		string_cantidad=integer_to_string(string_cantidad,cantidad);
+		strcpy(string_bytes,string_cantidad);
 		strcpy(bloque_bytes, "BLOQUE");
-		strcat(bloque_bytes, integer_to_string(cantidad));
+		strcat(bloque_bytes, string_bytes);
 		strcat(bloque_bytes, "BYTES");
 		bloque_bytes = realloc(bloque_bytes, strlen(bloque_bytes) + 1);
 		if (config_has_property(archivo, bloque_bytes)) {
@@ -1863,29 +1940,32 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 			break;
 		}
 		free(bloque_bytes);
+		free(string_bytes);
 	}
 	int aux = cantidad;
 	int i = 0;
 	bool flag=false;
 	while (aux > 0) {
+		char *string_i;
+		string_i=integer_to_string(string_i,i);
 		char*bloque_bytes = calloc(1, 50);
 		strcpy(bloque_bytes, "BLOQUE");
-		strcat(bloque_bytes, integer_to_string(i));
+		strcat(bloque_bytes, string_i);
 		strcat(bloque_bytes, "BYTES");
 		bloque_bytes = realloc(bloque_bytes, strlen(bloque_bytes) + 1);
 		char*primer_bloque = calloc(1, 50);
 		strcpy(primer_bloque, "BLOQUE");
-		strcat(primer_bloque, integer_to_string(i));
+		strcat(primer_bloque, string_i);
 		strcat(primer_bloque, "COPIA0");
 		primer_bloque = realloc(primer_bloque, strlen(primer_bloque) + 1);
 		char*segundo_bloque = calloc(1, 50);
 		strcpy(segundo_bloque, "BLOQUE");
-		strcat(segundo_bloque, integer_to_string(i));
+		strcat(segundo_bloque, string_i);
 		strcat(segundo_bloque, "COPIA1");
 		segundo_bloque = realloc(segundo_bloque, strlen(segundo_bloque) + 1);
 		char*tercer_bloque=calloc(1,50);
 		strcpy(tercer_bloque,"BLOQUE");
-		strcat(tercer_bloque,integer_to_string(i));
+		strcat(tercer_bloque,string_i);
 		strcat(tercer_bloque,"COPIA2");
 		tercer_bloque=realloc(tercer_bloque,strlen(tercer_bloque)+1);
 		t_solicitud_bloque*bloque = malloc(sizeof(t_solicitud_bloque));
@@ -2071,6 +2151,9 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 		free(primer_bloque);
 		free(segundo_bloque);
 		free(tercer_bloque);
+		free(string_index_padre);
+		free(string_i);
+		free(string_cantidad);
 		i++;
 		aux--;
 		cantidad--;
@@ -2166,7 +2249,9 @@ void consola() {
 					char*ruta_directorio=malloc(100);
 					strcpy(ruta_directorio,RUTA_ARCHIVOS);
 					strcat(ruta_directorio,"/");
-					strcat(ruta_directorio,integer_to_string(index));
+					char*string_index;
+					string_index=integer_to_string(string_index,index);
+					strcat(ruta_directorio,string_index);
 					ruta_directorio=realloc(ruta_directorio,strlen(ruta_directorio)+1);
 					d=opendir(ruta_directorio);
 					bool flag_closedir=false;
@@ -2204,6 +2289,7 @@ void consola() {
 							free(ruta_directorio);
 						}
 					}
+					free(string_index);
 				}
 
 			} else if (!strncmp(linea, "-b", 2)){
@@ -2216,7 +2302,10 @@ void consola() {
 					strcpy(ruta_archivo,RUTA_ARCHIVOS);
 					strcat(ruta_archivo,"/");
 					int index_padre=index_ultimo_directorio(array_input[2],"a");
-					strcat(ruta_archivo,integer_to_string(index_padre));
+					char *string_index_padre;
+					string_index_padre=integer_to_string(string_index_padre,index_padre);
+					strcpy(index_padre,string_index_padre);
+					strcat(ruta_archivo,string_index_padre);
 					strcat(ruta_archivo,"/");
 					strcat(ruta_archivo,((char*)obtener_nombre_archivo(array_input[2])));
 					if(!existe_archivo(((char*)obtener_nombre_archivo(array_input[2])),index_padre)){
@@ -2281,7 +2370,7 @@ void consola() {
 							printf("Error, no existe una copia con ese valor \n");
 						}
 					}
-
+					free(string_index_padre);
 				}
 			}
 			else{
@@ -2297,7 +2386,9 @@ void consola() {
 					char *ruta_archivo_yamafs=malloc(100);
 					strcpy(ruta_archivo_yamafs,RUTA_ARCHIVOS);
 					strcat(ruta_archivo_yamafs,"/");
-					strcat(ruta_archivo_yamafs,integer_to_string(index_directorio_padre));
+					char*string_index_padre;
+					string_index_padre=integer_to_string(string_index_padre,index_directorio_padre);
+					strcat(ruta_archivo_yamafs,string_index_padre);
 					strcat(ruta_archivo_yamafs,"/");
 					strcat(ruta_archivo_yamafs,nombre_archivo);
 					ruta_archivo_yamafs=realloc(ruta_archivo_yamafs,strlen(ruta_archivo_yamafs)+1);
@@ -2305,7 +2396,7 @@ void consola() {
 					char *directorio=malloc(100);
 					strcpy(directorio,RUTA_ARCHIVOS);
 					strcat(directorio,"/");
-					strcat(directorio,integer_to_string(index_directorio_padre));
+					strcat(directorio,string_index_padre);
 					directorio=realloc(directorio,strlen(directorio)+1);
 					DIR*d;
 					struct dirent *dir;
@@ -2328,6 +2419,7 @@ void consola() {
 					free(nombre_archivo);
 					free(ruta_archivo_yamafs);
 					free(directorio);
+					free(string_index_padre);
 				}
 			}
 		}else if (!strncmp(linea, "rename ", 7)) {
@@ -2358,20 +2450,23 @@ void consola() {
 					char *ruta_vieja = malloc(100);
 					strcpy(ruta_vieja, RUTA_ARCHIVOS);
 					strcat(ruta_vieja, "/");
-					strcat(ruta_vieja, integer_to_string(padre_anterior));
+					char*string_padre;
+					string_padre=integer_to_string(string_padre,padre_anterior);
+					strcat(ruta_vieja, string_padre);
 					strcat(ruta_vieja, "/");
 					strcat(ruta_vieja, separado_por_barras[cantidad]);
 					ruta_vieja = realloc(ruta_vieja, strlen(ruta_vieja) + 1);
 					char *ruta_nueva = malloc(100);
 					strcpy(ruta_nueva, RUTA_ARCHIVOS);
 					strcat(ruta_nueva, "/");
-					strcat(ruta_nueva, integer_to_string(padre_anterior));
+					strcat(ruta_nueva, string_padre);
 					strcat(ruta_nueva, "/");
 					strcat(ruta_nueva, array_input[2]);
 					ruta_nueva = realloc(ruta_nueva, strlen(ruta_nueva) + 1);
 					rename(ruta_vieja, ruta_nueva);
 					free(ruta_vieja);
 					free(ruta_nueva);
+					free(string_padre);
 				} else {
 					//es un directorio
 					if (!existe_ruta(array_input[1])) {
@@ -2438,14 +2533,18 @@ void consola() {
 						}else{
 							strcpy(ruta_archivo_original,RUTA_ARCHIVOS);
 							strcat(ruta_archivo_original,"/");
-							strcat(ruta_archivo_original,integer_to_string(index_directorio_padre_original));
+							char*index_original;
+							index_original=integer_to_string(index_original,index_directorio_padre_original);
+							strcat(ruta_archivo_original,index_original);
 							strcat(ruta_archivo_original,"/");
 							strcat(ruta_archivo_original,nombre_archivo);
 							ruta_archivo_original=realloc(ruta_archivo_original,strlen(ruta_archivo_original)+1);
 							t_config*archivo_original=config_create(ruta_archivo_original);
 							strcpy(directorio_destino,RUTA_ARCHIVOS);
 							strcat(directorio_destino,"/");
-							strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+							char*index_destino;
+							index_destino=integer_to_string(index_destino,index_directorio_padre_destino);
+							strcat(directorio_destino,index_destino);
 							directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
 							DIR*d;
 							d=opendir(directorio_destino);
@@ -2456,7 +2555,7 @@ void consola() {
 							directorio_destino=malloc(100);
 							strcpy(directorio_destino,RUTA_ARCHIVOS);
 							strcat(directorio_destino,"/");
-							strcat(directorio_destino,integer_to_string(index_directorio_padre_destino));
+							strcat(directorio_destino,index_destino);
 							strcat(directorio_destino,"/");
 							strcat(directorio_destino,nombre_archivo);
 							directorio_destino=realloc(directorio_destino,strlen(directorio_destino)+1);
@@ -2470,7 +2569,7 @@ void consola() {
 							char*directorio_original=malloc(100);
 							strcpy(directorio_original,RUTA_ARCHIVOS);
 							strcat(directorio_original,"/");
-							strcat(directorio_original,integer_to_string(index_directorio_padre_original));
+							strcat(directorio_original,index_original);
 							directorio_original=realloc(directorio_original,strlen(directorio_original)+1);
 							struct dirent *dir;
 							DIR*directory;
@@ -2491,6 +2590,8 @@ void consola() {
 								rmdir(directorio_original);
 							}
 							closedir(d);
+							free(index_original);
+							free(index_destino);
 						}
 					}
 				}else{
@@ -2598,10 +2699,12 @@ void consola() {
 				int i = TAMBLOQUE - 1;
 				while (size_aux > TAMBLOQUE) {
 					if (((char*) data)[i] == '\n' || ((char*) data)[i] == '\r') {
-						void *datos_bloque = calloc(1, i + 1);
-						memcpy(datos_bloque, data, i + 1);
+						//void *datos_bloque = calloc(1, i + 1);
+						//memcpy(datos_bloque, data, i + 1);
 						bloque *bloque_add = calloc(1, sizeof(bloque));
-						bloque_add->datos = datos_bloque;
+						bloque_add->datos=malloc(i+1);
+						memcpy(bloque_add->datos,data,i+1);
+						//bloque_add->datos = datos_bloque;
 						bloque_add->tamanio = i + 1;
 						list_add(bloques_a_enviar, bloque_add);
 						data += i + 1;
@@ -2611,10 +2714,12 @@ void consola() {
 					}
 				}
 				if (condicion) {
-					void *datos_bloque = calloc(1, size_aux);
-					memcpy(datos_bloque, data, size_aux);
+					//void *datos_bloque = calloc(1, size_aux);
+					//memcpy(datos_bloque, data, size_aux);
 					bloque *bloque_add = calloc(1, sizeof(bloque));
-					bloque_add->datos = datos_bloque;
+					bloque_add->datos=calloc(1, size_aux);
+					memcpy(bloque_add->datos,data,size_aux);
+					//bloque_add->datos = datos_bloque;
 					bloque_add->tamanio = size_aux;
 					list_add(bloques_a_enviar, bloque_add);
 				}
@@ -2709,7 +2814,9 @@ void consola() {
 						char*ruta_config=malloc(150);
 						strcpy(ruta_config,RUTA_ARCHIVOS);
 						strcat(ruta_config,"/");
-						strcat(ruta_config,integer_to_string(index));
+						char*string_index;
+						string_index=integer_to_string(string_index,index);
+						strcat(ruta_config,string_index);
 						strcat(ruta_config,"/");
 						strcat(ruta_config,nombre_archivo);
 						ruta_config=realloc(ruta_config,strlen(ruta_config)+1);
@@ -2914,7 +3021,10 @@ void consola() {
 							free(ruta_bitmap);
 							free(total_string);
 							config_destroy(nodos_bin);
+							free(cpblock->datos);
+							free(cpblock->nombre_nodo);
 							free(cpblock);
+							free(string_index);
 						}
 					}
 				}
@@ -2994,7 +3104,9 @@ void consola() {
 					char *ruta = malloc(100);
 					strcpy(ruta, RUTA_ARCHIVOS);
 					strcat(ruta, "/");
-					strcat(ruta, integer_to_string(ultimo_index));
+					char *string_ultimo_index;
+					string_ultimo_index=integer_to_string(string_ultimo_index,ultimo_index);
+					strcat(ruta, string_ultimo_index);
 					ruta = realloc(ruta, strlen(ruta) + 1);
 					DIR* dir = opendir(ruta);
 					struct dirent *ent;
@@ -3007,7 +3119,7 @@ void consola() {
 						}
 						closedir(dir);
 					}
-
+					free(string_ultimo_index);
 				}
 			}
 
@@ -3025,7 +3137,9 @@ void consola() {
 					char*ruta_archivo=malloc(100);
 					strcpy(ruta_archivo,RUTA_ARCHIVOS);
 					strcat(ruta_archivo,"/");
-					strcat(ruta_archivo,integer_to_string(index_directorio_padre));
+					char*index_padre;
+					index_padre=integer_to_string(index_padre,index_directorio_padre);
+					strcat(ruta_archivo,index_padre);
 					strcat(ruta_archivo,"/");
 					strcat(ruta_archivo,nombre_archivo);
 					t_config*archivo=config_create(ruta_archivo);
@@ -3037,19 +3151,21 @@ void consola() {
 					char*segunda_copia;
 					char*tamanio_bloque;
 					char *tercera_copia;
+					char*string_i;
 					while(condicion){
 						primera_copia=malloc(50);
 						segunda_copia=malloc(50);
 						tamanio_bloque=malloc(50);
 						tercera_copia=malloc(50);
+						string_i=integer_to_string(string_i,i);
 						strcpy(primera_copia,"BLOQUE");
 						strcpy(segunda_copia,"BLOQUE");
 						strcpy(tamanio_bloque,"BLOQUE");
 						strcpy(tercera_copia,"BLOQUE");
-						strcat(primera_copia,integer_to_string(i));
-						strcat(segunda_copia,integer_to_string(i));
-						strcat(tamanio_bloque,integer_to_string(i));
-						strcat(tercera_copia,integer_to_string(i));
+						strcat(primera_copia,string_i);
+						strcat(segunda_copia,string_i);
+						strcat(tamanio_bloque,string_i);
+						strcat(tercera_copia,string_i);
 						strcat(primera_copia,"COPIA0");
 						strcat(segunda_copia,"COPIA1");
 						strcat(tamanio_bloque,"BYTES");
@@ -3059,28 +3175,28 @@ void consola() {
 						tamanio_bloque=realloc(tamanio_bloque,strlen(tamanio_bloque)+1);
 						tercera_copia=realloc(tercera_copia,strlen(tercera_copia)+1);
 						if(config_has_property(archivo,tamanio_bloque)){
-							printf("Bloque %s tamanio %s bytes \n",integer_to_string(i),config_get_string_value(archivo,tamanio_bloque));
+							printf("Bloque %s tamanio %s bytes \n",string_i,config_get_string_value(archivo,tamanio_bloque));
 							if(config_has_property(archivo,primera_copia) && config_has_property(archivo,segunda_copia)){
 								char**array_primera_copia=config_get_array_value(archivo,primera_copia);
-								printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",integer_to_string(i),array_primera_copia[0],array_primera_copia[1]);
+								printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",string_i,array_primera_copia[0],array_primera_copia[1]);
 								char**array_segunda_copia=config_get_array_value(archivo,segunda_copia);
-								printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",integer_to_string(i),array_segunda_copia[0],array_segunda_copia[1]);
+								printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",string_i,array_segunda_copia[0],array_segunda_copia[1]);
 								if(config_has_property(archivo,tercera_copia)){
 									char**array_tercera_copia=config_get_array_value(archivo,tercera_copia);
-									printf("Bloque %s, copia 2 esta en %s en el bloque %s\n",integer_to_string(i),array_tercera_copia[0],array_tercera_copia[1]);
+									printf("Bloque %s, copia 2 esta en %s en el bloque %s\n",string_i,array_tercera_copia[0],array_tercera_copia[1]);
 								}
 							}else{
 								if(config_has_property(archivo,primera_copia)){
 									char**array_primera_copia=config_get_array_value(archivo,primera_copia);
-									printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",integer_to_string(i),array_primera_copia[0],array_primera_copia[1]);
+									printf("Bloque %s, copia 0 esta en %s en el bloque %s\n",string_i,array_primera_copia[0],array_primera_copia[1]);
 								}else{
 									if(config_has_property(archivo,tercera_copia)){
 										char**array_tercera_copia=config_get_array_value(archivo,tercera_copia);
-										printf("Bloque %s, copia 2 esta en %s en el bloque %s\n",integer_to_string(i),array_tercera_copia[0],array_tercera_copia[1]);
+										printf("Bloque %s, copia 2 esta en %s en el bloque %s\n",string_i,array_tercera_copia[0],array_tercera_copia[1]);
 									}
 									if(config_has_property(archivo,segunda_copia)){
 										char**array_segunda_copia=config_get_array_value(archivo,segunda_copia);
-										printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",integer_to_string(i),array_segunda_copia[0],array_segunda_copia[1]);
+										printf("Bloque %s, copia 1 esta en %s en el bloque %s\n",string_i,array_segunda_copia[0],array_segunda_copia[1]);
 									}
 								}
 							}
@@ -3092,8 +3208,10 @@ void consola() {
 						free(segunda_copia);
 						free(tercera_copia);
 						free(tamanio_bloque);
+						free(string_i);
 					}
 					free(ruta_archivo);
+					free(index_padre);
 					config_destroy(archivo);
 				}else{
 					printf("El archivo no existe, por favor creelo \n");
@@ -3342,7 +3460,7 @@ t_resultado_envio* enviar_bloque(t_list*bloques_a_enviar,
 			bitarray_destroy(bitarray);
 
 			//creamos tipo de dato a enviar y lo inicializamos
-			bloque *primer_bloque = malloc(sizeof(bloque));
+			bloque *primer_bloque;
 			primer_bloque = list_get(bloques_a_enviar, i_bloques_a_enviar);
 			primer_bloque->numero = numero_bloque;
 			primer_bloque->copia = numero_copia;
@@ -3375,17 +3493,13 @@ t_resultado_envio* enviar_bloque(t_list*bloques_a_enviar,
 			resultado->nombre_nodo = malloc(100);
 			strcpy(resultado->nombre_nodo, nombre);
 			resultado->nombre_nodo = realloc(resultado->nombre_nodo,strlen(resultado->nombre_nodo) + 1);
+			//resultado->nombre_nodo=string_duplicate(nombre);
 			resultado->resultado = EnviarDatosTipo(socket, FILESYSTEM, datos,tamanio, SETBLOQUE);
 			free(ruta);
 			free(nombre);
 			config_destroy(nodos);
 			free(nombre_total);
-			//free(primer_bloque);
 			free(datos);
-			if(numero_copia==1){
-				free(primer_bloque->nombre_archivo);
-				free(primer_bloque);
-			}
 			return resultado;
 		}
 	}
@@ -3498,7 +3612,7 @@ void actualizar_datanodes_global(t_list* datanodes_a_enviar){
 }
 int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_directorio_padre, int tipo_archivo) {
 
-	t_list *datanodes_a_enviar = list_create();
+	t_list *datanodes_a_enviar;
 	t_list *disponibles = list_create();
 	t_list *bloques_enviados = list_create();
 	t_list *index_a_enviar=list_create();
@@ -3508,7 +3622,7 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_direc
 		aux->socket=elemento->socket;
 		aux->cantidad=elemento->bloques_libres;
 		aux->index=index;
-		aux->nombre=malloc(sizeof(elemento->nodo)+1);
+		aux->nombre=malloc(10);
 		strcpy(aux->nombre,elemento->nodo);
 		index++;
 		return aux;
@@ -3691,8 +3805,17 @@ int enviarBloques(t_list *bloques_a_enviar, char *nombre_archivo,int index_direc
 	}
 	list_destroy(datanodes_a_enviar);
 	list_destroy(disponibles);
-	list_destroy_and_destroy_elements(bloques_enviados,free);
-	list_destroy(bloques_a_enviar);
+	void hacer_free(t_bloque_enviado*elemento){
+		free(elemento->nombre_nodo);
+		free(elemento);
+	}
+	void hacer_free_bloques(bloque*elemento){
+		free(elemento->datos);
+		free(elemento->nombre_archivo);
+		free(elemento);
+	}
+	list_destroy_and_destroy_elements(bloques_enviados,(void*) hacer_free);
+	list_destroy_and_destroy_elements(bloques_a_enviar,(void*) hacer_free_bloques);
 	if (error) {
 		return -1;
 	} else {
@@ -3772,9 +3895,12 @@ int main(int argc, char* argv[]) {
 			FILE*f=fopen(RUTA_NODOS,"w");
 			fclose(f);
 			t_config*archivo=config_create(RUTA_NODOS);
-			config_set_value(archivo,"TAMANIO",integer_to_string(0));
-			config_set_value(archivo,"LIBRE",integer_to_string(0));
+			char*string=integer_to_string(string,0);
+			config_set_value(archivo,"TAMANIO",string);
+			config_set_value(archivo,"LIBRE",string);
 			config_save_in_file(archivo,RUTA_NODOS);
+			config_destroy(archivo);
+			free(string);
 			sin_datanodes=true;
 		}
 	}else{
@@ -3785,9 +3911,12 @@ int main(int argc, char* argv[]) {
 			FILE*f=fopen(RUTA_NODOS,"w");
 			fclose(f);
 			t_config*archivo=config_create(RUTA_NODOS);
-			config_set_value(archivo,"TAMANIO",integer_to_string(0));
-			config_set_value(archivo,"LIBRE",integer_to_string(0));
+			char*string=integer_to_string(string,0);
+			config_set_value(archivo,"TAMANIO",string);
+			config_set_value(archivo,"LIBRE",string);
 			config_save_in_file(archivo,RUTA_NODOS);
+			config_destroy(archivo);
+			free(string);
 			sin_datanodes=true;
 		}
 		datanodes_anteriores=list_create();
