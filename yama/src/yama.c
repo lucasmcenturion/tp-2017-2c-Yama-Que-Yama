@@ -183,7 +183,67 @@ void MostrarRegistroTablaDeEstados(registroEstado* r){
 	fflush(stdout);
 }
 
-void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m, int nroCopia){
+void EnviarBloquesAMaster(t_list* lista, master* m){
+	int tamanioAEnviar = sizeof(uint32_t);
+	void* datosAEnviar = malloc(tamanioAEnviar);
+	datosAEnviar += sizeof(uint32_t);
+	*((uint32_t*)datosAEnviar) = list_size(lista);
+	int i;
+	for (i=0; i < list_size(lista); i++){
+		void* datos = list_get(lista,i);
+		datosAEnviar -= tamanioAEnviar;
+		int ip = sizeof(uint32_t)*5;
+		int nodo = ip + strlen(datos+ip) + 1;
+		int ruta = nodo + strlen(datos+nodo) + 1;
+		int nodoOC = ruta + strlen(datos+ruta) + 1;
+		int tamDatos = sizeof(uint32_t) * 5 + strlen(datos + ip) + strlen(datos+nodo) + strlen(datos + ruta) + strlen(datos + nodoOC) + 4;
+		datosAEnviar = realloc(datosAEnviar, tamanioAEnviar+tamDatos-(sizeof(uint32_t)*2+strlen(datos+nodoOC)+1));
+		datosAEnviar += tamanioAEnviar;
+		tamanioAEnviar += tamDatos - (sizeof(uint32_t)*2+strlen(datos+nodoOC)+1);
+		((uint32_t*)datosAEnviar)[0] = ((uint32_t*)datos)[0];
+		((uint32_t*)datosAEnviar)[1] = ((uint32_t*)datos)[1];
+		((uint32_t*)datosAEnviar)[2] = ((uint32_t*)datos)[2];
+		int nroBloque = ((uint32_t*)datos)[3];
+		int nroBloqueOtraCopia = ((uint32_t*)datos)[4];
+		datosAEnviar += sizeof(uint32_t) * 3;
+		datos += sizeof(uint32_t) * 5;
+		strcpy(datosAEnviar, datos);
+		datosAEnviar += strlen(datos) + 1;
+		datos += strlen(datos) + 1;
+		strcpy(datosAEnviar, datos);
+		datosAEnviar += strlen(datos) + 1;
+		datos += strlen(datos) + 1;
+		strcpy(datosAEnviar, datos);
+		datosAEnviar += strlen(datos) + 1;
+		datos += strlen(datos) + 1;
+		char* nodoOtraCopia = malloc(strlen(datos)+1);
+		strcpy(nodoOtraCopia, datos);
+		datos += strlen(datos) + 1;
+		datos -= tamDatos;
+
+		//NECESITO EL NRO DE BLOQUE, EL NRO BLOQUE OTRA COPIA Y NOMBRE DE NODO
+
+		registroEstado* registro = malloc(sizeof(registroEstado));
+		registro->archivoTemporal = malloc(strlen(datos+ruta) + 1);
+		strcpy(registro->archivoTemporal, datos+ruta);
+		registro->bloque = nroBloque;
+		registro->estado = ENPROCESO;
+		registro->etapa = TRANSFORMACION;
+		registro->job = m->contJobs;
+		registro->master = m->id;
+		registro->nodo = malloc(strlen(datos+nodo) + 1);
+		registro->nodoConOtraCopia = malloc(strlen(datos+nodo) + 1);
+		strcpy(registro->nodo,datos+nodo);
+		strcpy(registro->nodoConOtraCopia, datos+nodoOC);
+		registro->nroBloqueCopia = nroBloqueOtraCopia;
+		list_add(tablaDeEstados, registro);
+		MostrarRegistroTablaDeEstados(registro);
+
+	}
+	datosAEnviar -= tamanioAEnviar;
+	EnviarDatosTipo(m->socket, YAMA, datosAEnviar, tamanioAEnviar, SOLICITUDTRANSFORMACION);
+
+	/*
 	char* r = armarRutaTemporal(p,m,b->numero_bloque);
 	int tamanioDatos = sizeof(uint32_t) * 3 + strlen(p->ip) + strlen(p->nodo) + strlen(r) + 3 ;
 	void* datos = malloc(tamanioDatos);
@@ -217,8 +277,30 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m, int nroCop
 	MostrarRegistroTablaDeEstados(registro);
 	free(r);
 	//actualizo la carga de trabajo
-	p->cargaDeTrabajo++;
+	p->cargaDeTrabajo++;*/
 
+}
+
+void cargarBloque(t_list* lista, t_bloque_yama* b, datosWorker* p, master* m, int nroCopia){
+	char* r = armarRutaTemporal(p,m,b->numero_bloque);
+	int tamanioDatos = sizeof(uint32_t) * 5 + strlen(p->ip) + strlen(p->nodo) + strlen(r)  + strlen(nroCopia == 1 ? b->segundo_nombre_nodo : b->primer_nombre_nodo)+ 4;
+	void* datos = malloc(tamanioDatos);
+	((uint32_t*)datos)[0] = nroCopia == 1 ? b->primer_bloque_nodo : b->segundo_bloque_nodo;
+	((uint32_t*)datos)[1] = b->tamanio;
+	((uint32_t*)datos)[2] = p->puerto;
+	((uint32_t*)datos)[3] = b->numero_bloque;
+	((uint32_t*)datos)[4] = nroCopia == 1 ? b->segundo_bloque_nodo : b->primer_bloque_nodo;
+	datos += sizeof(uint32_t) * 5;
+	strcpy(datos, p->ip);
+	datos += strlen(p->ip) + 1;
+	strcpy(datos, p->nodo);
+	datos += strlen(p->nodo) + 1;
+	strcpy(datos, r);
+	datos += strlen(r) + 1;
+	strcpy(datos, nroCopia == 1 ? b->segundo_nombre_nodo : b->primer_nombre_nodo);
+	datos += strlen(nroCopia == 1 ? b->segundo_nombre_nodo : b->primer_nombre_nodo) + 1;
+	datos -= tamanioDatos;
+	list_add(lista, datos);
 }
 
 void planificacionT(t_list* bloques, master* elmaster){
@@ -226,6 +308,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
 	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
 	int DISP_BASE_ACTUAL = DISP_BASE;
+	t_list* listaDeBloquesAEnviar = list_create();
 	//calcula la disponibilidad por cada worker y la actualiza
 	calcularDisponibilidad(listaWorkers, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
@@ -254,7 +337,8 @@ void planificacionT(t_list* bloques, master* elmaster){
 			int nroCopia=-1;
 			if (nroCopia=(bloqueAAsignarEsta(punteroClock, bloqueAAsignar) != -1))
 			{
-				EnviarBloqueAMaster(bloqueAAsignar,punteroClock,elmaster, nroCopia);
+				cargarBloque(listaDeBloquesAEnviar, bloqueAAsignar, punteroClock, elmaster, nroCopia);
+				//EnviarBloqueAMaster(bloqueAAsignar,punteroClock,elmaster, nroCopia);
 				//si está se reduce el valor de disponibilidad
 				punteroClock->disponibilidad--;
 				//y se avanza el clock al siguiente worker
@@ -278,7 +362,8 @@ void planificacionT(t_list* bloques, master* elmaster){
 				do {
 					if (nroCopia= (bloqueAAsignarEsta(punteroAux, bloqueAAsignar)))
 					{
-						EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster, nroCopia);
+						cargarBloque(listaDeBloquesAEnviar, bloqueAAsignar, punteroAux, elmaster, nroCopia);
+						//EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster, nroCopia);
 						//si está se reduce el valor de disponibilidad
 						punteroAux->disponibilidad--;
 						usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
@@ -302,8 +387,8 @@ void planificacionT(t_list* bloques, master* elmaster){
 			}
 		}while(!salio);
 	}
+	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
 	list_destroy(lista);
-	list_destroy(disponibles);
 	free(ALGORITMO_BALANCEO_ACTUAL);
 }
 

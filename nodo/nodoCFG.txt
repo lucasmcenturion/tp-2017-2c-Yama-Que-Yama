@@ -1,6 +1,6 @@
 IP_FILESYSTEM=127.0.0.1
 PUERTO_FILESYSTEM=7777
-NOMBRE_NODO=Nodo4
+NOMBRE_NODO=Nodo2
 IP_NODO=127.0.0.1
 PUERTO_WORKER=7112
-RUTA_DATABIN=/home/utnso/Escritorio/Nodo4/data.bin
+RUTA_DATABIN=/home/utnso/Escritorio/Nodo2/data.bin
