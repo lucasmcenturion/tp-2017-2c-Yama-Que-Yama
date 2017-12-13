@@ -1,6 +1,6 @@
 #include "sockets.h"
 
-#define TAMANIODEBLOQUE 1024;
+#define TAMANIODEBLOQUE 1024
 #define BUFFERSIZE 1024
 
 char *IP_NODO, *IP_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
@@ -12,6 +12,7 @@ nodoRG* workerEncargado;
 
 void obtenerValoresArchivoConfiguracion() {
 	//char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
+	//t_config* arch = config_create(a);
 	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
@@ -24,20 +25,20 @@ void obtenerValoresArchivoConfiguracion() {
 
 void imprimirArchivoConfiguracion(){
 	printf(
-				"Configuración:\n"
-				"IP_FILESYSTEM=%s\n"
-				"PUERTO_FILESYSTEM=%d\n"
-				"NOMBRE_NODO=%s\n"
-				"IP_NODO=%s\n"
-				"PUERTO_WORKER=%d\n"
-				"RUTA_DATABIN=%s\n",
-				IP_FILESYSTEM,
-				PUERTO_FILESYSTEM,
-				NOMBRE_NODO,
-				IP_NODO,
-				PUERTO_WORKER,
-				RUTA_DATABIN
-				);
+			"Configuración:\n"
+			"IP_FILESYSTEM=%s\n"
+			"PUERTO_FILESYSTEM=%d\n"
+			"NOMBRE_NODO=%s\n"
+			"IP_NODO=%s\n"
+			"PUERTO_WORKER=%d\n"
+			"RUTA_DATABIN=%s\n",
+			IP_FILESYSTEM,
+			PUERTO_FILESYSTEM,
+			NOMBRE_NODO,
+			IP_NODO,
+			PUERTO_WORKER,
+			RUTA_DATABIN
+	);
 }
 
 void accionSelect(Paquete* paquete, int socketFD){ //TODO
@@ -85,7 +86,7 @@ char* listaAstringRG(t_list* lista){
 }
 
 nodoT* deserializacionT(void* payload){
-//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
+	//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
 	int mov = 0;
 	int aux;
 	nodoT* datosT = malloc(sizeof(nodoT));
@@ -108,7 +109,7 @@ nodoT* deserializacionT(void* payload){
 }
 
 nodoRL* deserializacionRL(void* payload){
-//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
+	//tamStr - programaR - tamStr - archivoTemp - tamList - (tamStr - ArchivoTemp)xtamList
 	int mov = 0;
 	int tamList;
 	int aux;
@@ -143,7 +144,7 @@ nodoRL* deserializacionRL(void* payload){
 }
 
 solicitudRG* deserializacionRG(void* payload){
-//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
+	//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
 	int mov = 0;
 	int aux;
 	int tamList;
@@ -190,7 +191,7 @@ solicitudRG* deserializacionRG(void* payload){
 		list_add(datosRG->nodos,nodoAgregar);
 
 	}
-return datosRG;
+	return datosRG;
 
 }
 
@@ -200,7 +201,7 @@ typedef struct{
 } datoAF; //mover a sockets y poner packed
 
 datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
-// tamString - ResultRG - tamString - rutaArchivoF
+	// tamString - ResultRG - tamString - rutaArchivoF
 	int mov = 0;
 	int aux;
 	datoAF* datos = malloc(sizeof(datoAF));
@@ -218,8 +219,9 @@ datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
 	return datos;
 }
 
+
 void serializacionAFyEnvioFS(char* buffer, char* rutaArchivoF,int socketFS){//bufferTexto,datosAF.rutaArchivoF,socketFS
-// tamStr + buffer + tamStr + rutaARchivoF
+	// tamStr + buffer + tamStr + rutaARchivoF
 	int mov = 0;
 	int sizeAux;
 	int size = sizeof(int)+strlen(buffer)+1+sizeof(int)+strlen(rutaArchivoF)+1;
@@ -240,30 +242,70 @@ void serializacionAFyEnvioFS(char* buffer, char* rutaArchivoF,int socketFS){//bu
 
 }
 
+void* getBloque(int numeroDeBloque,int tamanio){
+	struct stat st;
+	int tamanioDataBin;
+	if(stat(RUTA_DATABIN, &st) == -1) printf("Error en Stat()\n");
+	else {
+		tamanioDataBin = st.st_size;
+	}
+	int unFileDescriptor;
+	void* punteroDataBin;
+	void* datos_a_enviar=malloc(tamanio);
+	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {
+		printf("ERROR en el Open() de getBloque()");
+	}else{
+		if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMANIODEBLOQUE)) == (caddr_t)(-1)){
+			printf("ERROR en el mmap() de getBloque()");
+		}else{
+			memmove(datos_a_enviar,punteroDataBin,tamanio);
+		}
+	}
+	int unmap=munmap(punteroDataBin,tamanioDataBin);
+	if(unmap==-1){
+		printf("Error en munmap de getBloque\n");
+		fflush(stdout);
+	}else{
+		return datos_a_enviar;
+	}
+}
+
 void realizarTransformacion(nodoT* data){
 	FILE* dataBin = fopen(RUTA_DATABIN,"r");
-	char* bufferTexto = malloc(data->bytesOcupados);
+	/*char* bufferTexto = malloc(data->bytesOcupados);
 	int mov = data->bloque * TAMANIODEBLOQUE;
 
 	fseek(dataBin,mov,SEEK_SET);
-	fread(bufferTexto,data->bytesOcupados,1,dataBin);
+	fread(bufferTexto,data->bytesOcupados,1,dataBin);*/
 
+	char* bufferTexto = malloc(data->bytesOcupados);
+	memmove(bufferTexto,((char*)getBloque(data->bloque,data->bytesOcupados)),data->bytesOcupados+1);
+
+	char* strToSys = malloc(data->bytesOcupados+101);
+	strcpy(strToSys, string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal));
+	strToSys=realloc(strToSys,strlen(strToSys)+1);
+	//char* bufferTexto = getBloque(data->bloque,data->bytesOcupados);
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
-	printf("%s",data->archivoTemporal);
-	printf("%s", data->programaT);
-	fflush(stdout);
-	system(strToSys);
-
+	//char* strToSys = string_from_format("printf \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
+	int a = system(strToSys);
+	printf("%s\n",strToSys);
+	printf("%d\n",a);
+	free(bufferTexto);
+	free(strToSys);
 	fclose(dataBin);
 	return;
 }
 
 void realizarReduccionLocal(nodoRL* data){
 	char* strArchTemp = listAsString(data->listaArchivosTemporales);
+
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
+	char* strToSys = string_from_format("pwd && sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
+	printf("%s",(char*)list_get(data->listaArchivosTemporales,0));
+	printf("%s",strArchTemp);
+	printf("%s", data->programaR);
+	fflush(stdout);
 	system(strToSys);
 	return;
 }
@@ -329,7 +371,7 @@ void accionHijo(void* socketM){
 
 				while( fgets(str, BUFFERSIZE, archTemp)!=NULL ) {
 					if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
-				   }
+				}
 				bool* ok = true;
 				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,ok,sizeof(bool), ARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
@@ -348,7 +390,7 @@ void accionHijo(void* socketM){
 			char* bufferTexto = malloc((st.st_size)+1);
 			fread(bufferTexto,st.st_size,1,fdRedGlobal);
 			// Le mando a FS el buffer con el path
-			socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
+			//Semaforo por socketFS?
 			serializacionAFyEnvioFS(bufferTexto,datosAF->rutaArchivoF,socketFS);
 			//ESpero conf de FS
 			// Mando conf a Master
@@ -371,6 +413,8 @@ void accionHijo(void* socketM){
 int main(int argc, char* argv[]){
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
+	//socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake); Estaba rompiendo
+	if(socketFS <= 0) perror("No se pudo conectar con FS");
 	ServidorConcurrenteForks(IP_NODO, PUERTO_WORKER, WORKER, &listaDeProcesos, &end, accionPadre, accionHijo);
 
 	return 0;

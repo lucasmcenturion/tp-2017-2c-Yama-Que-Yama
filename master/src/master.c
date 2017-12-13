@@ -137,7 +137,7 @@ void serializacionRLyEnvio(nodoRL* nodoDeRL, int socketWorker){
 
 	int i;
 	for(i=0;i<list_size(nodoDeRL->listaArchivosTemporales);i++){
-		sizeAux = strlen(list_get(nodoDeRL->listaArchivosTemporales,i)+1);
+		sizeAux = strlen(list_get(nodoDeRL->listaArchivosTemporales,i))+1;
 		memcpy(datos+mov,&sizeAux,sizeof(int));
 		mov+=sizeof(int);
 		memcpy(datos+mov,list_get(nodoDeRL->listaArchivosTemporales,i),strlen(list_get(nodoDeRL->listaArchivosTemporales,i))+1);
@@ -267,7 +267,7 @@ void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA, tipo header){
 
 
 void obtenerValoresArchivoConfiguracion() {
-	t_config* arch = config_create("masterCFG.txt");
+	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/master/masterCFG.txt");
 	YAMA_IP = string_duplicate(config_get_string_value(arch, "YAMA_IP"));
 	YAMA_PUERTO = config_get_int_value(arch, "YAMA_PUERTO");
 	config_destroy(arch);
@@ -312,7 +312,7 @@ void accionHilo(void* solicitud){
 
 		solicitud=NULL;
 
-		rtaEstado* resultado = malloc(sizeof(resultado));
+		rtaEstado* resultado = malloc(sizeof(rtaEstado));
 		resultado->bloque = datosT->bloque;
 		resultado->nodo = malloc(strlen(datosT->worker.nodo)+1);
 		strcpy(resultado->nodo,datosT->worker.nodo);
@@ -381,7 +381,7 @@ void accionHilo(void* solicitud){
 
 		solicitud=NULL;
 
-		rtaEstado* resultado = malloc(sizeof(resultado));
+		rtaEstado* resultado = malloc(sizeof(rtaEstado));
 		resultado->bloque = -1;
 		resultado->nodo = malloc(strlen(datosRL->worker.nodo)+1);
 		strcpy(resultado->nodo,datosRL->worker.nodo);
@@ -512,15 +512,15 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 	datosParaT->worker.puerto = ((uint32_t*)datos)[2];
 	datos+=sizeof(uint32_t) * 3;
 	//ip worker
-	datosParaT->worker.ip = string_new();
+	datosParaT->worker.ip = malloc(strlen(datos)+1);
 	strcpy(datosParaT->worker.ip, datos);
 	datos += strlen(datos)+1;
 	//nombre nodo del worker
-	datosParaT->worker.nodo = string_new();
+	datosParaT->worker.nodo = malloc(strlen(datos)+1);
 	strcpy(datosParaT->worker.nodo, datos);
 	datos += strlen(datos)+1;
 	//ruta temporal
-	datosParaT->archivoTemporal = string_new();
+	datosParaT->archivoTemporal = malloc(strlen(datos)+1);
 	strcpy(datosParaT->archivoTemporal, datos);
 	datos += strlen(datos)+1;
 	datos -= paquete->header.tamPayload;
@@ -544,20 +544,20 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	int cantArchTemp = ((int*)datos)[0];
 	datosParaRL->worker.puerto = ((int*)datos)[1];
 	datos += sizeof(int)*2;
-	datosParaRL->worker.ip = string_new();
+	datosParaRL->worker.ip = malloc(strlen(datos) +1);
 	strcpy(datosParaRL->worker.ip,datos);
 	datos += strlen(datos) +1;
-	datosParaRL->worker.nodo = string_new();
+	datosParaRL->worker.nodo = malloc(strlen(datos) +1);
 	strcpy(datosParaRL->worker.nodo,datos);
 	datos += strlen(datos) +1;
-	datosParaRL->archivoTemporal = string_new();
+	datosParaRL->archivoTemporal = malloc(strlen(datos) +1);
 	strcpy(datosParaRL->archivoTemporal,datos);
 	datos += strlen(datos) +1;
 
 	datosParaRL->listaArchivosTemporales = list_create();
 	int i;
 	for(i=0;i<cantArchTemp;i++){
-		char* bufferAux = string_new();
+		char* bufferAux = malloc(strlen(datos)+1);
 		strcpy(bufferAux,datos);
 		datos += strlen(datos)+1;
 		list_add(datosParaRL->listaArchivosTemporales,bufferAux);
@@ -567,7 +567,7 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = datosParaRL->worker;
 
-	datosParaRL->programaR = string_new();
+	datosParaRL->programaR = malloc(strlen(programaR)+1);
 	strcpy(datosParaRL->programaR,programaR);
 	datosParaRL->header = REDUCCIONLOCAL;
 
@@ -665,8 +665,6 @@ void inicializarSemaforos(){
 
 int main(int argc, char* argv[]){
 	time_t tiempoInicioPrograma = time(0);
-	clock_t tiempoSumaRL = clock();
-	clock_t tiempoSumaRG = clock();
 	inicializarSemaforos();
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
@@ -684,7 +682,10 @@ int main(int argc, char* argv[]){
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	Paquete* paquete = malloc(sizeof(Paquete));
 	while(finalizado!=true){
-		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<=0) perror("Error al recibir respuesta de YAMA");
+		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<=0) {
+			perror("Error al recibir respuesta de YAMA");
+			exit(-1);
+		}
 		{
 			switch(paquete->header.tipoMensaje){
 			case SOLICITUDTRANSFORMACION:{
