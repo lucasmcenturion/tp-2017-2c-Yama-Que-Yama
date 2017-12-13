@@ -10,10 +10,10 @@ t_list* listaDeProcesos;
 bool end;
 nodoRG* workerEncargado;
 
-void obtenerValoresArchivoConfiguracion() {
-	//char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
-	//t_config* arch = config_create(a);
-	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
+void obtenerValoresArchivoConfiguracion(char* valor) {
+	char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
+	t_config* arch = config_create(a);
+//	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
@@ -411,7 +411,7 @@ void accionHijo(void* socketM){
 
 
 int main(int argc, char* argv[]){
-	obtenerValoresArchivoConfiguracion();
+	obtenerValoresArchivoConfiguracion(argv[1]);
 	imprimirArchivoConfiguracion();
 	//socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake); Estaba rompiendo
 	if(socketFS <= 0) perror("No se pudo conectar con FS");

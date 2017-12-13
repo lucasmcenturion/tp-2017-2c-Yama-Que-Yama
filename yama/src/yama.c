@@ -186,8 +186,8 @@ void MostrarRegistroTablaDeEstados(registroEstado* r){
 void EnviarBloquesAMaster(t_list* lista, master* m){
 	int tamanioAEnviar = sizeof(uint32_t);
 	void* datosAEnviar = malloc(tamanioAEnviar);
-	datosAEnviar += sizeof(uint32_t);
 	*((uint32_t*)datosAEnviar) = list_size(lista);
+	datosAEnviar += sizeof(uint32_t);
 	int i;
 	for (i=0; i < list_size(lista); i++){
 		void* datos = list_get(lista,i);
@@ -351,7 +351,6 @@ void planificacionT(t_list* bloques, master* elmaster){
 					//avanzarPuntero(punteroClock);
 				}
 				salio = true;
-				usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
 			}
 			//si no está
 			else
@@ -366,7 +365,6 @@ void planificacionT(t_list* bloques, master* elmaster){
 						//EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster, nroCopia);
 						//si está se reduce el valor de disponibilidad
 						punteroAux->disponibilidad--;
-						usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
 						break;
 					}
 					punteroAux = proximoWorkerDisponible(punteroAux);
@@ -390,6 +388,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
 	list_destroy(lista);
 	free(ALGORITMO_BALANCEO_ACTUAL);
+	usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
 }
 
 void RecibirPaqueteFilesystem(Paquete* paquete){
