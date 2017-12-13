@@ -201,15 +201,15 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m, int nroCop
 	EnviarDatosTipo(m->socket, YAMA, datos, tamanioDatos, SOLICITUDTRANSFORMACION);
 	free(datos);
 	registroEstado* registro = malloc(sizeof(registroEstado));
-	registro->archivoTemporal = string_new();
+	registro->archivoTemporal = malloc(strlen(r) + 1);
 	strcpy(registro->archivoTemporal, r);
 	registro->bloque = b->numero_bloque;
 	registro->estado = ENPROCESO;
 	registro->etapa = TRANSFORMACION;
 	registro->job = m->contJobs;
 	registro->master = m->id;
-	registro->nodo = string_new();
-	registro->nodoConOtraCopia = string_new();
+	registro->nodo = malloc(strlen(p->nodo) + 1);
+	registro->nodoConOtraCopia = malloc((nroCopia == 1? strlen(b->segundo_nombre_nodo) : strlen(b->primer_nombre_nodo)) + 1);;
 	strcpy(registro->nodo,p->nodo);
 	strcpy(registro->nodoConOtraCopia, (nroCopia == 1? b->segundo_nombre_nodo : b->primer_nombre_nodo));
 	registro->nroBloqueCopia =  (nroCopia == 1? b->segundo_bloque_nodo : b->primer_bloque_nodo);
@@ -222,7 +222,7 @@ void EnviarBloqueAMaster(t_bloque_yama* b, datosWorker* p, master* m, int nroCop
 }
 
 void planificacionT(t_list* bloques, master* elmaster){
-	char* ALGORITMO_BALANCEO_ACTUAL = string_new();
+	char* ALGORITMO_BALANCEO_ACTUAL = malloc(strlen(ALGORITMO_BALANCEO)+1);
 	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
 	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
 	int DISP_BASE_ACTUAL = DISP_BASE;
@@ -316,10 +316,10 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			datosWorker* worker = malloc(sizeof(datosWorker));
 			worker->puerto = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
-			worker->ip = string_new();
+			worker->ip = malloc(strlen(datos)+1);
 			strcpy(worker->ip, datos);
 			datos+=strlen(datos) + 1;
-			worker->nodo = string_new();
+			worker->nodo = malloc(strlen(datos)+1);
 			strcpy(worker->nodo, datos);
 			datos += strlen(datos) + 1;
 			datos-=tamanio;
@@ -339,10 +339,10 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 				datosWorker* worker = malloc(sizeof(datosWorker));
 				worker->puerto = *((uint32_t*)datos);
 				datos+=sizeof(uint32_t);
-				worker->ip = string_new();
+				worker->ip = malloc(strlen(datos)+1);
 				strcpy(worker->ip, datos);
 				datos += strlen(datos) +1;
-				worker->nodo =  string_new();
+				worker->nodo =  malloc(strlen(datos)+1);
 				strcpy(worker->nodo, datos);
 				datos += strlen(datos) +1;
 				worker->cargaDeTrabajo=0;
@@ -361,7 +361,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 					free(w->nodo);
 					free(w);
 			}
-			char* nodoAEliminar = string_new();
+			char* nodoAEliminar = malloc(strlen(paquete->Payload) + 1);
 			strcpy(nodoAEliminar,paquete->Payload);
 			int indiceEliminado = ((datosWorker*)list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);})))->indice;
 			list_remove_and_destroy_by_condition(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodoAEliminar);}),liberarDatosWorker);
@@ -390,10 +390,10 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 				bloque->primer_bloque_nodo = ((uint32_t*)datos)[2];
 				bloque->segundo_bloque_nodo = ((uint32_t*)datos)[3];
 				datos += sizeof(uint32_t) * 4;
-				bloque->primer_nombre_nodo = string_new();
+				bloque->primer_nombre_nodo = malloc(strlen(datos) + 1);
 				strcpy(bloque->primer_nombre_nodo, datos);
 				datos += strlen(datos) + 1;
-				bloque->segundo_nombre_nodo = string_new();
+				bloque->segundo_nombre_nodo = malloc(strlen(datos) + 1);
 				strcpy(bloque->segundo_nombre_nodo, datos);
 				datos += strlen(datos) + 1;
 				list_add(listaBloques,bloque);
@@ -489,13 +489,13 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONLOCAL);
 	free(datos);
 	registroEstado* reg = malloc(sizeof(registroEstado));
-	reg->archivoTemporal = string_new();
+	reg->archivoTemporal = malloc(strlen(rutaTemporalRL) + 1);
 	strcpy(reg->archivoTemporal, rutaTemporalRL);
 	reg->estado = ENPROCESO;
 	reg->etapa = REDUCCIONLOCAL;
 	reg->job = idJob;
 	reg->master = idMaster;
-	reg->nodo = string_new();
+	reg->nodo = malloc(strlen(w->nodo) + 1);
 	strcpy(reg->nodo, w->nodo);
 	list_add(tablaDeEstados, reg);
 	MostrarRegistroTablaDeEstados(reg);
@@ -586,7 +586,7 @@ void accion(void* socket){
 					int bloque = ((uint32_t*)datos)[0];
 					int idJob = ((uint32_t*)datos)[1];
 					datos += sizeof(uint32_t*)*2;
-					char* nodo = string_new();
+					char* nodo = malloc(strlen(datos) + 1);
 					strcpy(nodo, datos);
 					datos += strlen(datos)+1;
 					bool exito = *((bool*)datos);
@@ -626,7 +626,7 @@ void accion(void* socket){
 					void* datos = paquete.Payload;
 					int idJob = *((uint32_t*)datos);
 					datos += sizeof(uint32_t);
-					char* nodo = string_new();
+					char* nodo = malloc(strlen(datos) + 1);
 					strcpy(nodo, datos);
 					datos += strlen(datos) + 1;
 					bool exito = *((uint32_t*)datos);
@@ -657,7 +657,7 @@ void accion(void* socket){
 					void* datos = paquete.Payload;
 					int idJob = *((uint32_t*)datos);
 					datos += sizeof(uint32_t);
-					char* nodo = string_new();
+					char* nodo = malloc(strlen(datos) + 1);
 					strcpy(nodo, datos);
 					datos += strlen(datos) + 1;
 					bool exito = *((uint32_t*)datos);
