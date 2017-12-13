@@ -504,36 +504,43 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	nodoT* datosParaT = malloc(sizeof(nodoT));
 	void* datos = paquete->Payload;
-	//numero de bloque
-	datosParaT->bloque = ((uint32_t*)datos)[0];
-	//cantbytesocupados
-	datosParaT->bytesOcupados = ((uint32_t*)datos)[1];
-	//puerto worker
-	datosParaT->worker.puerto = ((uint32_t*)datos)[2];
-	datos+=sizeof(uint32_t) * 3;
-	//ip worker
-	datosParaT->worker.ip = malloc(strlen(datos)+1);
-	strcpy(datosParaT->worker.ip, datos);
-	datos += strlen(datos)+1;
-	//nombre nodo del worker
-	datosParaT->worker.nodo = malloc(strlen(datos)+1);
-	strcpy(datosParaT->worker.nodo, datos);
-	datos += strlen(datos)+1;
-	//ruta temporal
-	datosParaT->archivoTemporal = malloc(strlen(datos)+1);
-	strcpy(datosParaT->archivoTemporal, datos);
-	datos += strlen(datos)+1;
+
+	int cantBloques = ((uint32_t*)datos)[0];
+	datos += sizeof(uint32_t);
+
+	int i;
+	for (i=0; i < cantBloques; i++){
+		//numero de bloque
+		datosParaT->bloque = ((uint32_t*)datos)[0];
+		//cantbytesocupados
+		datosParaT->bytesOcupados = ((uint32_t*)datos)[1];
+		//puerto worker
+		datosParaT->worker.puerto = ((uint32_t*)datos)[2];
+		datos+=sizeof(uint32_t) * 3;
+		//ip worker
+		datosParaT->worker.ip = malloc(strlen(datos)+1);
+		strcpy(datosParaT->worker.ip, datos);
+		datos += strlen(datos)+1;
+		//nombre nodo del worker
+		datosParaT->worker.nodo = malloc(strlen(datos)+1);
+		strcpy(datosParaT->worker.nodo, datos);
+		datos += strlen(datos)+1;
+		//ruta temporal
+		datosParaT->archivoTemporal = malloc(strlen(datos)+1);
+		strcpy(datosParaT->archivoTemporal, datos);
+		datos += strlen(datos)+1;
+
+		hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
+		itemNuevo->worker = datosParaT->worker;
+
+		datosParaT->programaT = malloc(strlen(programaT)+1);
+		strcpy(datosParaT->programaT,programaT);
+		datosParaT->header = TRANSFORMACION;
+
+		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
+		list_add(listaHilos, itemNuevo);
+	}
 	datos -= paquete->header.tamPayload;
-
-	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
-	itemNuevo->worker = datosParaT->worker;
-
-	datosParaT->programaT = malloc(strlen(programaT)+1);
-	strcpy(datosParaT->programaT,programaT);
-	datosParaT->header = TRANSFORMACION;
-
-	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
-	list_add(listaHilos, itemNuevo);
 }
 
 
