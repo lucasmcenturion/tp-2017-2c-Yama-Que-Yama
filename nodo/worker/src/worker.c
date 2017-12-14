@@ -308,7 +308,7 @@ void realizarTransformacion(nodoT* data){
 	pthread_mutex_unlock(&mutex_mmap);
 
 	int bloqueAtrabajar = obtenerBloqueDeRuta(data->archivoTemporal);
-	printf("Se comienza transformacion para bloque :: %d\n",bloqueAtrabajar);
+	printf("Se comienza transformacion para bloque :: %d bytes::%d\n",bloqueAtrabajar,data->bytesOcupados);
 	char* path = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/worker/Debug/%s/temporalWorker%d",NOMBRE_NODO,bloqueAtrabajar);
 	FILE* tempFD = fopen(path,"w");
 	fwrite(bufferTexto,sizeof(char),data->bytesOcupados,tempFD);
