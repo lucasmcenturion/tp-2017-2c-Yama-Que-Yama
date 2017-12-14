@@ -291,6 +291,16 @@ int obtenerIdJobDeRuta(char* rutaTemporal){
 }
 
 
+int obtenerBloqueDeRuta(char* rutaTemporal){
+
+	// /tmp/jXnybz
+	// 0123456
+	char** array  = string_split(rutaTemporal, "b");
+	int resultado = atoi(array[1]);
+	return resultado;
+}
+
+
 void accionHilo(void* solicitud){
 	Paquete* paquete = malloc(sizeof(Paquete));
 	switch (((nodoT*)solicitud)->header){
@@ -313,9 +323,10 @@ void accionHilo(void* solicitud){
 		solicitud=NULL;
 
 		rtaEstado* resultado = malloc(sizeof(rtaEstado));
-		resultado->bloque = datosT->bloque;
+		resultado->bloque = obtenerBloqueDeRuta(datosT->archivoTemporal);
 		resultado->nodo = malloc(strlen(datosT->worker.nodo)+1);
 		strcpy(resultado->nodo,datosT->worker.nodo);
+		printf("nodo:%s y bloque %i\n", resultado->nodo, resultado->bloque);
 		resultado->exito = true;
 		resultado->idJob = obtenerIdJobDeRuta(datosT->archivoTemporal);
 
@@ -359,6 +370,7 @@ void accionHilo(void* solicitud){
 			else {
 				perror("Error en el header, se esperaba VALIDACIONWORKER");//Error nuestro, no contemplado para informar a YAMA
 			}
+			free(datosT);
 		}
 		break;
 	}
@@ -502,7 +514,7 @@ void accionHilo(void* solicitud){
 
 void realizarTransformacion(Paquete* paquete, char* programaT){
 
-	nodoT* datosParaT = malloc(sizeof(nodoT));
+
 	void* datos = paquete->Payload;
 
 	int cantBloques = ((uint32_t*)datos)[0];
@@ -510,6 +522,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	int i;
 	for (i=0; i < cantBloques; i++){
+		nodoT* datosParaT = malloc(sizeof(nodoT));
 		//numero de bloque
 		datosParaT->bloque = ((uint32_t*)datos)[0];
 		//cantbytesocupados
@@ -539,6 +552,7 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 
 		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
 		list_add(listaHilos, itemNuevo);
+
 	}
 	datos -= paquete->header.tamPayload;
 }

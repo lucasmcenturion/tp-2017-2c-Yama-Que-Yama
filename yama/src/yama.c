@@ -323,8 +323,9 @@ void planificacionT(t_list* bloques, master* elmaster){
 	//el clock ahora apunta al worker que tenga mayor disponibilidad y menor carga de trabajo
 	punteroClock = list_get(disponibles, 0);
 	list_destroy(disponibles);
+	int tamanio = list_size(bloques);
 	int i;
-	for(i = 0; i < list_size(bloques); i++)
+	for(i = 0; i < tamanio; i++)
 	{
 		//Se obtiene el bloque actual
 		t_bloque_yama* bloqueAAsignar = list_get(bloques, i);
@@ -358,6 +359,12 @@ void planificacionT(t_list* bloques, master* elmaster){
 				//se queda loopeando hasta encontrar el proximo worker con disponibilidad mayor a 0 que posea el bloque a asignar
 				//o hasta haber dado una vuelta sin encontrar uno disponible
 				datosWorker* punteroAux = proximoWorkerDisponible(punteroClock);
+				if (punteroAux==NULL){
+					t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
+					calcularDisponibilidad(listaAux, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
+					list_destroy(listaAux);
+					punteroAux = proximoWorkerDisponible(punteroClock);
+				}
 				do {
 					if (nroCopia= (bloqueAAsignarEsta(punteroAux, bloqueAAsignar)))
 					{
