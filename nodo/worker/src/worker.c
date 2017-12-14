@@ -1,7 +1,7 @@
 #include "sockets.h"
 
-#define TAMANIODEBLOQUE 1024
-#define BUFFERSIZE 1024
+#define TAMANIODEBLOQUE 1024*1024
+#define BUFFERSIZE 1024*1024
 
 char *IP_NODO, *IP_FILESYSTEM,*NOMBRE_NODO,*RUTA_DATABIN;
 int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
@@ -10,10 +10,12 @@ t_list* listaDeProcesos;
 bool end;
 nodoRG* workerEncargado;
 
+pthread_mutex_t mutex_mmap;
+
 void obtenerValoresArchivoConfiguracion(char* valor) {
 	char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
 	t_config* arch = config_create(a);
-//	t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
+	//t_config* arch = config_create("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodoCFG.txt");
 	IP_FILESYSTEM = string_duplicate(config_get_string_value(arch, "IP_FILESYSTEM"));
 	PUERTO_FILESYSTEM = config_get_int_value(arch, "PUERTO_FILESYSTEM");
 	NOMBRE_NODO = string_duplicate(config_get_string_value(arch, "NOMBRE_NODO"));
@@ -104,6 +106,12 @@ nodoT* deserializacionT(void* payload){
 	mov += sizeof(int);
 	datosT->archivoTemporal = malloc(aux);
 	memcpy(datosT->archivoTemporal,payload+mov,aux);
+	/*mov += aux;
+	memcpy(&aux,payload+mov,sizeof(int));
+	mov += sizeof(int);
+	datosT->worker.nodo = malloc(aux);
+	//memcpy(datosT->worker.nodo,payload+mov,aux);
+	strcpy(datosT->worker.nodo,payload+mov);*/
 
 	return datosT;
 }
@@ -195,6 +203,7 @@ solicitudRG* deserializacionRG(void* payload){
 
 }
 
+
 typedef struct{
 	char* rutaArchivoF;
 	char* resultRG;
@@ -253,47 +262,70 @@ void* getBloque(int numeroDeBloque,int tamanio){
 	void* punteroDataBin;
 	void* datos_a_enviar=malloc(tamanio);
 	if ((unFileDescriptor = open(RUTA_DATABIN, O_RDONLY)) == -1) {
-		printf("ERROR en el Open() de getBloque()");
+		char* error = string_from_format("ERROR en el Open() de getBloque() :: error: %d\n",unFileDescriptor);
+		printf("%s",error);
 	}else{
-		if ((punteroDataBin = mmap ( 0 , tamanioDataBin , PROT_READ , MAP_SHARED, unFileDescriptor , numeroDeBloque*TAMANIODEBLOQUE)) == (caddr_t)(-1)){
-			printf("ERROR en el mmap() de getBloque()");
+		if ((punteroDataBin = mmap ( NULL , tamanioDataBin, PROT_READ , MAP_SHARED, unFileDescriptor , 0)) == (caddr_t)(-1)){
+			char* error = string_from_format("ERROR en el mmap() de getBloque() :: error: %d\n",punteroDataBin);
+			printf("%s",error);
 		}else{
-			memmove(datos_a_enviar,punteroDataBin,tamanio);
+			memmove(datos_a_enviar,punteroDataBin+(numeroDeBloque*TAMANIODEBLOQUE),tamanio);
 		}
 	}
 	int unmap=munmap(punteroDataBin,tamanioDataBin);
 	if(unmap==-1){
-		printf("Error en munmap de getBloque\n");
+		char* error = string_from_format("ERROR en el unmap() de getBloque() :: error: %d\n",unmap);
+		printf("%s",error);
 		fflush(stdout);
 	}else{
 		return datos_a_enviar;
 	}
 }
 
+int obtenerBloqueDeRuta(char* rutaTemporal){
+
+	// /tmp/jXnybz
+	// 0123456
+	char** array  = string_split(rutaTemporal, "b");
+	int resultado = atoi(array[1]);
+	return resultado;
+}
+
 void realizarTransformacion(nodoT* data){
-	FILE* dataBin = fopen(RUTA_DATABIN,"r");
-	/*char* bufferTexto = malloc(data->bytesOcupados);
+	/*FILE* dataBin = fopen(RUTA_DATABIN,"r");
+	char* bufferTexto = malloc(data->bytesOcupados);
 	int mov = data->bloque * TAMANIODEBLOQUE;
 
 	fseek(dataBin,mov,SEEK_SET);
-	fread(bufferTexto,data->bytesOcupados,1,dataBin);*/
+	fread(bufferTexto,data->bytesOcupados,1,dataBin);
+	fclose(dataBin);*/
 
-	char* bufferTexto = malloc(data->bytesOcupados);
-	memmove(bufferTexto,((char*)getBloque(data->bloque,data->bytesOcupados)),data->bytesOcupados+1);
+	pthread_mutex_lock(&mutex_mmap);
+	printf("Se comienza mmap\n");
+	char* bufferTexto = malloc((data->bytesOcupados)+1);
 
-	char* strToSys = malloc(data->bytesOcupados+101);
-	strcpy(strToSys, string_from_format("echo \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal));
+	memmove(bufferTexto,((char*)getBloque(data->bloque,data->bytesOcupados)),(data->bytesOcupados)+1);
+	pthread_mutex_unlock(&mutex_mmap);
+
+	int bloqueAtrabajar = obtenerBloqueDeRuta(data->archivoTemporal);
+	printf("Se comienza transformacion para bloque :: %d\n",bloqueAtrabajar);
+	char* path = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/worker/Debug/%s/temporalWorker%d",NOMBRE_NODO,bloqueAtrabajar);
+	FILE* tempFD = fopen(path,"w");
+	fwrite(bufferTexto,sizeof(char),data->bytesOcupados,tempFD);
+	fclose(tempFD);
+	char* strToSys = malloc((data->bytesOcupados)+101);
+	strcpy(strToSys, string_from_format("cat %s | .%s | sort -d - > %s",path,data->programaT,data->archivoTemporal));
 	strToSys=realloc(strToSys,strlen(strToSys)+1);
 	//char* bufferTexto = getBloque(data->bloque,data->bytesOcupados);
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	//char* strToSys = string_from_format("printf \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	int a = system(strToSys);
-	printf("%s\n",strToSys);
 	printf("%d\n",a);
+
 	free(bufferTexto);
 	free(strToSys);
-	fclose(dataBin);
+	//fclose(dataBin);
 	return;
 }
 
@@ -302,9 +334,9 @@ void realizarReduccionLocal(nodoRL* data){
 
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	char* strToSys = string_from_format("pwd && sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
-	printf("%s",(char*)list_get(data->listaArchivosTemporales,0));
-	printf("%s",strArchTemp);
-	printf("%s", data->programaR);
+	//printf("%s",(char*)list_get(data->listaArchivosTemporales,0));
+	//printf("%s",strArchTemp);
+	//printf("%s", data->programaR);
 	fflush(stdout);
 	system(strToSys);
 	return;
@@ -353,6 +385,7 @@ void accionHijo(void* socketM){
 				if (!strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
 				else false;
 			}
+
 
 			workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado); //no hice malloc de workerEncargado, falla?
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
@@ -411,6 +444,7 @@ void accionHijo(void* socketM){
 
 
 int main(int argc, char* argv[]){
+	pthread_mutex_init(&mutex_mmap, NULL);
 	obtenerValoresArchivoConfiguracion(argv[1]);
 	imprimirArchivoConfiguracion();
 	//socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake); Estaba rompiendo

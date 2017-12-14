@@ -83,7 +83,7 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 	//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
 	int mov = 0;
 	int sizeAux;
-	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1;//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
+	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1+strlen(nodoDeT->worker.nodo)+1;//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
 	void* datos = malloc(size);
 
 	memcpy(datos,&nodoDeT->bloque,sizeof(int));
@@ -100,6 +100,11 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 	mov += sizeof(int);
 	memcpy(datos+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal)+1);
 	mov+=strlen(nodoDeT->archivoTemporal)+1;
+	/*sizeAux = strlen(nodoDeT->worker.nodo) +1;
+	memcpy(datos+mov,&sizeAux,sizeof(int));
+	mov += sizeof(int);
+	memcpy(datos+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo)+1);
+	mov += strlen(nodoDeT->worker.nodo)+1;*/
 
 	/*memcpy(datos+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
 	mov+=strlen(nodoDeT->worker.ip);
