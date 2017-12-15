@@ -285,7 +285,11 @@ void imprimirArchivoConfiguracion(){
 int obtenerIdJobDeRuta(char* rutaTemporal){
 	// /tmp/jXnybz
 	// 0123456
-	int resultado = rutaTemporal[6]-'0';
+	char** array  = string_split(rutaTemporal, "j");
+	char** arrayAux = string_split(array[1], "n");
+	int resultado = atoi(arrayAux[0]);
+	free(array);
+	free(arrayAux);
 	return resultado;
 }
 
@@ -398,7 +402,7 @@ void accionHilo(void* solicitud){
 		resultado->nodo = malloc(strlen(datosRL->worker.nodo)+1);
 		strcpy(resultado->nodo,datosRL->worker.nodo);
 		resultado->exito = true;
-		resultado->idJob = obtenerIdJobDeRuta(datosRL->archivoTemporal);
+		resultado->idJob = datosRL->idJob;
 
 		int socketWorker = ConectarAServidor(datosRL->worker.puerto, datosRL->worker.ip, WORKER, MASTER, RecibirHandshake);
 
@@ -581,15 +585,18 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	datosParaRL->archivoTemporal = malloc(strlen(datos) +1);
 	strcpy(datosParaRL->archivoTemporal,datos);
 	datos += strlen(datos) +1;
-
+	int idJob;
 	datosParaRL->listaArchivosTemporales = list_create();
 	int i;
 	for(i=0;i<cantArchTemp;i++){
 		char* bufferAux = malloc(strlen(datos)+1);
 		strcpy(bufferAux,datos);
+		if(i==0)
+			idJob = obtenerIdJobDeRuta(datos);
 		datos += strlen(datos)+1;
 		list_add(datosParaRL->listaArchivosTemporales,bufferAux);
 	}
+	datosParaRL->idJob = idJob;
 
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
@@ -808,6 +815,7 @@ int main(int argc, char* argv[]){
 		pthread_join(((hiloWorker*)elem)->hilo, NULL);
 		free(elem); }));
 	list_destroy_and_destroy_elements(duracionesJob,free);
+	free(YAMA_IP);
 
 	return 0;
 }

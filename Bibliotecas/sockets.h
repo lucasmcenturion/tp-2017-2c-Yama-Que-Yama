@@ -78,6 +78,7 @@ typedef struct{
 	t_list* listaArchivosTemporales;
 	char* archivoTemporal; //Destino
 	char* programaR;
+	int idJob;
 }__attribute__((packed)) nodoRL; //Recibo/Envias una lista de nodos (o array)
 
 
