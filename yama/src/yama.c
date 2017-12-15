@@ -375,6 +375,12 @@ void planificacionT(t_list* bloques, master* elmaster){
 						break;
 					}
 					punteroAux = proximoWorkerDisponible(punteroAux);
+					if (punteroAux==NULL){
+						t_list* listaAux = list_filter(listaWorkers, LAMBDA(bool _(void* item1) { return ((datosWorker*)item1)->disponibilidad == 0; }));
+						calcularDisponibilidad(listaAux, ALGORITMO_BALANCEO_ACTUAL, DISP_BASE_ACTUAL);
+						list_destroy(listaAux);
+						punteroAux = proximoWorkerDisponible(punteroAux);
+					}
 				}
 				while(punteroAux != punteroClock);
 				//si dio la vuelta y no encontró ninguno se re-calculan los valores de disponibilidad de los que tienen 0 como al principio
