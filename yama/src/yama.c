@@ -366,7 +366,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 					punteroAux = proximoWorkerDisponible(punteroClock);
 				}
 				do {
-					if (nroCopia= (bloqueAAsignarEsta(punteroAux, bloqueAAsignar)))
+					if (nroCopia= (bloqueAAsignarEsta(punteroAux, bloqueAAsignar) != -1))
 					{
 						cargarBloque(listaDeBloquesAEnviar, bloqueAAsignar, punteroAux, elmaster, nroCopia);
 						//EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster, nroCopia);

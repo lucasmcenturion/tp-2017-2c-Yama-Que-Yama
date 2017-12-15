@@ -302,9 +302,9 @@ void realizarTransformacion(nodoT* data){
 
 	pthread_mutex_lock(&mutex_mmap);
 	printf("Se comienza mmap\n");
-	char* bufferTexto = malloc((data->bytesOcupados)+1);
+	char* bufferTexto = calloc((data->bytesOcupados), sizeof(char));
 
-	memmove(bufferTexto,((char*)getBloque(data->bloque,data->bytesOcupados)),(data->bytesOcupados)+1);
+	memmove(bufferTexto,((char*)getBloque(data->bloque,data->bytesOcupados)),(data->bytesOcupados));
 	pthread_mutex_unlock(&mutex_mmap);
 
 	int bloqueAtrabajar = obtenerBloqueDeRuta(data->archivoTemporal);
@@ -313,9 +313,7 @@ void realizarTransformacion(nodoT* data){
 	FILE* tempFD = fopen(path,"w");
 	fwrite(bufferTexto,sizeof(char),data->bytesOcupados,tempFD);
 	fclose(tempFD);
-	char* strToSys = malloc((data->bytesOcupados)+101);
-	strcpy(strToSys, string_from_format("cat %s | .%s | sort -d - > %s",path,data->programaT,data->archivoTemporal));
-	strToSys=realloc(strToSys,strlen(strToSys)+1);
+	char* strToSys = string_from_format("cat %s | .%s | sort -d - > %s",path,data->programaT,data->archivoTemporal);
 	//char* bufferTexto = getBloque(data->bloque,data->bytesOcupados);
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
 	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
@@ -325,6 +323,7 @@ void realizarTransformacion(nodoT* data){
 
 	free(bufferTexto);
 	free(strToSys);
+	free(path);
 	//fclose(dataBin);
 	return;
 }

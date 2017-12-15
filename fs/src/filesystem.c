@@ -1821,7 +1821,7 @@ void solicitar_bloques(char*nombre_archivo, int index_padre) {
 		free(segundo_bloque);
 		free(tercer_bloque);
 		free(string_i);
-		free(string_padre);
+		//free(string_padre);
 		i++;
 		aux--;
 		cantidad--;
