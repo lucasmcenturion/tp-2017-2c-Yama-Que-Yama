@@ -309,18 +309,24 @@ void realizarTransformacion(nodoT* data){
 
 	int bloqueAtrabajar = obtenerBloqueDeRuta(data->archivoTemporal);
 	printf("Se comienza transformacion para bloque :: %d bytes::%d\n",bloqueAtrabajar,data->bytesOcupados);
-	char* path = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/worker/Debug/%s/temporalWorker%d",NOMBRE_NODO,bloqueAtrabajar);
+	char* pathPrograma = string_from_format("/home/utnso/Escritorio%s",data->programaT);
+	char* path = string_from_format("/home/utnso/Escritorio/%s/temporales/tmpWorkerN%d",NOMBRE_NODO,bloqueAtrabajar);
+	printf("%s :: %s\n",path,pathPrograma);
 	FILE* tempFD = fopen(path,"w");
 	fwrite(bufferTexto,sizeof(char),data->bytesOcupados,tempFD);
 	fclose(tempFD);
-	char* strToSys = string_from_format("cat %s | .%s | sort -d - > %s",path,data->programaT,data->archivoTemporal);
+
+
+	char* strToSys = string_from_format("cat %s | %s | sort -d - > %s",path,pathPrograma,data->archivoTemporal);
+
+
 	//char* bufferTexto = getBloque(data->bloque,data->bytesOcupados);
 	//char* bufferReal = strcat(bufferTexto,"\n"); en caso de necesitar esto, debo hacer +1 al malloc
-	chmod(data->programaT, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	chmod(pathPrograma, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	//char* strToSys = string_from_format("printf \"%s\" | .%s | sort -d - > %s", bufferTexto,data->programaT,data->archivoTemporal);
 	int a = system(strToSys);
 	printf("%d\n",a);
-
+	free(pathPrograma);
 	free(bufferTexto);
 	free(strToSys);
 	free(path);
@@ -330,12 +336,18 @@ void realizarTransformacion(nodoT* data){
 
 void realizarReduccionLocal(nodoRL* data){
 	char* strArchTemp = listAsString(data->listaArchivosTemporales);
+	char* pathPrograma = string_from_format("/home/utnso/Escritorio%s",data->programaR);
 
-	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
+
+	chmod(pathPrograma, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	char* strToSys = string_from_format("sort -m %s | %s > %s",strArchTemp, pathPrograma, data->archivoTemporal);
 	fflush(stdout);
 	system(strToSys);
 	printf("Fin RL\n");
+
+	free(strArchTemp);
+	free(strToSys);
+	free(pathPrograma);
 	return;
 }
 

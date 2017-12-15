@@ -249,7 +249,7 @@ void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA, tipo header){
 		memcpy(datos+mov,&(resultado->bloque),sizeof(int));
 		mov += sizeof(int);
 	}
-	else{
+	else{ //No es transformacion
 		size = sizeof(int) + strlen(resultado->nodo)+1+sizeof(bool);
 		datos = malloc(size);
 	}
