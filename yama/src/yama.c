@@ -599,12 +599,12 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	free(rutaTemporalRL);
 }
 
-void realizarRG(registroEstado* r, int socketMaster){
+void realizarRG(registroEstado* nodos, int socketMaster){
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
 	datosWorker* workerEncargado = list_get(lista,0);
-	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", r->master);
-	t_list* nodos = list_filter(tablaDeEstados, LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->estado == FINALIZADOOK;}));
+	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == socketMaster;}));
+	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", m->id);
 	int tamanio = sizeof(uint32_t) + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2 ;
 	void * datos = malloc(tamanio);
 	strcpy(datos, workerEncargado->nodo);
@@ -737,7 +737,14 @@ void accion(void* socket){
 						datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, r->nodo);}));
 						w->contTareasRealizadas++;
 						MostrarRegistroTablaDeEstados(r);
-						realizarRG(r, socketFD);
+						t_list* tablaFiltradaPorReduccionLocalYJob = list_filter(tablaDeEstados,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->job == idJob;}));
+						//filtra todos los registros de ese nodo que se hayen en transformacion
+						//si todos están en estado finalizadook, puede hacer reducción local
+						if (list_all_satisfy(tablaFiltradaPorReduccionLocalYJob,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->estado == FINALIZADOOK;})))
+						{
+							realizarRG(tablaFiltradaPorReduccionLocalYJob, socketFD);
+						}
+						list_destroy(tablaFiltradaPorReduccionLocalYJob);
 					}
 					else
 					{
