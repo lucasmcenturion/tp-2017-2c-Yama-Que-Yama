@@ -705,13 +705,14 @@ void escribir_archivo_temporal(int tamanio_archivo, int numero_bloque,
 		close(temporal);
 	} else {
 		bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED,temporal, 0);
+		void* aux = bmap;
 		bmap+=anterior_md5;
 		if (bmap == MAP_FAILED) {
 			printf("Error al mapear a memoria: %s\n", strerror(errno));
 			close(temporal);
 		} else {
 			memmove(bmap, bloque, tamanio_bloque);
-			munmap(bmap, mystat.st_size);
+			munmap(aux, mystat.st_size);
 			close(temporal);
 			anterior_md5 += tamanio_bloque;
 			free(path);

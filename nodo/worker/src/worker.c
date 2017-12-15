@@ -8,7 +8,6 @@ int PUERTO_FILESYSTEM, PUERTO_WORKER, PUERTO_DATANODE;
 int socketFS;
 t_list* listaDeProcesos;
 bool end;
-nodoRG* workerEncargado;
 
 pthread_mutex_t mutex_mmap;
 
@@ -23,6 +22,96 @@ void obtenerValoresArchivoConfiguracion(char* valor) {
 	PUERTO_WORKER = config_get_int_value(arch, "PUERTO_WORKER");
 	RUTA_DATABIN = string_duplicate(config_get_string_value(arch, "RUTA_DATABIN"));
 	config_destroy(arch);
+}
+
+void realizarReduccionGlobal(solicitudRG* data, nodoRG* encargado){
+	//char* strArchivosTemporales = listaAstringRG(data->nodos);
+	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+	char* strToSys = string_from_format("echo \"%s\" | .%s > %s",encargado->archTempRL, data->programaR, data->archRG);
+	system(strToSys);
+	return;
+}
+
+void ServidorWorker(char* ip, int puerto, char nombre[11], int socketMaster,nodoRG* workerEncargado, solicitudRG* datosRG,
+		int (*RecibirPaquete)(int socketFD, char receptor[11], Paquete* paquete)) {
+	printf("Iniciando Servidor %s\n", nombre);
+	int SocketEscucha = StartServidor(ip, puerto);
+	int contNodos = 0;
+	fd_set master; // conjunto maestro de descriptores de fichero
+	fd_set read_fds; // conjunto temporal de descriptores de fichero para select()
+	FD_ZERO(&master); // borra los conjuntos maestro y temporal
+	FD_ZERO(&read_fds);
+	FD_SET(SocketEscucha, &master); // añadir listener al conjunto maestro
+	int fdmax = SocketEscucha; // seguir la pista del descriptor de fichero mayor, por ahora es éste
+	struct sockaddr_in remoteaddr; // dirección del cliente
+
+	for (;;) {	// bucle principal
+		read_fds = master; // cópialo
+		if (select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1) {
+			perror("select");
+			exit(1);
+		}
+		// explorar conexiones existentes en busca de datos que leer
+		int i;
+		for (i = 0; i <= fdmax; i++) {
+			if (FD_ISSET(i, &read_fds)) { // ¡¡tenemos datos!!
+				if (i == SocketEscucha) { // gestionar nuevas conexiones
+					socklen_t addrlen = sizeof(remoteaddr);
+					int nuevoSocket = accept(SocketEscucha,
+							(struct sockaddr*) &remoteaddr, &addrlen);
+					if (nuevoSocket == -1)
+						perror("accept");
+					else {
+						FD_SET(nuevoSocket, &master); // añadir al conjunto maestro
+						if (nuevoSocket > fdmax)
+							fdmax = nuevoSocket; // actualizar el máximo
+						printf("\nConectando con %s en " "socket %d\n",
+								inet_ntoa(remoteaddr.sin_addr), nuevoSocket);
+					}
+				} else {
+					Paquete paquete;
+					int result = RecibirPaquete(i, nombre, &paquete);
+					if (result > 0){
+						/// *******
+						if(!strcmp(paquete.header.emisor,WORKER)){
+							switch(paquete.header.tipoMensaje){
+							case ARCHIVOTEMPRL:{
+								char* bufferTexto = malloc(paquete.header.tamPayload);
+								strcpy(bufferTexto,paquete.Payload);
+								char* strToSys = string_from_format("echo \"%s\" | sort -o %s -m %s -",bufferTexto,workerEncargado->archTempRL,workerEncargado->archTempRL);
+								system(strToSys);
+								break;
+							}
+							case FINARCHIVOTEMPRL:{
+								contNodos ++;
+								if(contNodos == (datosRG->cantNodos)-1){
+									realizarReduccionGlobal(datosRG,workerEncargado);
+									bool boolAux = true;
+									if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de RG2");
+								}
+								break;
+
+							default:
+								perror("Header incorrecto, se esperaba ARCHIVOTEMPRL");
+								break;
+							}
+							return;
+							}
+					}
+						else {
+							perror("Se conecto algo que no es WORKER en ReduccionGlobal");
+						}
+					} //******
+
+					else{
+						FD_CLR(i, &master);
+					}// eliminar del conjunto maestro si falla
+					if (paquete.Payload != NULL)
+						free(paquete.Payload); //Y finalmente, no puede faltar hacer el free
+				}
+			}
+		}
+	}
 }
 
 void imprimirArchivoConfiguracion(){
@@ -41,23 +130,6 @@ void imprimirArchivoConfiguracion(){
 			PUERTO_WORKER,
 			RUTA_DATABIN
 	);
-}
-
-void accionSelect(Paquete* paquete, int socketFD){ //TODO
-	if(!strcmp(paquete->header.emisor,WORKER)){
-
-		if(paquete->header.tipoMensaje == ARCHIVOTEMPRL){
-
-			char* bufferTexto = malloc(paquete->header.tamPayload);
-			strcpy(bufferTexto,paquete->Payload);
-			char* strToSys = string_from_format("echo \"%s\" | sort -o %s -m %s -",bufferTexto,workerEncargado->archTempRL,workerEncargado->archTempRL);
-			system(strToSys);
-
-		}
-		else perror("Header incorrecto, se esperaba ARCHIVOTEMPRL");
-		return;
-	}
-	else perror("Se conecto algo que no es WORKER en ReduccionGlobal");
 }
 
 
@@ -155,7 +227,6 @@ solicitudRG* deserializacionRG(void* payload){
 	//tamStr - archRG - tamStr - programaRG - tamList - (tamStr - archTempRL - bool - tamStr -nodo - tamStr -ip - puerto)xtamList
 	int mov = 0;
 	int aux;
-	int tamList;
 	solicitudRG* datosRG = malloc(sizeof(solicitudRG));
 
 	memcpy(&aux,payload+mov,sizeof(int));
@@ -168,12 +239,12 @@ solicitudRG* deserializacionRG(void* payload){
 	datosRG->programaR = malloc(aux); //Aux contiene el tamanio de programaRG
 	memcpy(datosRG->programaR,payload+mov,aux);
 	mov += aux;
-	memcpy(&tamList,payload+mov,sizeof(int));
+	memcpy(&(datosRG->cantNodos),payload+mov,sizeof(int));
 	mov += sizeof(int);
 
 	datosRG->nodos = list_create();
 	int i;
-	for(i=0;i<tamList;i++){
+	for(i=0;i<(datosRG->cantNodos);i++){
 		nodoRG* nodoAgregar = malloc(sizeof(nodoRG));
 
 		memcpy(&aux,payload+mov,sizeof(int));
@@ -200,7 +271,6 @@ solicitudRG* deserializacionRG(void* payload){
 
 	}
 	return datosRG;
-
 }
 
 
@@ -349,13 +419,7 @@ void realizarReduccionLocal(nodoRL* data){
 	return;
 }
 
-void realizarReduccionGlobal(solicitudRG* data){
-	//char* strArchivosTemporales = listaAstringRG(data->nodos);
-	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("echo \"%s\" | .%s > %s",workerEncargado->archTempRL, data->programaR, data->archRG);
-	system(strToSys);
-	return;
-}
+
 
 void accionPadre(void* socketMaster){
 }
@@ -386,6 +450,8 @@ void accionHijo(void* socketM){
 		}
 		case REDGLOBALWORKER:{
 			solicitudRG* datosRG = deserializacionRG(paquete->Payload);
+
+			//FUNCIONES PARA LISTAS
 			bool obtenerEncargado(nodoRG* elemento){
 				return elemento->encargado;
 			}
@@ -393,19 +459,18 @@ void accionHijo(void* socketM){
 				if (!strcmp(elemento->worker.nodo,NOMBRE_NODO)) return true;
 				else false;
 			}
+			//FUNCIONES PARA LISTAS
 
 
-			workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado); //no hice malloc de workerEncargado, falla?
+
+			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
 
-			if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){
-
-				//Servidor(IP_NODO,PUERTO_WORKER,WORKER,accionSelect,RecibirHandshake); preguntar centu
-				realizarReduccionGlobal(datosRG);
-				boolAux =true;
-				if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de RG2");
+			if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){ //Es encargado
+				ServidorWorker(IP_NODO,PUERTO_WORKER,WORKER,socketMaster,workerEncargado,datosRG, RecibirPaqueteServidor);
 			}
-			else{
+			else{ //No lo es
+
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
 				FILE* archTemp = fopen(workerActual->archTempRL,"r");
 				char str[BUFFERSIZE];
@@ -413,8 +478,8 @@ void accionHijo(void* socketM){
 				while( fgets(str, BUFFERSIZE, archTemp)!=NULL ) {
 					if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
 				}
-				bool* ok = true;
-				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,ok,sizeof(bool), ARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
+				bool ok = true;
+				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
 				fclose(archTemp);
 			}

@@ -173,8 +173,10 @@ void MostrarRegistroTablaDeEstados(registroEstado* r){
 				r->job, r->master, r->nodo, etapa, r->archivoTemporal, estado);
 		break;
 	case REDUCCIONGLOBAL:
-			etapa = "Reducción global";
-			break;
+		etapa = "Reducción global";
+		printf("|| Job = %i || Master = %i || Etapa = %s || Archivo temporal = %s || Estado = %s ||\n\n",
+				r->job, r->master, etapa, r->archivoTemporal, estado);
+		break;
 	case ALMACENAMIENTOFINAL:
 			etapa = "Almacenamiento final";
 			break;
@@ -599,15 +601,11 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	free(rutaTemporalRL);
 }
 
-void realizarRG(t_list* nodos, int socketMaster){
-
-	printf("Empezando guachin!\n");
-
-
+void realizarRG(t_list* nodos, int idMaster, int idJob){
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
 	datosWorker* workerEncargado = list_get(lista,0);
-	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == socketMaster;}));
+	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->id == idMaster;}));
 	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", m->id);
 	int tamanio = sizeof(uint32_t) + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2 ;
 	void * datos = malloc(tamanio);
@@ -635,22 +633,19 @@ void realizarRG(t_list* nodos, int socketMaster){
 		datos+=strlen(r->archivoTemporal)+1;
 	}
 	datos-=tamanio;
-	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONGLOBAL);
+	EnviarDatosTipo(m->socket, YAMA, datos, tamanio, SOLICITUDREDUCCIONGLOBAL);
 	free(datos);
-	free(rutaTemporalRG);
 	list_destroy(lista);
-	list_destroy(nodos);
-	/*registroEstado* reg = malloc(sizeof(registroEstado));
-	reg->archivoTemporal = string_new();
-	strcpy(reg->archivoTemporal, rutaTemporalRL);
+	registroEstado* reg = malloc(sizeof(registroEstado));
+	reg->archivoTemporal = malloc(strlen(rutaTemporalRG)+1);
+	strcpy(reg->archivoTemporal, rutaTemporalRG);
 	reg->estado = ENPROCESO;
-	reg->etapa = REDUCCIONLOCAL;
+	reg->etapa = REDUCCIONGLOBAL;
 	reg->job = idJob;
 	reg->master = idMaster;
-	reg->nodo = string_new();
-	strcpy(reg->nodo, w->nodo);
 	list_add(tablaDeEstados, reg);
-	MostrarRegistroTablaDeEstados(reg);*/
+	MostrarRegistroTablaDeEstados(reg);
+	free(rutaTemporalRG);
 }
 
 void accion(void* socket){
@@ -746,7 +741,7 @@ void accion(void* socket){
 						//si todos están en estado finalizadook, puede hacer reducción local
 						if (list_all_satisfy(tablaFiltradaPorReduccionLocalYJob,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->estado == FINALIZADOOK;})))
 						{
-							realizarRG(tablaFiltradaPorReduccionLocalYJob, socketFD);
+							realizarRG(tablaFiltradaPorReduccionLocalYJob, rRL->master, rRL->job);
 						}
 						//list_destroy(tablaFiltradaPorReduccionLocalYJob);
 					}

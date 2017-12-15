@@ -629,9 +629,9 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	datosParaRG->nodos = list_create();
 
-	cantNodos = ((int*)datos)[0];
+	datosParaRG->cantNodos = ((int*)datos)[0];
 	int i;
-	for(i=0;i<cantNodos;i++){
+	for(i=0;i<(datosParaRG->cantNodos);i++){
 		nodoRG* nodo = malloc(sizeof(nodoRG));
 		nodo->worker.nodo = malloc(strlen(datos)+1);
 		strcpy(nodo->worker.nodo,datos);
