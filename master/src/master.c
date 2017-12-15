@@ -23,21 +23,12 @@ int contRGfallos;
 pthread_mutex_t mutex_Tfallos;
 pthread_mutex_t mutex_TActuales;
 pthread_mutex_t mutex_TRealizadas;
-
 pthread_mutex_t mutex_RLfallos;
 pthread_mutex_t mutex_RLActuales;
 pthread_mutex_t mutex_RLRealizadas;
-
 pthread_mutex_t mutex_RGfallos;
 pthread_mutex_t mutex_RGRealizadas;
-
-
 pthread_mutex_t mutex_listaJobs;
-
-
-
-
-
 
 t_list* duracionesJob;
 t_list* listaHilos;
@@ -113,6 +104,7 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 	memcpy(datos+mov,&nodoDeT->worker.puerto,sizeof(int));*/
 
 	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, TRANSFWORKER))) perror("Error al enviar datosT al worker");
+	free(datos);
 	return;
 }
 
@@ -150,6 +142,7 @@ void serializacionRLyEnvio(nodoRL* nodoDeRL, int socketWorker){
 	}
 
 	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, REDLOCALWORKER))) perror("Error al enviar datosRL al worker");
+	free(datos);
 	return;
 }
 
@@ -219,6 +212,7 @@ void serializacionRGyEnvio(solicitudRG* solRG,int socketWorker){
 		mov += sizeof(int);
 	}
 	if(!(EnviarDatosTipo(socketWorker,MASTER,datos,size,REDGLOBALWORKER)))perror("Error al enviar datosRG al Worker");
+	free(datos);
 }
 
 void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker){//TODO terminar el camino de AF
@@ -240,6 +234,7 @@ void serializacionAFyEnvio(char* resultRG, char* rutaArchivoF, int socketWorker)
 
 
 	//if(!(EnviarDatosTipo(socketWorker,MASTER,datos,size,FINALIZAR))) perror("Error al enviar datosAF al worker");
+	//free(datos);
 
 
 }
@@ -268,6 +263,7 @@ void serializacionDeRTAyEnvio(rtaEstado* resultado,int socketYAMA, tipo header){
 	mov += sizeof(bool);
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, size, header))) perror("No se puedo enviar validacion del Worker a YAMA");
+	free(datos);
 }
 
 
@@ -302,6 +298,7 @@ int obtenerBloqueDeRuta(char* rutaTemporal){
 	// 0123456
 	char** array  = string_split(rutaTemporal, "b");
 	int resultado = atoi(array[1]);
+	free(array);
 	return resultado;
 }
 
@@ -446,6 +443,7 @@ void accionHilo(void* solicitud){
 			else{
 				perror("Error en el header, se esperaba VALIDACIONWORKER"); //Este caso ocurriria por error de programacion, no se contempla para notificar a YAMA
 			}
+			free(datosRL);
 		}
 		break;
 
@@ -469,7 +467,7 @@ void accionHilo(void* solicitud){
 		}
 		nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 
-		rtaEstado* resultado = malloc(sizeof(resultado));
+		rtaEstado* resultado = malloc(sizeof(rtaEstado));
 		resultado->bloque = -1;
 		resultado->nodo = malloc(strlen(workerEncargado->worker.nodo)+1);
 		strcpy(resultado->nodo,workerEncargado->worker.nodo);
@@ -508,11 +506,13 @@ void accionHilo(void* solicitud){
 			}else{
 				perror("Error en el header, se esperaba VALIDACIONWORKER");
 			}
+			free(datosRG);
 		}
 		break;
 	}
 
 	}
+	free(paquete);
 }
 
 
@@ -560,6 +560,10 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 
 	}
 	datos -= paquete->header.tamPayload;
+
+	if (paquete->Payload != NULL)
+		free(paquete->Payload);
+	free(paquete);
 }
 
 
@@ -600,17 +604,19 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaRL);
 	list_add(listaHilos, itemNuevo);
 
-
+	if (paquete->Payload != NULL)
+		free(paquete->Payload);
+	free(paquete);
 }
 
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	int cantNodos;
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
-	char* nodoEncargado = string_new();
+	char* nodoEncargado = malloc(strlen(datos)+1);
 	strcpy(nodoEncargado,datos);
 	datos += strlen(datos)+1;
-	datosParaRG->archRG = string_new();
+	datosParaRG->archRG = malloc(strlen(datos)+1);
 	strcpy(datosParaRG->archRG,datos);
 	datos += strlen(datos)+1;
 
@@ -620,15 +626,15 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	int i;
 	for(i=0;i<cantNodos;i++){
 		nodoRG* nodo = malloc(sizeof(nodoRG));
-		nodo->worker.nodo = string_new();
+		nodo->worker.nodo = malloc(strlen(datos)+1);
 		strcpy(nodo->worker.nodo,datos);
 		datos += strlen(nodo->worker.nodo)+1;
-		nodo->worker.ip = string_new();
+		nodo->worker.ip = malloc(strlen(datos)+1);
 		strcpy(nodo->worker.ip,datos);
 		datos += strlen(nodo->worker.ip)+1;
 		nodo->worker.puerto = ((int*)datos)[0];
 		datos += sizeof(int);
-		nodo->archTempRL = string_new();
+		nodo->archTempRL = malloc(strlen(datos)+1);
 		strcpy(nodo->archTempRL,datos);
 		datos += strlen(nodo->archTempRL)+1;
 
@@ -645,7 +651,7 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 		return elem->encargado;
 	}
 
-	datosParaRG->programaR = string_new();
+	datosParaRG->programaR = malloc(strlen(programaR)+1);
 	strcpy(datosParaRG->programaR,programaR);
 	datosParaRG->header = REDUCCIONGLOBAL;
 
@@ -654,6 +660,10 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	itemNuevo->worker = workerEncargado->worker;
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaRG);
 	list_add(listaHilos, itemNuevo);
+
+	if (paquete->Payload != NULL)
+		free(paquete->Payload);
+	free(paquete);
 
 }
 void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
@@ -726,9 +736,12 @@ int main(int argc, char* argv[]){
 				realizarReduccionGlobal(paquete, programaReduc);
 				break;
 			}
+
 			//case FINALIZAR:
 
 			realizarAlmacenamientoFinal(paquete,archivoFinal);
+
+
 
 			//Aca deberia haber pthread join del AF
 
@@ -745,7 +758,7 @@ int main(int argc, char* argv[]){
 				bool esTransformacion(duracionJob* elem){
 					return (elem->header==TRANSFORMACION);
 				}
-				t_list* listaTransformacion = list_create();
+				t_list* //listaTransformacion = list_create();   --- si vas a llenar la lista a partir de un list_filter no hagas un create
 				listaTransformacion = list_filter(duracionesJob,(void*)esTransformacion);
 				double tiempoTotalT = sumListaDuraciones(listaTransformacion);
 
@@ -759,7 +772,7 @@ int main(int argc, char* argv[]){
 				bool esReduccionL(duracionJob* elem){
 					return (elem->header==REDUCCIONLOCAL);
 				}
-				t_list* listaReduccionLocal = list_create();
+				t_list* //listaReduccionLocal = list_create(); --- si vas a llenar la lista a partir de un list_filter no hagas un create
 				listaReduccionLocal = list_filter(duracionesJob,(void*)esReduccionL);
 				double tiempoTotalRL = sumListaDuraciones(listaReduccionLocal);
 
@@ -773,7 +786,7 @@ int main(int argc, char* argv[]){
 				bool esReduccionG(duracionJob* elem){
 					return (elem->header==REDUCCIONGLOBAL);
 				}
-				t_list* listaReduccionGlobal = list_create();
+				t_list* //listaReduccionGlobal = list_create();  --- si vas a llenar la lista a partir de un list_filter no hagas un create
 				listaReduccionGlobal = list_filter(duracionesJob,(void*)esReduccionG);
 				double tiempoTotalRG = sumListaDuraciones(listaReduccionGlobal);
 
