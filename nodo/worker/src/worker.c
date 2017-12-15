@@ -332,12 +332,10 @@ void realizarReduccionLocal(nodoRL* data){
 	char* strArchTemp = listAsString(data->listaArchivosTemporales);
 
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("pwd && sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
-	//printf("%s",(char*)list_get(data->listaArchivosTemporales,0));
-	//printf("%s",strArchTemp);
-	//printf("%s", data->programaR);
+	char* strToSys = string_from_format("sort -m %s | .%s > %s",strArchTemp, data->programaR, data->archivoTemporal);
 	fflush(stdout);
 	system(strToSys);
+	printf("Fin RL\n");
 	return;
 }
 
@@ -372,7 +370,8 @@ void accionHijo(void* socketM){
 		case REDLOCALWORKER:{
 			nodoRL* datosRL = deserializacionRL(paquete->Payload);
 			realizarReduccionLocal(datosRL);
-
+			boolAux =true;
+			if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de T");
 			break;
 		}
 		case REDGLOBALWORKER:{

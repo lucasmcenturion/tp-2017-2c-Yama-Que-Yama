@@ -74,21 +74,25 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 	//Bloque - BytesOcupados - tamStr - programaT - tamStr - archivoTemp
 	int mov = 0;
 	int sizeAux;
-	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1+strlen(nodoDeT->worker.nodo)+1;//+strlen(nodoDeT->worker.ip)+strlen(nodoDeT->worker.nodo)+sizeof(int);
+	int size = sizeof(int)*2+sizeof(int)+strlen(nodoDeT->programaT)+1+sizeof(int)+strlen(nodoDeT->archivoTemporal)+1;//+strlen(nodoDeT->worker.nodo)+1;
 	void* datos = malloc(size);
 
 	memcpy(datos,&nodoDeT->bloque,sizeof(int));
 	mov += sizeof(int);
+
 	memcpy(datos+mov,&nodoDeT->bytesOcupados,sizeof(int));
 	mov += sizeof(int);
+
 	sizeAux = strlen(nodoDeT->programaT)+1;
 	memcpy(datos+mov, &sizeAux,sizeof(int));
 	mov += sizeof(int);
+
 	memcpy(datos+mov,nodoDeT->programaT,strlen(nodoDeT->programaT)+1);
 	mov+=strlen(nodoDeT->programaT)+1;
 	sizeAux = strlen(nodoDeT->archivoTemporal)+1;
 	memcpy(datos+mov,&sizeAux,sizeof(int));
 	mov += sizeof(int);
+
 	memcpy(datos+mov,nodoDeT->archivoTemporal,strlen(nodoDeT->archivoTemporal)+1);
 	mov+=strlen(nodoDeT->archivoTemporal)+1;
 	/*sizeAux = strlen(nodoDeT->worker.nodo) +1;
@@ -96,12 +100,6 @@ void serializacionTyEnvio(nodoT* nodoDeT, int socketWorker){
 	mov += sizeof(int);
 	memcpy(datos+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo)+1);
 	mov += strlen(nodoDeT->worker.nodo)+1;*/
-
-	/*memcpy(datos+mov,nodoDeT->worker.ip,strlen(nodoDeT->worker.ip));
-	mov+=strlen(nodoDeT->worker.ip);
-	memcpy(datos+mov,nodoDeT->worker.nodo,strlen(nodoDeT->worker.nodo));
-	mov+=strlen(nodoDeT->worker.nodo);
-	memcpy(datos+mov,&nodoDeT->worker.puerto,sizeof(int));*/
 
 	if(!(EnviarDatosTipo(socketWorker, MASTER , datos, size, TRANSFWORKER))) perror("Error al enviar datosT al worker");
 	free(datos);
@@ -716,8 +714,9 @@ int main(int argc, char* argv[]){
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
-	Paquete* paquete = malloc(sizeof(Paquete));
+
 	while(finalizado!=true){
+		Paquete* paquete = malloc(sizeof(Paquete));
 		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<=0) {
 			perror("Error al recibir respuesta de YAMA");
 			exit(-1);
