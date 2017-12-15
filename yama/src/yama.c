@@ -600,6 +600,10 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 }
 
 void realizarRG(t_list* nodos, int socketMaster){
+
+	printf("Empezando guachin!\n");
+
+
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
 	datosWorker* workerEncargado = list_get(lista,0);
@@ -744,7 +748,7 @@ void accion(void* socket){
 						{
 							realizarRG(tablaFiltradaPorReduccionLocalYJob, socketFD);
 						}
-						list_destroy(tablaFiltradaPorReduccionLocalYJob);
+						//list_destroy(tablaFiltradaPorReduccionLocalYJob);
 					}
 					else
 					{

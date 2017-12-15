@@ -311,13 +311,12 @@ void realizarTransformacion(nodoT* data){
 	printf("Se comienza transformacion para bloque :: %d bytes::%d\n",bloqueAtrabajar,data->bytesOcupados);
 	char* pathPrograma = string_from_format("/home/utnso/Escritorio%s",data->programaT);
 	char* path = string_from_format("/home/utnso/Escritorio/%s/temporales/tmpWorkerN%d",NOMBRE_NODO,bloqueAtrabajar);
-	printf("%s :: %s\n",path,pathPrograma);
 	FILE* tempFD = fopen(path,"w");
 	fwrite(bufferTexto,sizeof(char),data->bytesOcupados,tempFD);
 	fclose(tempFD);
 
 
-	char* strToSys = string_from_format("cat %s | %s | sort -d - > %s",path,pathPrograma,data->archivoTemporal);
+	char* strToSys = string_from_format("cat %s | %s | sort > %s",path,pathPrograma,data->archivoTemporal); //puede ser que sort necesite -d
 
 
 	//char* bufferTexto = getBloque(data->bloque,data->bytesOcupados);
@@ -340,8 +339,7 @@ void realizarReduccionLocal(nodoRL* data){
 
 
 	chmod(pathPrograma, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("sort -m %s | %s > %s",strArchTemp, pathPrograma, data->archivoTemporal);
-	fflush(stdout);
+	char* strToSys = string_from_format("cat %s | sort | %s > %s",strArchTemp, pathPrograma, data->archivoTemporal);
 	system(strToSys);
 	printf("Fin RL\n");
 

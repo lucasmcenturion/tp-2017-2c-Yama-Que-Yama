@@ -452,6 +452,8 @@ void accionHilo(void* solicitud){
 	}
 
 	case REDUCCIONGLOBAL:{
+
+		printf("Se llego a redGlobal\n");
 		duracionJob* duracionDelJob = malloc(sizeof(duracionJob));
 		duracionDelJob->header = REDUCCIONGLOBAL;
 		time_t inicio = time(0);
