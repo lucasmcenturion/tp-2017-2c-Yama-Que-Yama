@@ -479,7 +479,7 @@ void accionHilo(void* solicitud){
 		resultado->nodo = malloc(strlen(workerEncargado->worker.nodo)+1);
 		strcpy(resultado->nodo,workerEncargado->worker.nodo);
 		resultado->exito = true;
-		resultado->idJob = obtenerIdJobDeRuta(datosRG->archRG);
+		resultado->idJob = 2;//obtenerIdJobDeRuta(datosRG->archRG);
 
 		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
 
@@ -622,11 +622,14 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
+
 	int idJob = *((uint32_t*)datos);
 	datos += sizeof(uint32_t);
+
 	char* nodoEncargado = malloc(strlen(datos)+1);
 	strcpy(nodoEncargado,datos);
 	datos += strlen(datos)+1;
+
 	datosParaRG->archRG = malloc(strlen(datos)+1);
 	strcpy(datosParaRG->archRG,datos);
 	datos += strlen(datos)+1;
@@ -634,17 +637,22 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	datosParaRG->nodos = list_create();
 
 	datosParaRG->cantNodos = ((int*)datos)[0];
+	datos += sizeof(int);
+
 	int i;
 	for(i=0;i<(datosParaRG->cantNodos);i++){
 		nodoRG* nodo = malloc(sizeof(nodoRG));
 		nodo->worker.nodo = malloc(strlen(datos)+1);
 		strcpy(nodo->worker.nodo,datos);
 		datos += strlen(nodo->worker.nodo)+1;
+
 		nodo->worker.ip = malloc(strlen(datos)+1);
 		strcpy(nodo->worker.ip,datos);
 		datos += strlen(nodo->worker.ip)+1;
+
 		nodo->worker.puerto = ((int*)datos)[0];
 		datos += sizeof(int);
+
 		nodo->archTempRL = malloc(strlen(datos)+1);
 		strcpy(nodo->archTempRL,datos);
 		datos += strlen(nodo->archTempRL)+1;

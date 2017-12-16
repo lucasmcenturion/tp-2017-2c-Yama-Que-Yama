@@ -9,7 +9,10 @@ int socketFS;
 t_list* listaDeProcesos;
 bool end;
 
+nodoRG* workerEncargado;
+
 pthread_mutex_t mutex_mmap;
+pthread_mutex_t mutex_archivo;
 
 void obtenerValoresArchivoConfiguracion(char* valor) {
 	char* a = string_from_format("/home/utnso/workspace/tp-2017-2c-Yama-Que-Yama/nodo/nodo%sCFG.txt", valor);
@@ -274,7 +277,6 @@ solicitudRG* deserializacionRG(void* payload){
 		memcpy(&(nodoAgregar->worker.puerto),payload+mov,sizeof(int));
 		mov += sizeof(int);
 
-		printf("Des: %s Puerto: %d",nodoAgregar->worker.nodo,nodoAgregar->worker.puerto);
 		list_add(datosRG->nodos,nodoAgregar);
 
 	}
@@ -463,25 +465,85 @@ void accionHijo(void* socketM){
 			}
 			//FUNCIONES PARA LISTAS
 
-			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
+			workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
 
 			printf("Soy el encargado\n");
-			int i;
+			int i=0;
 			int tamList = list_size(datosRG->nodos);
 			printf("Encargado:: Puerto:%d Nodo:%s \n",workerEncargado->worker.puerto,workerEncargado->worker.nodo);
 
+
+
+			void funcHijo(nodoRG* nodo){
+				printf("Tratando de conectar a Port::%d\n",nodo->worker.puerto);
+				fflush(stdout);
+				int socketWorker = ConectarAServidor(nodo->worker.puerto,nodo->worker.ip,WORKER,WORKER,RecibirHandshake);
+				char* buffer = malloc(strlen(nodo->archTempRL)+1);
+				strcpy(buffer,nodo->archTempRL);
+				printf("Se envian datos al worker conectado\n");
+				if(!(EnviarDatosTipo(socketWorker, WORKER ,buffer, strlen(nodo->archTempRL)+1, SOLICITUDARCHTEMP))) perror("Error al enviar archRLTemp al worker encargado");
+				free(buffer);
+
+				Paquete* paquetito = malloc(sizeof(Paquete));
+
+				RecibirPaqueteCliente(socketWorker,WORKER,paquetito);
+
+				switch(paquetito->header.tipoMensaje){
+
+				case ARCHIVOTEMPRL:{
+				printf("Recibiendo Archivos temporales\n");
+				void* datos = paquetito->Payload;
+				buffer = malloc(paquetito->header.tamPayload);
+				strcpy(buffer,datos);
+				pthread_mutex_lock(&mutex_archivo);
+				printf("Guardando...\n");
+				//char* strToSys = string_from_format("echo \"%s\" | sort - %s -o %s",buffer,workerEncargado->archTempRL,workerEncargado->archTempRL);
+				printf("%s",workerEncargado->archTempRL);
+				FILE* fd = txt_open_for_append(workerEncargado->archTempRL);
+				txt_write_in_file(fd,buffer);
+				txt_close_file(fd);
+				char* strToSys = string_from_format("sort %s -o %s",workerEncargado->archTempRL,workerEncargado->archTempRL);
+				system(strToSys);
+				pthread_mutex_unlock(&mutex_archivo);
+
+				free(buffer);
+				free(strToSys);
+				free(datos);
+				free(paquetito);
+				break;
+				}
+				case FINARCHIVOTEMPRL:{
+
+				}
+				}
+
+
+			}
+
+
+			pid_t pids[tamList];
+			pid_t wpid;
+			int status = 0;
 			for(i=0;i<tamList;i++){
 				nodoRG* nodo = list_get(datosRG->nodos,i);
 				if(!(strcmp(nodo->worker.nodo,workerEncargado->worker.nodo)==0)){
-
-					printf("Tratando de conectar a Port::%d\n",workerEncargado->worker.puerto);
-					fflush(stdout);
-					//int socketWorker = ConectarAServidor(nodo->worker.puerto,nodo->worker.ip,WORKER,WORKER,RecibirHandshake);
-					bool exito = true;
-					//if(!(EnviarDatosTipo(socketWorker, WORKER ,&exito, sizeof(bool), SOLICITUDARCHTEMP))) perror("Error al enviar archRLTemp al worker encargado");
+					if((pids[i] = fork())<0){
+						perror("fork");
+					}
+					else if (pids[i]==0){
+						funcHijo(nodo);
+						exit(0);
+					}
 				}
 			}
+			while ((wpid = wait(&status)) > 0);
+			printf("Realizar RG\n");
+			break;
+
+
+				}
+
 
 			/*if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){ //Es encargado
 				ServidorWorker(IP_NODO,PUERTO_WORKER,WORKER,socketMaster,workerEncargado,datosRG, RecibirPaqueteServidor);
@@ -502,9 +564,9 @@ void accionHijo(void* socketM){
 				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
 				fclose(archTemp);
-			}*/
+			}
 			break;
-		}
+		}*/
 
 		case 2:{ //FINALIZAR TODO terminar camino de AF
 			//Deserializo lo que me mando Master
@@ -535,11 +597,36 @@ void accionHijo(void* socketM){
 
 
 	case 'W': {
-		RecibirPaqueteServidor(socketMaster,WORKER,paquete);
-		printf("Worker conectado\n");
 		switch(paquete->header.tipoMensaje){
 		case SOLICITUDARCHTEMP:{
-			printf("EUREKA!\n");
+
+			void* datosRecibidos = paquete->Payload;
+			char *buffer = malloc(strlen(datosRecibidos)+1);
+			strcpy(buffer,datosRecibidos);
+
+			int archTemp = open(buffer,O_RDONLY);
+			struct stat st;
+			int tamArchivo;
+			stat(buffer,&st);
+			tamArchivo = st.st_size;
+			void* puntero;
+
+			char* bufferTexto = malloc(tamArchivo);
+			if ((puntero = mmap(NULL , tamArchivo, PROT_READ , MAP_SHARED, archTemp , 0)) == (caddr_t)(-1)){
+				printf("ERROR en el mmap()\n");
+			}else{
+				memcpy(bufferTexto,puntero,tamArchivo);
+			}
+			munmap(puntero,tamArchivo);
+			if(!(EnviarDatosTipo(socketMaster, WORKER ,bufferTexto, st.st_size, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+
+			bool ok = true;
+			printf("Se envian confirmacion al encargado\n");
+			if(!(EnviarDatosTipo(socketMaster, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
+
+			free(datosRecibidos);
+			free(buffer);
+			fclose(archTemp);
 			break;
 		}
 		}
@@ -551,6 +638,7 @@ void accionHijo(void* socketM){
 
 int main(int argc, char* argv[]){
 	pthread_mutex_init(&mutex_mmap, NULL);
+	pthread_mutex_init(&mutex_archivo,NULL);
 	obtenerValoresArchivoConfiguracion(argv[1]);
 	imprimirArchivoConfiguracion();
 	//socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake); Estaba rompiendo
