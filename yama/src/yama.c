@@ -244,6 +244,7 @@ void EnviarBloquesAMaster(t_list* lista, master* m){
 	}
 	datosAEnviar -= tamanioAEnviar;
 	EnviarDatosTipo(m->socket, YAMA, datosAEnviar, tamanioAEnviar, SOLICITUDTRANSFORMACION);
+	escribir_log("YAMA", "yama", "Se envía solicitud de transformación a master", "info");
 
 	/*
 	char* r = armarRutaTemporal(p,m,b->numero_bloque);
@@ -402,6 +403,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 		}while(!salio);
 	}
 	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
+	escribir_log("YAMA", "yama", "Se ha planificado", "info");
 	list_destroy(lista);
 	free(ALGORITMO_BALANCEO_ACTUAL);
 	usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
@@ -411,6 +413,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 	while(RecibirPaqueteCliente(socketFS,YAMA,paquete) > 1)
 	{
 		if(paquete->header.tipoMensaje == NUEVOWORKER){
+			escribir_log("YAMA", "yama", "Un nodo se ha conectado", "info");
 			void* datos = paquete->Payload;
 			int tamanio = paquete->header.tamPayload;
 			datosWorker* worker = malloc(sizeof(datosWorker));
@@ -456,6 +459,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		}
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
+			escribir_log("YAMA", "yama", "Un nodo se ha desconectado", "alerta");
 			void liberarDatosWorker(datosWorker* w){
 					free(w->ip);
 					free(w->nodo);
@@ -476,6 +480,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		}
 		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
 		{
+
 			//Respuesta de FS
 			//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
 			void* datos = paquete->Payload;
@@ -522,6 +527,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 void RealizarReplanificacion(registroEstado* reg, int socket){
 	datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, reg->nodoConOtraCopia);}));
 	if (w == NULL){
+		escribir_log("YAMA", "yama", "No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado", "error");
 		printf("No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado.");
 		fflush(stdout);
 	}
@@ -540,6 +546,7 @@ void RealizarReplanificacion(registroEstado* reg, int socket){
 		datos += strlen(reg->archivoTemporal) + 1;
 		datos -= tamanioDatos;
 		EnviarDatosTipo(socket, YAMA, datos, tamanioDatos, SOLICITUDTRANSFORMACION);
+		escribir_log("YAMA", "yama", "Se ha replanificado y se envia la nueva solicitud de transformación a master", "info");
 		free(datos);
 
 		reg->estado = ENPROCESO;
@@ -587,6 +594,7 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	}
 	datos-=tamanio;
 	EnviarDatosTipo(socketMaster, YAMA, datos, tamanio, SOLICITUDREDUCCIONLOCAL);
+	escribir_log("YAMA", "yama", "Se envia la solicitud de reducción local a master", "info");
 	free(datos);
 	registroEstado* reg = malloc(sizeof(registroEstado));
 	reg->archivoTemporal = malloc(strlen(rutaTemporalRL) + 1);
@@ -645,6 +653,7 @@ void realizarRG(t_list* nodos, int idMaster, int idJob){
 	}
 	datos-=tamanio;
 	EnviarDatosTipo(m->socket, YAMA, datos, tamanio, SOLICITUDREDUCCIONGLOBAL);
+	escribir_log("YAMA", "yama", "Se envia la solicitud de reducción global a master", "info");
 	free(datos);
 	list_destroy(lista);
 	registroEstado* reg = malloc(sizeof(registroEstado));
@@ -680,6 +689,7 @@ void accion(void* socket){
 					break;
 				case SOLICITUDTRANSFORMACION:
 				{
+					escribir_log("YAMA", "yama", "Un master ha solicitado realizar un job.", "info");
 					paquete.Payload = realloc(paquete.Payload,paquete.header.tamPayload+sizeof(uint32_t));
 					*((uint32_t*)(paquete.Payload+paquete.header.tamPayload)) = socketFD;
 					EnviarDatosTipo(socketFS, YAMA, paquete.Payload, paquete.header.tamPayload+sizeof(uint32_t), SOLICITUDBLOQUESYAMA);
@@ -703,6 +713,9 @@ void accion(void* socket){
 					registroEstado* rT = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->bloque == bloqueT && ((registroEstado*)item1)->estado == TRANSFORMACION && ((registroEstado*)item1)->job == idJobT;}));
 					if (exitoT)
 					{
+						char* msg = string_from_format("La transformación del job %i del master %i para el bloque %i ha terminado exitosamente.", idJobT, rT->master, bloqueT);
+						escribir_log("YAMA", "yama", msg, "info");
+						free(msg);
 						rT->estado = FINALIZADOOK;
 						datosWorker* wT = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, rT->nodo);}));
 						wT->contTareasRealizadas++;
@@ -718,6 +731,9 @@ void accion(void* socket){
 					}
 					else
 					{
+						char* msg = string_from_format("La transformación del job %i del master %i para el bloque %i no ha podido terminarse.", idJobT, rT->master, bloqueT);
+						escribir_log("YAMA", "yama", msg, "error");
+						free(msg);
 						rT->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rT);
 						printf("Debido a un la desconexion del nodo asignado en la transformación del bloque  %i del job %i, "
@@ -743,6 +759,9 @@ void accion(void* socket){
 					registroEstado* rRL = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return !strcmp(((registroEstado*)item1)->nodo,nodoRL) && ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->job == idJobRL;}));
 					if (exitoRL)
 					{
+						char* msg = string_from_format("La reducción del job %i del master %i para el %s ha terminado", idJobRL, rRL->master, nodoRL);
+						escribir_log("YAMA", "yama", msg, "info");
+						free(msg);
 						rRL->estado = FINALIZADOOK;
 						datosWorker* wRL = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, rRL->nodo);}));
 						wRL->contTareasRealizadas++;
@@ -758,6 +777,9 @@ void accion(void* socket){
 					}
 					else
 					{
+						char* msg = string_from_format("La reducción del job %i del master %i para el %s no ha podido terminar.", idJobRL, rRL->master, nodoRL);
+						escribir_log("YAMA", "yama", msg, "error");
+						free(msg);
 						printf("Falló la reducción local. Se abortará el job.");
 						fflush(stdout);
 						rRL->estado = ERROR;
@@ -806,6 +828,7 @@ void rutina(int n){
 	DISP_BASE = config_get_int_value(arch, "DISP_BASE");
 	printf("Se ha recargado la configuración.\nEstos son sus nuevos valores:\n");
 	fflush(stdout);
+	escribir_log("YAMA", "yama", "Se recargó la configuración mediante la señal SIGUSR1", "info");
 	imprimirArchivoConfiguracion();
 }
 
