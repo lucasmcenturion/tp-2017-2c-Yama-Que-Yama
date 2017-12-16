@@ -609,7 +609,7 @@ void accionHilo(void* solicitud){
 
 		resultado->exito = serializacionRGyEnvio(datosRG,socketWorker);
 
-		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
+		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<=0){
 			perror("Error: no se recibio validacion del worker en RG");//manejo desconexion
 
 			pthread_mutex_lock(&mutex_log);
@@ -897,7 +897,28 @@ void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO te
 	serializacionAFyEnvio(datosAF,socketWorker);
 	//Espero conf de worker
 
-/*
+	if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<= 0) {
+		perror("Error: No se recibio validacion del worker en Almacenado Final"); //manejo desconexion
+
+		pthread_mutex_lock(&mutex_log);
+		escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Almacenado Final, se envia a Yama para replanificar","error");
+		pthread_mutex_unlock(&mutex_log);
+
+	}
+	else {
+		if(paquete->header.tipoMensaje == VALIDACIONWORKER){
+			if((bool*)paquete->Payload) {
+				pthread_mutex_lock(&mutex_log);
+				escribir_log("log_master","master","Se realizo exitosamente el Almacenado Final, se envia notificacion a Yama","info");
+				pthread_mutex_unlock(&mutex_log);
+
+			}
+			else {
+				perror("Worker notifico que hubo una falla"); //no contemplado en Worker
+			}
+		}
+	}
+	/*
 	pthread_mutex_lock(&mutex_log);
 	escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Transformacion, se envia a Yama para replanificar","error");
 	pthread_mutex_unlock(&mutex_log);*/
@@ -986,12 +1007,12 @@ int main(int argc, char* argv[]){
 			}
 		}
 	}
-		list_destroy_and_destroy_elements(listaHilos, LAMBDA(void _(void* elem) {
-			pthread_join(((hiloWorker*)elem)->hilo, NULL);
-			free(elem); }));
-		list_destroy_and_destroy_elements(duracionesJob,free);
-		free(YAMA_IP);
+	list_destroy_and_destroy_elements(listaHilos, LAMBDA(void _(void* elem) {
+		pthread_join(((hiloWorker*)elem)->hilo, NULL);
+		free(elem); }));
+	list_destroy_and_destroy_elements(duracionesJob,free);
+	free(YAMA_IP);
 
-		return 0;
-	}
+	return 0;
+}
 
