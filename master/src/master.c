@@ -30,6 +30,8 @@ pthread_mutex_t mutex_RGfallos;
 pthread_mutex_t mutex_RGRealizadas;
 pthread_mutex_t mutex_listaJobs;
 
+pthread_mutex_t mutex_log;
+
 t_list* duracionesJob;
 t_list* listaHilos;
 
@@ -71,6 +73,12 @@ double sumListaDuraciones(t_list* duraciones){
 }
 
 bool metricas(int tiempoInicioPrograma){
+
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","se imprimen metricas","info");
+	pthread_mutex_unlock(&mutex_log);
+
 	double tiempoDemoradoJobCompleto = difftime(time(0),tiempoInicioPrograma);
 
 	printf("\nSe procede a mostrar las metricas del Job:\n\n");
@@ -423,11 +431,19 @@ void accionHilo(void* solicitud){
 		printf("nodo:%s y bloque %i\n", resultado->nodo, resultado->bloque);
 		resultado->idJob = obtenerIdJobDeRuta(datosT->archivoTemporal);
 
+		pthread_mutex_lock(&mutex_log);
+		escribir_log("log_master","master","Se envia la transformacion a Worker","info");
+		pthread_mutex_unlock(&mutex_log);
+
 		int socketWorker = ConectarAServidor(datosT->worker.puerto, datosT->worker.ip, WORKER, MASTER, RecibirHandshake);
 		resultado->exito = serializacionTyEnvio(datosT,socketWorker);
 
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<= 0) {
 			perror("Error: No se recibio validacion del worker en T"); //manejo desconexion
+
+			pthread_mutex_lock(&mutex_log);
+			escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Transformacion, se envia a Yama para replanificar","error");
+			pthread_mutex_unlock(&mutex_log);
 
 			resultado->exito = false;
 			serializacionDeRTAyEnvio(resultado,socketYAMA,FINTRANSFORMACION);
@@ -444,6 +460,10 @@ void accionHilo(void* solicitud){
 				if((bool*)paquete->Payload) {
 
 					duracionDelJob->time = difftime(time(0),inicio);
+
+					pthread_mutex_lock(&mutex_log);
+					escribir_log("log_master","master","Se realizo exitosamente la transformacion, se envia notificacion a Yama","info");
+					pthread_mutex_unlock(&mutex_log);
 
 					pthread_mutex_lock(&mutex_listaJobs);
 					list_add(duracionesJob,duracionDelJob);
@@ -493,12 +513,22 @@ void accionHilo(void* solicitud){
 		strcpy(resultado->nodo,datosRL->worker.nodo);
 		resultado->idJob = datosRL->idJob;
 
+
+		pthread_mutex_lock(&mutex_log);
+		escribir_log("log_master","master","Se envia la reduccionLocal a Worker","info");
+		pthread_mutex_unlock(&mutex_log);
+
 		int socketWorker = ConectarAServidor(datosRL->worker.puerto, datosRL->worker.ip, WORKER, MASTER, RecibirHandshake);
 
 		resultado->exito = serializacionRLyEnvio(datosRL,socketWorker);
 
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<=0){
 			perror("Error: No se recibio validacion del worker en RL");//manejo desconexion
+
+			pthread_mutex_lock(&mutex_log);
+			escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Reduccion Local, se envia a Yama para replanificar","error");
+			pthread_mutex_unlock(&mutex_log);
+
 
 			resultado->exito = false;
 			serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONLOCAL);
@@ -515,6 +545,11 @@ void accionHilo(void* solicitud){
 			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 				if((bool*)paquete->Payload) {
 					duracionDelJob->time = difftime(time(0),inicio);
+
+
+					pthread_mutex_lock(&mutex_log);
+					escribir_log("log_master","master","Se realizo exitosamente la reduccion Local, se envia notificacion a Yama","info");
+					pthread_mutex_unlock(&mutex_log);
 
 					pthread_mutex_lock(&mutex_listaJobs);
 					list_add(duracionesJob,duracionDelJob);
@@ -566,12 +601,20 @@ void accionHilo(void* solicitud){
 
 		resultado->idJob = datosRG->idJob;
 
+		pthread_mutex_lock(&mutex_log);
+		escribir_log("log_master","master","Se envia la Reduccion Global a Worker","info");
+		pthread_mutex_unlock(&mutex_log);
+
 		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
 
 		resultado->exito = serializacionRGyEnvio(datosRG,socketWorker);
 
 		if(RecibirPaqueteCliente(socketWorker, MASTER, paquete)<0){
 			perror("Error: no se recibio validacion del worker en RG");//manejo desconexion
+
+			pthread_mutex_lock(&mutex_log);
+			escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Reduccion Global, se envia a Yama para replanificar","error");
+			pthread_mutex_unlock(&mutex_log);
 
 			resultado->exito = false;
 			serializacionDeRTAyEnvio(resultado,socketYAMA,FINREDUCCIONGLOBAL);
@@ -583,6 +626,10 @@ void accionHilo(void* solicitud){
 			if(paquete->header.tipoMensaje == VALIDACIONWORKER){
 				if((bool*)paquete->Payload) {
 					duracionDelJob->time = difftime(time(0),inicio);
+
+					pthread_mutex_lock(&mutex_log);
+					escribir_log("log_master","master","Se realizo exitosamente la Reduccion Global, se envia notificacion a Yama","info");
+					pthread_mutex_unlock(&mutex_log);
 
 					pthread_mutex_lock(&mutex_listaJobs);
 					list_add(duracionesJob,duracionDelJob);
@@ -611,6 +658,11 @@ void accionHilo(void* solicitud){
 
 
 void realizarTransformacion(Paquete* paquete, char* programaT){
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se recibe respuesta de Transformacion de Yama, comienza Deserializado...","info");
+	pthread_mutex_unlock(&mutex_log);
+
 	void* datos = paquete->Payload;
 
 	int cantBloques = ((uint32_t*)datos)[0];
@@ -646,6 +698,14 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 		strcpy(datosParaT->programaT,programaT);
 		datosParaT->header = TRANSFORMACION;
 
+
+		pthread_mutex_lock(&mutex_log);
+		escribir_log("log_master","master","Se deserializo correctamente:","info");
+		char* forLog = string_from_format("Nodo: %s   Puerto: %d   IP: %s   Bloque: %d   BytesOcupados: %d",datosParaT->worker.nodo,datosParaT->worker.puerto,datosParaT->worker.ip,datosParaT->bloque,datosParaT->bytesOcupados);
+		escribir_log("log_master","master",forLog,"info");
+		free(forLog);
+		pthread_mutex_unlock(&mutex_log);
+
 		pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaT);
 		list_add(listaHilos, itemNuevo);
 
@@ -660,6 +720,11 @@ void realizarTransformacion(Paquete* paquete, char* programaT){
 
 
 void realizarReduccionLocal(Paquete* paquete, char* programaR){
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se recibe solicitud de Reduccion Local de Yama, comienza Deserializado...","info");
+	pthread_mutex_unlock(&mutex_log);
+
 	nodoRL* datosParaRL = malloc(sizeof(nodoRL));
 	void* datos = paquete->Payload;
 	int cantArchTemp = ((int*)datos)[0];
@@ -687,6 +752,12 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 	}
 	datosParaRL->idJob = idJob;
 
+	pthread_mutex_lock(&mutex_log);
+	char* forLog = string_from_format("Deserializado Exitoso: Puerto: %d IP: %s Nodo: %s ArchivoTemporal: %s",datosParaRL->worker.puerto,datosParaRL->worker.ip,datosParaRL->worker.nodo,datosParaRL->archivoTemporal);
+	escribir_log("log_master","master",forLog,"info");
+	free(forLog);
+	pthread_mutex_unlock(&mutex_log);
+
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	itemNuevo->worker = datosParaRL->worker;
@@ -704,6 +775,11 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 }
 
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se recibe solicitud de Reduccion Global de Yama, comienza Deserializado...","info");
+	pthread_mutex_unlock(&mutex_log);
+
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
 
@@ -760,6 +836,14 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 
 	hiloWorker* itemNuevo = malloc(sizeof(hiloWorker));
 	nodoRG* workerEncargado = list_find(datosParaRG->nodos,(void*)buscarEncargado);
+
+
+	pthread_mutex_lock(&mutex_log);
+	char* forLog = string_from_format("Deserializado Exitoso: Datos del Worker Encargado Puerto: %d IP: %s Nodo: %s ArchivoTemporal: %s",workerEncargado->worker.puerto,workerEncargado->worker.ip,workerEncargado->worker.nodo,datosParaRG->archRG);
+	escribir_log("log_master","master",forLog,"info");
+	free(forLog);
+	pthread_mutex_unlock(&mutex_log);
+
 	itemNuevo->worker = workerEncargado->worker;
 	pthread_create(&(itemNuevo->hilo),NULL,(void*)accionHilo,datosParaRG);
 	list_add(listaHilos, itemNuevo);
@@ -767,11 +851,13 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	if (paquete->Payload != NULL)
 		free(paquete->Payload);
 	free(paquete);
-
 }
+
 void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO terminar el camino de AF
 	//YAMA me da IP y Puerto de Worker --- temp final noodo ip puerto
-	printf("Se llego a AF\n");
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se recibe solicitud de Almacenado Final de Yama, comienza Deserializado...","info");
+	pthread_mutex_unlock(&mutex_log);
 
 	void* datos = paquete->Payload;
 	datoAF* datosAF = malloc(sizeof(datoAF));
@@ -796,9 +882,30 @@ void realizarAlmacenamientoFinal(Paquete* paquete,char* rutaArchivoF){ //TODO te
 	datosAF->worker.puerto = ((int*)(datos))[0];
 
 	printf("Se envia a Worker:: %d :: %s \n",datosAF->worker.puerto,datosAF->worker.ip);
+
+	pthread_mutex_lock(&mutex_log);
+	char* forLog = string_from_format("Deserializado Exitoso: Puerto: %d Nodo: %s RutaArchivoFinal: %s",datosAF->worker.puerto,datosAF->worker.nodo,datosAF->rutaArchivoF);
+	escribir_log("log_master","master",forLog,"info");
+	free(forLog);
+	pthread_mutex_unlock(&mutex_log);
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se envia el Almacenado Final a Worker","info");
+	pthread_mutex_unlock(&mutex_log);
+
 	int socketWorker = ConectarAServidor(datosAF->worker.puerto,datosAF->worker.ip, WORKER, MASTER, RecibirHandshake);
 	serializacionAFyEnvio(datosAF,socketWorker);
 	//Espero conf de worker
+
+/*
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Fallo recibir validacion del Worker en el caso de Transformacion, se envia a Yama para replanificar","error");
+	pthread_mutex_unlock(&mutex_log);*/
+
+
+	pthread_mutex_lock(&mutex_log);
+	escribir_log("log_master","master","Se realizo exitosamente el Almacenado Final, se envia notificacion a Yama","info");
+	pthread_mutex_unlock(&mutex_log);
 	//Mando conf a YAMA
 
 }
@@ -818,6 +925,8 @@ void inicializarSemaforos(){
 	pthread_mutex_init(&mutex_RLfallos, NULL);
 	pthread_mutex_init(&mutex_RGfallos, NULL);
 	pthread_mutex_init(&mutex_listaJobs,NULL);
+
+	pthread_mutex_init(&mutex_log,NULL);
 }
 
 int main(int argc, char* argv[]){
@@ -833,6 +942,9 @@ int main(int argc, char* argv[]){
 	char* archivoParaYAMA = argv[3];
 	char* archivoFinal = argv[4];
 
+	char* forLog = string_from_format("Se comienza el Master con parametros: %s :: %s :: %s :: %s",programaTrans,programaReduc,archivoParaYAMA,archivoFinal);
+	escribir_log("log_master","master",forLog,"info");
+	free(forLog);
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 
 	void* datos = malloc(strlen(archivoParaYAMA)+strlen(archivoFinal)+2);
@@ -841,6 +953,8 @@ int main(int argc, char* argv[]){
 	strcpy(datos,archivoFinal);
 	datos += strlen(archivoFinal)+1;
 	datos-= strlen(archivoParaYAMA)+strlen(archivoFinal)+2;
+
+	escribir_log("log_master","master","Se envia solicitud de transformacion a Yama","info");
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, strlen(archivoParaYAMA)+strlen(archivoFinal)+2, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 	free(datos);
