@@ -685,13 +685,21 @@ void realizarRG(t_list* nodos, int idMaster, int idJob, char* archivoFinal){
 	free(rutaTemporalRG);
 }
 
-void realizarAF(char* archivoTemporal, int mtr, int job, char* archivoFinal){
+void realizarAF(char* archivoTemporal, int mtr, int job, char* archivoFinal, char* nodo){
 	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->id == mtr;}));
-	void* datosAF = malloc(strlen(archivoTemporal)+strlen(archivoFinal)+2);
+	datosWorker* w = list_find(listaWorkers, LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo,nodo);}));
+	void* datosAF = malloc(strlen(archivoTemporal)+strlen(archivoFinal)+strlen(nodo)+strlen(w->ip)+4+sizeof(uint32_t));
 	strcpy(datosAF, archivoTemporal);
 	datosAF+=strlen(archivoTemporal)+1;
 	strcpy(datosAF, archivoFinal);
-	datosAF-=strlen(archivoTemporal)+1;
+	datosAF+=strlen(archivoFinal)+1;
+	strcpy(datosAF, nodo);
+	datosAF+=strlen(nodo)+1;
+	strcpy(datosAF, w->ip);
+	datosAF+=strlen(w->ip)+1;
+	*((uint32_t*)datosAF)= w->puerto;
+	datosAF+=sizeof(uint32_t);
+	datosAF -= strlen(archivoTemporal)+strlen(archivoFinal)+strlen(nodo)+strlen(w->ip)+4+sizeof(uint32_t);
 	EnviarDatosTipo(m->socket, YAMA, datosAF, strlen(archivoTemporal)+strlen(archivoFinal)+2, SOLICITUDALMACENADOFINAL);
 	escribir_log("YAMA", "yama", "Se envia la solicitud de almacenado final a master", "info");
 	free(datosAF);
@@ -851,7 +859,7 @@ void accion(void* socket){
 						datosWorker* wRG = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, nodoRG);}));
 						wRG->contTareasRealizadas++;
 						MostrarRegistroTablaDeEstados(rRG);
-						realizarAF(rRG->archivoTemporal, rRG->master, rRG->job, rRG->archivoFinal);
+						realizarAF(rRG->archivoTemporal, rRG->master, rRG->job, rRG->archivoFinal, nodoRG);
 					}
 					else
 					{
