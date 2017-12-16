@@ -303,6 +303,7 @@ void cargarBloque(t_list* lista, t_bloque_yama* b, datosWorker* p, master* m, in
 	datos += strlen(nroCopia == 1 ? b->segundo_nombre_nodo : b->primer_nombre_nodo) + 1;
 	datos -= tamanioDatos;
 	list_add(lista, datos);
+	p->cargaDeTrabajo++;
 }
 
 void planificacionT(t_list* bloques, master* elmaster){
@@ -601,10 +602,18 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	free(rutaTemporalRL);
 }
 
+int divideAndRoundUp(x, y)
+{
+   int a = (x -1)/y +1;
+
+   return a;
+}
+
 void realizarRG(t_list* nodos, int idMaster, int idJob){
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
 	datosWorker* workerEncargado = list_get(lista,0);
+	workerEncargado->cargaDeTrabajo += divideAndRoundUp(list_size(nodos),2);
 	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->id == idMaster;}));
 	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", m->id);
 	int tamanio = sizeof(uint32_t)*2 + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2;
