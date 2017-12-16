@@ -466,7 +466,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			}
 			indiceWorker = listSize;
 			datos -= paquete->header.tamPayload;
-		}
+		}/*
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
 			escribir_log("YAMA", "yama", "Un nodo se ha desconectado", "info");
@@ -487,7 +487,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			list_iterate(listaWorkers,actualizarIndice);
 			indiceWorker--;
 			free(nodoAEliminar);
-		}
+		}*/
 		else if (paquete->header.tipoMensaje == SOLICITUDBLOQUESYAMA)
 		{
 
@@ -700,7 +700,7 @@ void realizarAF(char* archivoTemporal, int mtr, int job, char* archivoFinal, cha
 	*((uint32_t*)datosAF)= w->puerto;
 	datosAF+=sizeof(uint32_t);
 	datosAF -= strlen(archivoTemporal)+strlen(archivoFinal)+strlen(nodo)+strlen(w->ip)+4+sizeof(uint32_t);
-	EnviarDatosTipo(m->socket, YAMA, datosAF, strlen(archivoTemporal)+strlen(archivoFinal)+2, SOLICITUDALMACENADOFINAL);
+	EnviarDatosTipo(m->socket, YAMA, datosAF, strlen(archivoTemporal)+strlen(archivoFinal)+strlen(nodo)+strlen(w->ip)+4+sizeof(uint32_t), SOLICITUDALMACENADOFINAL);
 	escribir_log("YAMA", "yama", "Se envia la solicitud de almacenado final a master", "info");
 	free(datosAF);
 	registroEstado* reg = malloc(sizeof(registroEstado));
