@@ -62,8 +62,13 @@ void LiberarCosas() {
 		free(w);
 	}
 	void liberarRegistroEstado(registroEstado* r){
+		if(r->archivoFinal != NULL)
+			free(r->archivoFinal);
+		if(r->archivoTemporal != NULL)
 			free(r->archivoTemporal);
+		if(r->nodo != NULL)
 			free(r->nodo);
+		if(r->nodoConOtraCopia != NULL)
 			free(r->nodoConOtraCopia);
 			free(r);
 	}
@@ -179,13 +184,15 @@ void MostrarRegistroTablaDeEstados(registroEstado* r){
 		break;
 	case ALMACENAMIENTOFINAL:
 			etapa = "Almacenamiento final";
+			printf("|| Job = %i || Master = %i || Etapa = %s || Archivo temporal = %s || Archivo final = %s || Estado = %s ||\n\n",
+					r->job, r->master, etapa, r->archivoTemporal, r->archivoFinal, estado);
 			break;
 	}
 
 	fflush(stdout);
 }
 
-void EnviarBloquesAMaster(t_list* lista, master* m){
+void EnviarBloquesAMaster(t_list* lista, master* m, char* archivoFinal){
 	int tamanioAEnviar = sizeof(uint32_t);
 	void* datosAEnviar = malloc(tamanioAEnviar);
 	*((uint32_t*)datosAEnviar) = list_size(lista);
@@ -235,13 +242,16 @@ void EnviarBloquesAMaster(t_list* lista, master* m){
 		registro->master = m->id;
 		registro->nodo = malloc(strlen(datos+nodo) + 1);
 		registro->nodoConOtraCopia = malloc(strlen(datos+nodo) + 1);
+		registro->archivoFinal = malloc(strlen(archivoFinal)+1);
 		strcpy(registro->nodo,datos+nodo);
 		strcpy(registro->nodoConOtraCopia, datos+nodoOC);
+		strcpy(registro->archivoFinal, archivoFinal);
 		registro->nroBloqueCopia = nroBloqueOtraCopia;
 		list_add(tablaDeEstados, registro);
 		MostrarRegistroTablaDeEstados(registro);
 
 	}
+	free(archivoFinal);
 	datosAEnviar -= tamanioAEnviar;
 	EnviarDatosTipo(m->socket, YAMA, datosAEnviar, tamanioAEnviar, SOLICITUDTRANSFORMACION);
 	escribir_log("YAMA", "yama", "Se envía solicitud de transformación a master", "info");
@@ -307,7 +317,7 @@ void cargarBloque(t_list* lista, t_bloque_yama* b, datosWorker* p, master* m, in
 	p->cargaDeTrabajo++;
 }
 
-void planificacionT(t_list* bloques, master* elmaster){
+void planificacionT(t_list* bloques, master* elmaster, char* archivoFinal){
 	char* ALGORITMO_BALANCEO_ACTUAL = malloc(strlen(ALGORITMO_BALANCEO)+1);
 	strcpy(ALGORITMO_BALANCEO_ACTUAL, ALGORITMO_BALANCEO);
 	int RETARDO_PLANIFICACION_ACTUAL = RETARDO_PLANIFICACION;
@@ -403,7 +413,7 @@ void planificacionT(t_list* bloques, master* elmaster){
 		}while(!salio);
 	}
 	escribir_log("YAMA", "yama", "Se ha planificado", "info");
-	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
+	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster, archivoFinal);
 	list_destroy(lista);
 	free(ALGORITMO_BALANCEO_ACTUAL);
 	usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
@@ -459,7 +469,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		}
 		else if (paquete->header.tipoMensaje == NODODESCONECTADO)
 		{
-			escribir_log("YAMA", "yama", "Un nodo se ha desconectado", "alerta");
+			escribir_log("YAMA", "yama", "Un nodo se ha desconectado", "info");
 			void liberarDatosWorker(datosWorker* w){
 					free(w->ip);
 					free(w->nodo);
@@ -485,6 +495,9 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			//Hay que deserializar los datos y guardarla en la lista de t_bloque_yama
 			void* datos = paquete->Payload;
 			t_list* listaBloques = list_create();
+			char* archivoFinal = malloc(strlen(datos)+1);
+			strcpy(archivoFinal, datos);
+			datos += strlen(datos)+1;
 			int tamanioLista = *((uint32_t*)datos);
 			datos += sizeof(uint32_t);
 			int i;
@@ -506,7 +519,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 			master* m = list_find(listaMasters,LAMBDA(bool _(void* item1) { return ((master*)item1)->socket == *((uint32_t*)datos) ;}) );
 			m->contJobs++;
 			pthread_mutex_lock(&mutex_plani);
-			planificacionT(listaBloques, m);
+			planificacionT(listaBloques, m, archivoFinal);
 			pthread_mutex_unlock(&mutex_plani);
 			void liberarBloqueYama(t_bloque_yama* b){
 				free(b->primer_nombre_nodo);
@@ -564,7 +577,7 @@ void RealizarReplanificacion(registroEstado* reg, int socket){
 	}
 }
 
-void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMaster){
+void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMaster, char* archivoFinal){
 	char* rutaTemporalRL = string_from_format("/tmp/Master%i-%s", idMaster,w->nodo);
 	int tamanio = sizeof(uint32_t)*2 + strlen(w->nodo) + strlen(w->ip) + strlen(rutaTemporalRL) + 3 ;
 	void * datos = malloc(tamanio);
@@ -604,7 +617,9 @@ void realizarRL(t_list* l, datosWorker* w, int idMaster, int idJob, int socketMa
 	reg->job = idJob;
 	reg->master = idMaster;
 	reg->nodo = malloc(strlen(w->nodo) + 1);
+	reg->archivoFinal = malloc(strlen(archivoFinal)+1);
 	strcpy(reg->nodo, w->nodo);
+	strcpy(reg->archivoFinal, archivoFinal);
 	list_add(tablaDeEstados, reg);
 	MostrarRegistroTablaDeEstados(reg);
 	free(rutaTemporalRL);
@@ -617,7 +632,7 @@ int divideAndRoundUp(x, y)
    return a;
 }
 
-void realizarRG(t_list* nodos, int idMaster, int idJob){
+void realizarRG(t_list* nodos, int idMaster, int idJob, char* archivoFinal){
 	t_list* lista = list_take(listaWorkers, list_size(listaWorkers));
 	list_sort(lista, LAMBDA(bool _(void* item1, void* item2) { return ((datosWorker*)item1)->cargaDeTrabajo <= ((datosWorker*)item2)->cargaDeTrabajo;}));
 	datosWorker* workerEncargado = list_get(lista,0);
@@ -663,9 +678,34 @@ void realizarRG(t_list* nodos, int idMaster, int idJob){
 	reg->etapa = REDUCCIONGLOBAL;
 	reg->job = idJob;
 	reg->master = idMaster;
+	reg->archivoFinal = malloc(strlen(archivoFinal)+1);
+	strcpy(reg->archivoFinal, archivoFinal);
 	list_add(tablaDeEstados, reg);
 	MostrarRegistroTablaDeEstados(reg);
 	free(rutaTemporalRG);
+}
+
+void realizarAF(char* archivoTemporal, int mtr, int job, char* archivoFinal){
+	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->id == mtr;}));
+	void* datosAF = malloc(strlen(archivoTemporal)+strlen(archivoFinal)+2);
+	strcpy(datosAF, archivoTemporal);
+	datosAF+=strlen(archivoTemporal)+1;
+	strcpy(datosAF, archivoFinal);
+	datosAF-=strlen(archivoTemporal)+1;
+	EnviarDatosTipo(m->socket, YAMA, datosAF, strlen(archivoTemporal)+strlen(archivoFinal)+2, SOLICITUDALMACENADOFINAL);
+	escribir_log("YAMA", "yama", "Se envia la solicitud de almacenado final a master", "info");
+	free(datosAF);
+	registroEstado* reg = malloc(sizeof(registroEstado));
+	reg->archivoTemporal = malloc(strlen(archivoTemporal)+1);
+	strcpy(reg->archivoTemporal, archivoTemporal);
+	reg->estado = ENPROCESO;
+	reg->etapa = ALMACENAMIENTOFINAL;
+	reg->job = job;
+	reg->master = mtr;
+	reg->archivoFinal = malloc(strlen(archivoFinal)+1);
+	strcpy(reg->archivoFinal, archivoFinal);
+	list_add(tablaDeEstados, reg);
+	MostrarRegistroTablaDeEstados(reg);
 }
 
 void accion(void* socket){
@@ -725,7 +765,7 @@ void accion(void* socket){
 						//si todos están en estado finalizadook, puede hacer reducción local
 						if (list_all_satisfy(tablaFiltradaPorNodoYTransformacionYJob,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->estado == FINALIZADOOK;})))
 						{
-							realizarRL(tablaFiltradaPorNodoYTransformacionYJob, wT, rT->master, rT->job, socketFD);
+							realizarRL(tablaFiltradaPorNodoYTransformacionYJob, wT, rT->master, rT->job, socketFD, rT->archivoFinal);
 						}
 						list_destroy(tablaFiltradaPorNodoYTransformacionYJob);
 					}
@@ -771,7 +811,7 @@ void accion(void* socket){
 						//si todos están en estado finalizadook, puede hacer reducción local
 						if (list_all_satisfy(tablaFiltradaPorReduccionLocalYJob,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->estado == FINALIZADOOK;})))
 						{
-							realizarRG(tablaFiltradaPorReduccionLocalYJob, rRL->master, rRL->job);
+							realizarRG(tablaFiltradaPorReduccionLocalYJob, rRL->master, rRL->job, rRL->archivoFinal);
 						}
 						//list_destroy(tablaFiltradaPorReduccionLocalYJob);
 					}
@@ -800,8 +840,29 @@ void accion(void* socket){
 					datosRG += sizeof(bool);
 					datosRG -= paquete.header.tamPayload;
 
-					//HACERCOSAS
-
+					//actualizar el registro correspondiente
+					registroEstado* rRG = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return ((registroEstado*)item1)->etapa == REDUCCIONGLOBAL && ((registroEstado*)item1)->job == idJobRG;}));
+					if (exitoRG)
+					{
+						char* msg = string_from_format("La reducción global del job %i del master %i ha terminado exitosamente", idJobRG, rRG->master);
+						escribir_log("YAMA", "yama", msg, "info");
+						free(msg);
+						rRG->estado = FINALIZADOOK;
+						datosWorker* wRG = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, nodoRG);}));
+						wRG->contTareasRealizadas++;
+						MostrarRegistroTablaDeEstados(rRG);
+						realizarAF(rRG->archivoTemporal, rRG->master, rRG->job, rRG->archivoFinal);
+					}
+					else
+					{
+						char* msg = string_from_format("La reducción global del job %i del master %i no ha podido terminar.", idJobRG, rRG->master);
+						escribir_log("YAMA", "yama", msg, "error");
+						free(msg);
+						printf("Falló la reducción global. Se abortará el job.");
+						fflush(stdout);
+						rRG->estado = ERROR;
+						MostrarRegistroTablaDeEstados(rRG);
+					}
 					free(nodoRG);
 				}
 				break;

@@ -1322,9 +1322,14 @@ void accion(void* socket) {
 					}
 					break;
 					case SOLICITUDBLOQUESYAMA:{
-						datos=(paquete.Payload+7);
-						int index_padre=index_ultimo_directorio(datos,"a");
-						char**separado_por_barras=string_split(datos,"/");
+						datos=paquete.Payload;
+						char* archivoYama = malloc(strlen(datos+7)+1);
+						strcpy(archivoYama, datos+7);
+						datos += strlen(datos)+1;
+						char* archivoFinal = malloc(strlen(datos+7)+1);
+						strcpy(archivoFinal, datos+7);
+						int index_padre=index_ultimo_directorio(archivoYama,"a");
+						char**separado_por_barras=string_split(archivoYama,"/");
 						int i=0;
 						while(separado_por_barras[i]){
 							i++;
@@ -1341,8 +1346,10 @@ void accion(void* socket) {
 						t_list*lista_bloques =obtener_lista_bloques(ruta_archivo_en_metadata);
 						//la funcion obtener_lista_bloques me carga la lista
 
-						int tamanioAEnviar = sizeof(uint32_t); //por a cantidad de elementos de la lista
+						int tamanioAEnviar = sizeof(uint32_t)+strlen(archivoFinal)+1; //por a cantidad de elementos de la lista
 						datos = malloc(tamanioAEnviar);
+						strcpy(datos, archivoFinal);
+						datos += strlen(archivoFinal)+1;
 						*((uint32_t*)datos) = list_size(lista_bloques);
 						datos += sizeof(uint32_t);
 
@@ -1373,6 +1380,8 @@ void accion(void* socket) {
 						datos -= tamanioAEnviar;
 						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
 						free(string_index);
+						free(archivoYama);
+						free(archivoFinal);
 						free(datos);
 						string_iterate_lines(separado_por_barras, free);
 						free(separado_por_barras);

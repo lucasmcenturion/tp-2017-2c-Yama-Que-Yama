@@ -130,6 +130,7 @@ typedef struct {
 	int bloque;
 	etapa etapa;
 	char* archivoTemporal;
+	char* archivoFinal;
 	estado estado;
 	int tamanio;
 }__attribute__((packed))
