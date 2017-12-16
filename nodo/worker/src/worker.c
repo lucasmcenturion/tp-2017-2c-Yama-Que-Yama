@@ -30,7 +30,7 @@ void obtenerValoresArchivoConfiguracion(char* valor) {
 void realizarReduccionGlobal(solicitudRG* data, nodoRG* encargado){
 	//char* strArchivosTemporales = listaAstringRG(data->nodos);
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("echo \"%s\" | .%s > %s",encargado->archTempRL, data->programaR, data->archRG);
+	char* strToSys = string_from_format("cat %s | %s > %s",encargado->archTempRL, data->programaR, data->archRG);
 	system(strToSys);
 	return;
 }
@@ -538,7 +538,9 @@ void accionHijo(void* socketM){
 				}
 			}
 			while ((wpid = wait(&status)) > 0);
-			printf("Realizar RG\n");
+			realizarReduccionGlobal(datosRG, workerEncargado);
+			boolAux =true;
+			if(!(EnviarDatosTipo(socketMaster,WORKER,&boolAux,sizeof(bool),VALIDACIONWORKER))) perror("Error al enviar OK a master en etapa de T");
 			break;
 
 
@@ -568,7 +570,7 @@ void accionHijo(void* socketM){
 			break;
 		}*/
 
-		case 2:{ //FINALIZAR TODO terminar camino de AF
+		case SOLICITUDALMACENADOFINAL:{ //FINALIZAR TODO terminar camino de AF
 			//Deserializo lo que me mando Master
 			datoAF* datosAF = deserializacionAF(paquete->Payload);
 			nodoAF* nodoAF = malloc(sizeof(nodoAF));

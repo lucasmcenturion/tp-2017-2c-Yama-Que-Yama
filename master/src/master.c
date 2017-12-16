@@ -479,7 +479,7 @@ void accionHilo(void* solicitud){
 		resultado->nodo = malloc(strlen(workerEncargado->worker.nodo)+1);
 		strcpy(resultado->nodo,workerEncargado->worker.nodo);
 		resultado->exito = true;
-		resultado->idJob = 2;//obtenerIdJobDeRuta(datosRG->archRG);
+		resultado->idJob = datosRG->idJob;
 
 		int socketWorker = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER, MASTER, RecibirHandshake);
 
@@ -623,7 +623,7 @@ void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
 
-	int idJob = *((uint32_t*)datos);
+	datosParaRG->idJob = *((uint32_t*)datos);
 	datos += sizeof(uint32_t);
 
 	char* nodoEncargado = malloc(strlen(datos)+1);

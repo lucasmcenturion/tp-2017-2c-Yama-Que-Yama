@@ -72,6 +72,7 @@ typedef struct{
 	char* archRG; //Archivo destino
 	char* programaR;
 	int cantNodos;
+	int idJob;
 }__attribute__((packed)) solicitudRG;
 
 typedef struct{
