@@ -619,6 +619,8 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
+	int idJob = *((uint32_t*)datos);
+	datos += sizeof(uint32_t);
 	char* nodoEncargado = malloc(strlen(datos)+1);
 	strcpy(nodoEncargado,datos);
 	datos += strlen(datos)+1;

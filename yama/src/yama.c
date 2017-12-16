@@ -607,8 +607,10 @@ void realizarRG(t_list* nodos, int idMaster, int idJob){
 	datosWorker* workerEncargado = list_get(lista,0);
 	master* m = list_find(listaMasters, LAMBDA(bool _(void* item1) { return ((master*)item1)->id == idMaster;}));
 	char* rutaTemporalRG = string_from_format("/tmp/Master%i-final", m->id);
-	int tamanio = sizeof(uint32_t) + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2 ;
+	int tamanio = sizeof(uint32_t)*2 + strlen(workerEncargado->nodo) + strlen(rutaTemporalRG)+2;
 	void * datos = malloc(tamanio);
+	*((uint32_t*)datos) = idJob;
+	datos += sizeof(uint32_t);
 	strcpy(datos, workerEncargado->nodo);
 	datos += strlen(workerEncargado->nodo) +1;
 	strcpy(datos, rutaTemporalRG);
