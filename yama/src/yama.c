@@ -212,7 +212,8 @@ void EnviarBloquesAMaster(t_list* lista, master* m, char* archivoFinal){
 		((uint32_t*)datosAEnviar)[0] = ((uint32_t*)datos)[0];
 		((uint32_t*)datosAEnviar)[1] = ((uint32_t*)datos)[1];
 		((uint32_t*)datosAEnviar)[2] = ((uint32_t*)datos)[2];
-		int nroBloque = ((uint32_t*)datos)[3];
+		int nroBloque =((uint32_t*)datos)[0];
+		int bloque = ((uint32_t*)datos)[3];
 		int nroBloqueOtraCopia = ((uint32_t*)datos)[4];
 		datosAEnviar += sizeof(uint32_t) * 3;
 		datos += sizeof(uint32_t) * 5;
@@ -235,7 +236,7 @@ void EnviarBloquesAMaster(t_list* lista, master* m, char* archivoFinal){
 		registroEstado* registro = malloc(sizeof(registroEstado));
 		registro->archivoTemporal = malloc(strlen(datos+ruta) + 1);
 		strcpy(registro->archivoTemporal, datos+ruta);
-		registro->bloque = nroBloque;
+		registro->bloque = bloque;
 		registro->estado = ENPROCESO;
 		registro->etapa = TRANSFORMACION;
 		registro->job = m->contJobs;
@@ -246,6 +247,7 @@ void EnviarBloquesAMaster(t_list* lista, master* m, char* archivoFinal){
 		strcpy(registro->nodo,datos+nodo);
 		strcpy(registro->nodoConOtraCopia, datos+nodoOC);
 		strcpy(registro->archivoFinal, archivoFinal);
+		registro->nroBloque = nroBloque;
 		registro->nroBloqueCopia = nroBloqueOtraCopia;
 		list_add(tablaDeEstados, registro);
 		MostrarRegistroTablaDeEstados(registro);
@@ -350,8 +352,9 @@ void planificacionT(t_list* bloques, master* elmaster, char* archivoFinal){
 		{
 			//se fija si está el bloque a asignar
 			int nroCopia=-1;
-			if (nroCopia=(bloqueAAsignarEsta(punteroClock, bloqueAAsignar) != -1))
+			if (bloqueAAsignarEsta(punteroClock, bloqueAAsignar) != -1)
 			{
+				nroCopia = bloqueAAsignarEsta(punteroClock, bloqueAAsignar);
 				cargarBloque(listaDeBloquesAEnviar, bloqueAAsignar, punteroClock, elmaster, nroCopia);
 				//EnviarBloqueAMaster(bloqueAAsignar,punteroClock,elmaster, nroCopia);
 				//si está se reduce el valor de disponibilidad
@@ -380,8 +383,9 @@ void planificacionT(t_list* bloques, master* elmaster, char* archivoFinal){
 					punteroAux = proximoWorkerDisponible(punteroClock);
 				}
 				do {
-					if (nroCopia= (bloqueAAsignarEsta(punteroAux, bloqueAAsignar) != -1))
+					if (bloqueAAsignarEsta(punteroAux, bloqueAAsignar) != -1)
 					{
+						nroCopia = bloqueAAsignarEsta(punteroAux, bloqueAAsignar);
 						cargarBloque(listaDeBloquesAEnviar, bloqueAAsignar, punteroAux, elmaster, nroCopia);
 						//EnviarBloqueAMaster(bloqueAAsignar,punteroAux,elmaster, nroCopia);
 						//si está se reduce el valor de disponibilidad
@@ -532,7 +536,7 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 		if (paquete->Payload != NULL)
 			free(paquete->Payload);
 	}
-	printf("La conexión de filesystem ha sido rechazada porque no se encontraba en un estado seguro.\nIntente nuevamente.");
+	printf("La conexión de filesystem ha sido rechazada porque no se encontraba en un estado seguro.\nIntente nuevamente.\n");
 	fflush(stdout);
 	raise(SIGKILL);
 }
@@ -540,12 +544,15 @@ void RecibirPaqueteFilesystem(Paquete* paquete){
 void RealizarReplanificacion(registroEstado* reg, int socket){
 	datosWorker* w = list_find(listaWorkers,LAMBDA(bool _(void* item1) { return !strcmp(((datosWorker*)item1)->nodo, reg->nodoConOtraCopia);}));
 	if (w == NULL){
-		escribir_log("YAMA", "yama", "No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado", "error");
-		printf("No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado.");
+		escribir_log("YAMA", "yama", "No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado", "info");
+		printf("No ha sido posible replanificar debido a que el nodo que poseía la copia tampoco está conectado.\n");
 		fflush(stdout);
 	}
 	else{
-		int tamanioDatos = sizeof(uint32_t) * 3 + strlen(w->ip) + strlen(w->nodo) + strlen(reg->archivoTemporal) + 3 ;
+		char* numeroNodo = string_substring_from(reg->nodoConOtraCopia,strlen("Nodo"));
+		char *ruta = string_from_format("/tmp/j%dn%sb%d",reg->job, numeroNodo, reg->bloque);
+		free(numeroNodo);
+		int tamanioDatos = sizeof(uint32_t) * 3 + strlen(w->ip) + strlen(w->nodo) + strlen(ruta) + 3 ;
 		void* datos = malloc(tamanioDatos);
 		((uint32_t*)datos)[0] = reg->nroBloqueCopia;
 		((uint32_t*)datos)[1] = reg->tamanio;
@@ -555,8 +562,8 @@ void RealizarReplanificacion(registroEstado* reg, int socket){
 		datos += strlen(w->ip) + 1;
 		strcpy(datos, w->nodo);
 		datos += strlen(w->nodo) + 1;
-		strcpy(datos, reg->archivoTemporal);
-		datos += strlen(reg->archivoTemporal) + 1;
+		strcpy(datos, ruta);
+		datos += strlen(ruta) + 1;
 		datos -= tamanioDatos;
 		EnviarDatosTipo(socket, YAMA, datos, tamanioDatos, SOLICITUDTRANSFORMACION);
 		escribir_log("YAMA", "yama", "Se ha replanificado y se envia la nueva solicitud de transformación a master", "info");
@@ -570,6 +577,10 @@ void RealizarReplanificacion(registroEstado* reg, int socket){
 		int naux = reg->nroBloque;
 		reg->nroBloque = reg->nroBloqueCopia;
 		reg->nroBloqueCopia = naux;
+		free(reg->archivoTemporal);
+		reg->archivoTemporal = malloc(strlen(ruta)+1);
+		strcpy(reg->archivoTemporal, ruta);
+		free(ruta);
 
 		MostrarRegistroTablaDeEstados(reg);
 		//actualizo la carga de trabajo
@@ -780,12 +791,12 @@ void accion(void* socket){
 					else
 					{
 						char* msg = string_from_format("La transformación del job %i del master %i para el bloque %i no ha podido terminarse.", idJobT, rT->master, bloqueT);
-						escribir_log("YAMA", "yama", msg, "error");
+						escribir_log("YAMA", "yama", msg, "info");
 						free(msg);
 						rT->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rT);
 						printf("Debido a un la desconexion del nodo asignado en la transformación del bloque  %i del job %i, "
-								"se procederá a replanificar la misma en el nodo que posee la otra copia.", rT->bloque, rT->job);
+								"se procederá a replanificar la misma en el nodo que posee la otra copia.\n", rT->bloque, rT->job);
 						fflush(stdout);
 						RealizarReplanificacion(rT, socketFD);
 					}
@@ -826,9 +837,9 @@ void accion(void* socket){
 					else
 					{
 						char* msg = string_from_format("La reducción local del job %i del master %i para el %s no ha podido terminar.", idJobRL, rRL->master, nodoRL);
-						escribir_log("YAMA", "yama", msg, "error");
+						escribir_log("YAMA", "yama", msg, "info");
 						free(msg);
-						printf("Falló la reducción local. Se abortará el job.");
+						printf("Falló la reducción local. Se abortará el job.\n");
 						fflush(stdout);
 						rRL->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rRL);
@@ -865,9 +876,9 @@ void accion(void* socket){
 					else
 					{
 						char* msg = string_from_format("La reducción global del job %i del master %i no ha podido terminar.", idJobRG, rRG->master);
-						escribir_log("YAMA", "yama", msg, "error");
+						escribir_log("YAMA", "yama", msg, "info");
 						free(msg);
-						printf("Falló la reducción global. Se abortará el job.");
+						printf("Falló la reducción global. Se abortará el job.\n");
 						fflush(stdout);
 						rRG->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rRG);
