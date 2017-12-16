@@ -807,7 +807,7 @@ void escribir_archivo_cpto(int tamanio_archivo, int bloque_archivo,int index_dir
 void escribir_archivo(char*buffer){
 	FILE*f;
 	f=fopen("/home/utnso/archivoWorker","w");
-	truncate("/home/utnso/archivoWorker",strlen(buffer)+1);
+	truncate("/home/utnso/archivoWorker",strlen(buffer));
 	int fd=open("/home/utnso/archivoWorker",O_RDWR);
 	struct stat mystat;
 	void *bmap;
@@ -821,7 +821,7 @@ void escribir_archivo(char*buffer){
 			printf("Error al mapear a memoria: %s\n",strerror(errno));
 			close(fd);
 		} else {
-			memmove(bmap,buffer,strlen(buffer)+1);
+			memmove(bmap,buffer,strlen(buffer));
 			munmap(aux,mystat.st_size);
 			close(fd);
 		}
@@ -834,10 +834,10 @@ int cortar_bloques(char*buffer,char*ruta){
 	int index_directorio_padre=(int)index_ultimo_directorio(ruta,"d");
 	escribir_archivo(buffer);
 	bool condicion=true;
-	int size_aux;
 	t_list *bloques_a_enviar = list_create();
 	int archivo = open("/home/utnso/archivoWorker", O_RDWR);
 	struct stat mystat;
+	int size_aux = mystat.st_size;
 	void *puntero_mmap;
 	if (fstat(archivo, &mystat) < 0) {
 		printf("Error al establecer fstat\n");
@@ -1411,7 +1411,7 @@ void accion(void* socket) {
 						pthread_mutex_lock(&mutex_unico_cpfrom);
 						int rv=cortar_bloques(buffer,ruta_yama);
 						if(rv!=-1){
-							//printf("Archivo recibido y guardado\n");
+							printf("Archivo recibido y guardado\n");
 							remove("/home/utnso/archivoWorker");
 						}else{
 							printf("Error, no se puedo guardar el archivo \n");

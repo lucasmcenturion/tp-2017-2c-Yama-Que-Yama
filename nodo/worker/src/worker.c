@@ -405,23 +405,29 @@ void accionHijo(void* socketM){
 				switch(paquetito->header.tipoMensaje){
 
 				case ARCHIVOTEMPRL:{
-					void* datos = paquetito->Payload;
-					buffer = malloc(paquetito->header.tamPayload);
-					strcpy(buffer,datos);
-					pthread_mutex_lock(&mutex_archivo);
-					//char* strToSys = string_from_format("echo \"%s\" | sort - %s -o %s",buffer,workerEncargado->archTempRL,workerEncargado->archTempRL);
-					FILE* fd = txt_open_for_append(workerEncargado->archTempRL);
-					txt_write_in_file(fd,buffer);
-					txt_close_file(fd);
-					char* strToSys = string_from_format("sort %s -o %s",workerEncargado->archTempRL,workerEncargado->archTempRL);
-					system(strToSys);
-					pthread_mutex_unlock(&mutex_archivo);
+					printf("Recibiendo Archivos temporales\n");
+				 			void* datos = paquetito->Payload;
+				 			buffer = malloc(paquetito->header.tamPayload);
+				 			strcpy(buffer,datos);
+				 			pthread_mutex_lock(&mutex_archivo);
+				 			printf("Guardando...\n");
+				 			//char* strToSys = string_from_format("echo \"%s\" | sort - %s -o %s",buffer,workerEncargado->archTempRL,workerEncargado->archTempRL);
+				 			printf("%s",workerEncargado->archTempRL);
+				 			FILE* fd = txt_open_for_append(workerEncargado->archTempRL);
+				 			txt_write_in_file(fd,buffer);
+				 			txt_close_file(fd);
+				 			char* strToSys = string_from_format("sort %s -o %s",workerEncargado->archTempRL,workerEncargado->archTempRL);
+				 			system(strToSys);
+				 			pthread_mutex_unlock(&mutex_archivo);
 
-					free(buffer);
-					free(strToSys);
-					free(datos);
-					free(paquetito);
-					break;
+				 			free(buffer);
+				 		free(strToSys);
+				 				free(datos);
+				 				free(paquetito);
+				 				break;
+				}
+				case FINARCHIVOTEMPRL:{
+
 				}
 				}
 			}
@@ -476,8 +482,16 @@ void accionHijo(void* socketM){
 			printf("termina mmap y se manda a FS\n");
 			int socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 			serializacionAFyEnvioFS(nodoAF,socketFS,tamArchivo);
-			if(RecibirPaqueteServidor(socketFS, WORKER, paquete)<=0) perror("Error: No se recibieron los datos de Master");
-
+			bool Aux;
+			if(RecibirPaqueteServidor(socketFS, WORKER, paquete)<=0){
+				Aux = false;
+				perror("Error: No se recibieron los datos de Master");
+				if(!(EnviarDatosTipo(socketMaster,WORKER,&Aux,sizeof(bool),VALIDACIONWORKER))) perror("Error al datos al FS para almacenado final");
+			}
+			else {
+				Aux = *(bool*)paquete->Payload;
+				if(!(EnviarDatosTipo(socketMaster,WORKER,&Aux,sizeof(bool),VALIDACIONWORKER))) perror("Error al datos al FS para almacenado final");
+			}
 			/*FILE* fdRedGlobal = fopen(datosAF->resultRG,"r");
 			struct stat st;
 			stat(datosAF->resultRG,&st);
@@ -531,6 +545,8 @@ void accionHijo(void* socketM){
 			}
 			munmap(puntero,tamArchivo);
 			if(!(EnviarDatosTipo(socketMaster, WORKER ,bufferTexto, st.st_size, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+			bool ok = true;
+			if(!(EnviarDatosTipo(socketMaster, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
 			free(datosRecibidos);
 			free(buffer);
