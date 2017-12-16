@@ -128,13 +128,7 @@ void eliminar_ea_nodos(char*nombre) {
 	char *nuevos_nodos = malloc(100);
 	if (cantidad_comas == 1) {
 		//tiene un solo elemento
-		char *substring;
-		substring=string_substring(separado_por_comas[0], 1,strlen(separado_por_comas[0]) - 2);
-		substring = realloc(substring, strlen(substring) + 1);
-		if (strcmp(nombre, substring) == 0) {
-			config_set_value(nodos, "NODOS", "");
-		}
-		free(substring);
+		config_remove_key(nodos,"NODOS");
 	} else {
 		//tiene mas de un elemento
 		char * substring;
@@ -206,7 +200,7 @@ void eliminar_ea_nodos(char*nombre) {
 	config_remove_key(nodos,libre);
 	config_save_in_file(nodos, "/home/utnso/metadata/nodos.bin");
 	config_destroy(nodos);
-	free(nodos_actuales);
+	//free(nodos_actuales);
 	free(nuevos_nodos);
 	free(libre);
 	free(total);
