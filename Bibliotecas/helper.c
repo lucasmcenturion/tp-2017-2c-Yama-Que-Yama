@@ -17,7 +17,17 @@ size_t getFileSize(const char* filename) {
     }
     return st.st_size;
 }
-
+void escribir_log(char*nombre_log,char*proceso,char*mensaje,char*tipo){
+	if(strcmp(tipo,"info")==0){
+		t_log* log=log_create(nombre_log,proceso,false,LOG_LEVEL_INFO);
+		log_info(log,mensaje);
+		log_destroy(log);
+	}else{
+		t_log* log=log_create(nombre_log,proceso,true,LOG_LEVEL_ERROR);
+		log_error(log,mensaje);
+		log_destroy(log);
+	}
+}
 
 int primer_lugar_disponible(){
 	char *ruta=calloc(1,strlen("/home/utnso/metadata/directorios.dat")+1);

@@ -47,6 +47,7 @@ pthread_mutex_t mutex_respuesta_solicitud_cpto;
 pthread_mutex_t mutex_cpto;
 pthread_mutex_t orden_cpto;
 pthread_mutex_t orden_cpblock;
+pthread_mutex_t mutex_log;
 
 void config_remove_key(t_config *config, char *key) {
 	dictionary_remove(config->properties, key);
@@ -77,6 +78,8 @@ t_directory **obtener_directorios() {
 		}
 	}
 }
+
+
 int index_ultimo_directorio(char*ruta, char* tipo) {
 	t_directory **directorios = obtener_directorios();
 	t_directory *aux = (*directorios);
@@ -791,6 +794,81 @@ void escribir_archivo_cpto(int tamanio_archivo, int bloque_archivo,int index_dir
 		}
 	}
 }
+void escribir_archivo(char*buffer){
+	FILE*f;
+	f=fopen("/home/utnso/archivoWorker","w");
+	truncate("/home/utnso/archivoWorker",strlen(buffer)+1);
+	int fd=open("/home/utnso/archivoWorker",O_RDWR);
+	struct stat mystat;
+	void *bmap;
+	if (fstat(fd, &mystat) < 0) {
+		printf("Error al establecer fstat\n");
+		close(fd);
+	} else {
+		bmap = mmap(NULL, mystat.st_size,PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+		void*aux=bmap;
+		if (bmap == MAP_FAILED) {
+			printf("Error al mapear a memoria: %s\n",strerror(errno));
+			close(fd);
+		} else {
+			memmove(bmap,buffer,strlen(buffer)+1);
+			munmap(aux,mystat.st_size);
+			close(fd);
+		}
+	}
+}
+int cortar_bloques(char*buffer,char*ruta){
+	char *nombre_archivo = malloc(100);
+	nombre_archivo =(char*)obtener_nombre_archivo(ruta);
+	nombre_archivo=realloc(nombre_archivo,strlen(nombre_archivo)+1);
+	int index_directorio_padre=(int)index_ultimo_directorio(ruta,"d");
+	escribir_archivo(buffer);
+	bool condicion=true;
+	int size_aux;
+	t_list *bloques_a_enviar = list_create();
+	int archivo = open("/home/utnso/archivoWorker", O_RDWR);
+	struct stat mystat;
+	void *puntero_mmap;
+	if (fstat(archivo, &mystat) < 0) {
+		printf("Error al establecer fstat\n");
+		close(archivo);
+	}else{
+		puntero_mmap = mmap(NULL, mystat.st_size,PROT_WRITE | PROT_READ, MAP_SHARED, archivo, 0);
+		void*aux=puntero_mmap;
+		if (puntero_mmap == MAP_FAILED) {
+			printf("Error al mapear a memoria: %s\n",strerror(errno));
+			close(archivo);
+		} else {
+			int i = TAMBLOQUE - 1;
+			while (size_aux > TAMBLOQUE) {
+				if (((char*) puntero_mmap)[i] == '\n' || ((char*) puntero_mmap)[i] == '\r') {
+					bloque *bloque_add = calloc(1, sizeof(bloque));
+					bloque_add->datos=malloc(i+1);
+					memcpy(bloque_add->datos,puntero_mmap,i+1);
+					bloque_add->tamanio = i + 1;
+					list_add(bloques_a_enviar, bloque_add);
+					puntero_mmap += i + 1;
+					size_aux -= i + 1;
+				} else {
+					i--;
+				}
+			}
+			if (condicion) {
+				bloque *bloque_add = calloc(1, sizeof(bloque));
+				bloque_add->datos=calloc(1, size_aux);
+				memcpy(bloque_add->datos,puntero_mmap,size_aux);
+				bloque_add->tamanio = size_aux;
+				list_add(bloques_a_enviar, bloque_add);
+			}
+			munmap(aux,mystat.st_size);
+			close(archivo);
+			if(list_size(bloques_a_enviar)==1){
+				unico_bloque=true;
+			}
+			return enviarBloques((t_list*) bloques_a_enviar, nombre_archivo,index_directorio_padre,0);
+		}
+	}
+}
 void crear_copia(char *ruta_archivo,char *nombre_nodo,int bloque_archivo,int bloque_datanode){
 	t_config*archivo=config_create(ruta_archivo);
 	char*primer_copia=malloc(30);
@@ -1295,16 +1373,33 @@ void accion(void* socket) {
 			}else{
 				switch (paquete.header.tipoMensaje) {
 					case ESDATOS: {
-						void* datos = paquete.Payload;
-						//AlmacenarArchivo();
+						//TODO worker accion
+						//TODO
+						//todo
+						datos = paquete.Payload;
+						int tamanio_archivo=*((uint32_t*)datos);
+						datos+=sizeof(uint32_t);
+						char*buffer=malloc(tamanio_archivo);
+						memmove(buffer,datos,tamanio_archivo);
+						datos+=tamanio_archivo;
+						char*ruta_yama=malloc(100);
+						strcpy(ruta_yama,datos);
+						datos+=strlen(ruta_yama)+1;
+						ruta_yama=realloc(ruta_yama,strlen(ruta_yama)+1);
+						int rv=cortar_bloques(buffer,ruta_yama);
+						if(rv!=-1){
+							printf("Archivo recibido y guardado\n");
+							remove("/home/utnso/archivoWorker");
+						}else{
+							printf("Error, no se puedo guardar el archivo \n");
+						}
 					}
 						break;
 
-					}
+				}
 			}
 		} else
 			perror("No es ni YAMA ni DATANODE NI WORKER");
-
 		if (paquete.Payload != NULL)
 			free(paquete.Payload);
 	}
@@ -2794,7 +2889,7 @@ void consola() {
 				}
 			}
 			if (!array_input[1] || !array_input[2] || cantidad > 4) {
-				printf("Error, verifique par��metros\n");
+				printf("Error, verifique parametros\n");
 				fflush(stdout);
 			}
 			char *path_archivo = malloc(strlen(array_input[1]) + 1);
@@ -2804,7 +2899,7 @@ void consola() {
 			char *directorio_yama = malloc(strlen(array_input[2]) + 1);
 			strcpy(directorio_yama, array_input[2]);
 			if (!existe_ruta(directorio_yama)) {
-				printf("El directorio no existe, se crear��\n");
+				printf("El directorio no existe, se creara\n");
 				fflush(stdout);
 				crear_y_actualizar_ocupados(directorio_yama);
 			}
@@ -2823,12 +2918,10 @@ void consola() {
 				int i = TAMBLOQUE - 1;
 				while (size_aux > TAMBLOQUE) {
 					if (((char*) data)[i] == '\n' || ((char*) data)[i] == '\r') {
-						//void *datos_bloque = calloc(1, i + 1);
-						//memcpy(datos_bloque, data, i + 1);
+
 						bloque *bloque_add = calloc(1, sizeof(bloque));
 						bloque_add->datos=malloc(i+1);
 						memcpy(bloque_add->datos,data,i+1);
-						//bloque_add->datos = datos_bloque;
 						bloque_add->tamanio = i + 1;
 						list_add(bloques_a_enviar, bloque_add);
 						data += i + 1;
@@ -2838,12 +2931,9 @@ void consola() {
 					}
 				}
 				if (condicion) {
-					//void *datos_bloque = calloc(1, size_aux);
-					//memcpy(datos_bloque, data, size_aux);
 					bloque *bloque_add = calloc(1, sizeof(bloque));
 					bloque_add->datos=calloc(1, size_aux);
 					memcpy(bloque_add->datos,data,size_aux);
-					//bloque_add->datos = datos_bloque;
 					bloque_add->tamanio = size_aux;
 					list_add(bloques_a_enviar, bloque_add);
 				}
@@ -4083,6 +4173,7 @@ int main(int argc, char* argv[]) {
 	archivos_terminados = dictionary_create();
 	archivos_erroneos = dictionary_create();
 	pthread_t hiloConsola;
+	pthread_mutex_init(&mutex_log,NULL);
 	pthread_mutex_init(&mutex_datanodes, NULL);
 	pthread_mutex_init(&mutex_directorio, NULL);
 	pthread_mutex_init(&mutex_directorios_ocupados, NULL);
