@@ -738,9 +738,10 @@ int main(int argc, char* argv[]){
 	datos += strlen(archivoParaYAMA)+1;
 	strcpy(datos,archivoFinal);
 	datos += strlen(archivoFinal)+1;
+	datos-= strlen(archivoParaYAMA)+strlen(archivoFinal)+2;
 
 	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, strlen(archivoParaYAMA)+strlen(archivoFinal)+2, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
-
+	free(datos);
 	while(finalizado!=true){
 		Paquete* paquete = malloc(sizeof(Paquete));
 		if (RecibirPaqueteCliente(socketYAMA, MASTER, paquete)<=0) {
