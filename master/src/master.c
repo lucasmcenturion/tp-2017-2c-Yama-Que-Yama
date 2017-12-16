@@ -288,6 +288,8 @@ int obtenerIdJobDeRuta(char* rutaTemporal){
 	char** array  = string_split(rutaTemporal, "j");
 	char** arrayAux = string_split(array[1], "n");
 	int resultado = atoi(arrayAux[0]);
+	string_iterate_lines(array, free);
+	string_iterate_lines(arrayAux, free);
 	free(array);
 	free(arrayAux);
 	return resultado;
@@ -300,6 +302,7 @@ int obtenerBloqueDeRuta(char* rutaTemporal){
 	// 0123456
 	char** array  = string_split(rutaTemporal, "b");
 	int resultado = atoi(array[1]);
+	string_iterate_lines(array, free);
 	free(array);
 	return resultado;
 }
@@ -619,6 +622,8 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
+	int idJob = *((uint32_t*)datos);
+	datos += sizeof(uint32_t);
 	char* nodoEncargado = malloc(strlen(datos)+1);
 	strcpy(nodoEncargado,datos);
 	datos += strlen(datos)+1;
