@@ -249,24 +249,32 @@ solicitudRG* deserializacionRG(void* payload){
 
 		memcpy(&aux,payload+mov,sizeof(int));
 		mov += sizeof(int);
+
 		nodoAgregar->archTempRL = malloc(aux); //Aux contiene tamanio ArchTempRL
 		memcpy(nodoAgregar->archTempRL,payload+mov,aux);
 		mov += aux;
+
 		memcpy(&nodoAgregar->encargado,payload+mov,sizeof(bool));
 		mov += sizeof(bool);
+
 		memcpy(&aux,payload+mov,sizeof(int));
 		mov += sizeof(int);
+
 		nodoAgregar->worker.nodo = malloc(aux); //Aux contiene tamanio nodo
 		memcpy(nodoAgregar->worker.nodo,payload+mov,aux);
 		mov += aux;
+
 		memcpy(&aux,payload+mov,sizeof(int));
 		mov += sizeof(int);
+
 		nodoAgregar->worker.ip = malloc(aux); //Aux contiene tamanio ip
 		memcpy(nodoAgregar->worker.ip,payload+mov,aux);
 		mov += aux;
+
 		memcpy(&(nodoAgregar->worker.puerto),payload+mov,sizeof(int));
 		mov += sizeof(int);
 
+		printf("Des: %s Puerto: %d",nodoAgregar->worker.nodo,nodoAgregar->worker.puerto);
 		list_add(datosRG->nodos,nodoAgregar);
 
 	}
@@ -425,8 +433,8 @@ void accionHijo(void* socketM){
 
 	if(RecibirPaqueteServidor(socketMaster, WORKER, paquete)<0) perror("Error: No se recibieron los datos de Master");
 	if(RecibirPaqueteCliente(socketMaster, WORKER, paquete)<0) perror("Error: No se recibieron los datos de Master");
-	if(!strcmp(paquete->header.emisor, MASTER)){
-
+	switch((paquete->header.emisor)[0]){
+	case 'M': {
 		switch(paquete->header.tipoMensaje){
 		case TRANSFWORKER:{
 			nodoT* datosT = deserializacionT(paquete->Payload);
@@ -455,12 +463,27 @@ void accionHijo(void* socketM){
 			}
 			//FUNCIONES PARA LISTAS
 
-
-
 			nodoRG* workerEncargado = list_find(datosRG->nodos,(void*)obtenerEncargado);
 			nodoRG* workerActual = list_find(datosRG->nodos,(void*)obtenerActual);
 
-			if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){ //Es encargado
+			printf("Soy el encargado\n");
+			int i;
+			int tamList = list_size(datosRG->nodos);
+			printf("Encargado:: Puerto:%d Nodo:%s \n",workerEncargado->worker.puerto,workerEncargado->worker.nodo);
+
+			for(i=0;i<tamList;i++){
+				nodoRG* nodo = list_get(datosRG->nodos,i);
+				if(!(strcmp(nodo->worker.nodo,workerEncargado->worker.nodo)==0)){
+
+					printf("Tratando de conectar a Port::%d\n",workerEncargado->worker.puerto);
+					fflush(stdout);
+					//int socketWorker = ConectarAServidor(nodo->worker.puerto,nodo->worker.ip,WORKER,WORKER,RecibirHandshake);
+					bool exito = true;
+					//if(!(EnviarDatosTipo(socketWorker, WORKER ,&exito, sizeof(bool), SOLICITUDARCHTEMP))) perror("Error al enviar archRLTemp al worker encargado");
+				}
+			}
+
+			/*if(!strcmp(workerEncargado->worker.nodo,NOMBRE_NODO)){ //Es encargado
 				ServidorWorker(IP_NODO,PUERTO_WORKER,WORKER,socketMaster,workerEncargado,datosRG, RecibirPaqueteServidor);
 			}
 			else{ //No lo es
@@ -479,7 +502,7 @@ void accionHijo(void* socketM){
 				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
 				fclose(archTemp);
-			}
+			}*/
 			break;
 		}
 
@@ -507,12 +530,22 @@ void accionHijo(void* socketM){
 			break;
 		}
 		}
-
-	}
-	else{
-		perror("Recibido de otro emisor que no es master");
+		break;
 	}
 
+
+	case 'W': {
+		RecibirPaqueteServidor(socketMaster,WORKER,paquete);
+		printf("Worker conectado\n");
+		switch(paquete->header.tipoMensaje){
+		case SOLICITUDARCHTEMP:{
+			printf("EUREKA!\n");
+			break;
+		}
+		}
+		break;
+	}
+}
 }
 
 
