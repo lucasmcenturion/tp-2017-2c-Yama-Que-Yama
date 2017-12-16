@@ -52,6 +52,7 @@ typedef struct{
 typedef struct{
 	char* rutaArchivoF; //Esta es la ruta para FS
 	char* resultRG; //Esta es la ruta de archivoTemporal
+	datosWorker worker;
 }__attribute__((packed)) datoAF; //esto es para Master y Worker
 
 typedef struct{

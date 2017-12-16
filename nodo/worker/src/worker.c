@@ -222,7 +222,7 @@ datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
 
 void serializacionAFyEnvioFS(nodoAF* nodo,int socketFS, int tamArchivo){
 	// tamStr + buffer + rutaARchivoF
-
+	printf("Serializa AF\n");
 	int mov = 0;
 	int sizeAux;
 	int size = sizeof(int)+tamArchivo+strlen(nodo->ruta)+1;
@@ -325,7 +325,6 @@ void realizarTransformacion(nodoT* data){
 void realizarReduccionLocal(nodoRL* data){
 	char* strArchTemp = listAsString(data->listaArchivosTemporales);
 	char* pathPrograma = string_from_format("/home/utnso/Escritorio%s",data->programaR);
-
 
 	chmod(pathPrograma, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
 	char* strToSys = string_from_format("cat %s | sort | %s > %s",strArchTemp, pathPrograma, data->archivoTemporal);
@@ -454,6 +453,7 @@ void accionHijo(void* socketM){
 		}
 
 		case SOLICITUDALMACENADOFINAL:{ //FINALIZAR TODO terminar camino de AF
+			printf("Se llego a AF\n");
 			datoAF* datosAF = deserializacionAF(paquete->Payload);
 			nodoAF* nodoAF = malloc(sizeof(nodoAF));
 
@@ -463,7 +463,7 @@ void accionHijo(void* socketM){
 			int tamArchivo;
 			tamArchivo = st.st_size;
 			void* puntero;
-
+			printf("Empieza mmap\n");
 			nodoAF->buffer = malloc(tamArchivo);
 			if ((puntero = mmap(NULL , tamArchivo, PROT_READ , MAP_SHARED, archTemp , 0)) == (caddr_t)(-1)){
 				printf("ERROR en el mmap()\n");
@@ -473,7 +473,7 @@ void accionHijo(void* socketM){
 			munmap(puntero,tamArchivo);
 			nodoAF->ruta = malloc(strlen(datosAF->rutaArchivoF)+1);
 			strcpy(nodoAF->ruta,datosAF->rutaArchivoF);
-
+			printf("termina mmap y se manda a FS\n");
 			int socketFS = ConectarAServidor(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, WORKER, RecibirHandshake);
 			serializacionAFyEnvioFS(nodoAF,socketFS,tamArchivo);
 			if(RecibirPaqueteServidor(socketFS, WORKER, paquete)<=0) perror("Error: No se recibieron los datos de Master");

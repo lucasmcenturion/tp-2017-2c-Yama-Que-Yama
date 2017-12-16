@@ -17,13 +17,14 @@ size_t getFileSize(const char* filename) {
     }
     return st.st_size;
 }
+
 void escribir_log(char*nombre_log,char*proceso,char*mensaje,char*tipo){
 	if(strcmp(tipo,"info")==0){
 		t_log* log=log_create(nombre_log,proceso,false,LOG_LEVEL_INFO);
 		log_info(log,mensaje);
 		log_destroy(log);
 	}else{
-		if(strcmp(proceso,"dt")==0){
+		if(strcmp(proceso,"dt")==0 || strcmp(proceso,"wk")==0){
 			t_log* log=log_create(nombre_log,proceso,true,LOG_LEVEL_INFO);
 			log_info(log,mensaje);
 			log_destroy(log);
