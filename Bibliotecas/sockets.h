@@ -50,6 +50,16 @@ typedef struct{
 }__attribute__((packed)) rtaEstado;
 
 typedef struct{
+	char* rutaArchivoF; //Esta es la ruta para FS
+	char* resultRG; //Esta es la ruta de archivoTemporal
+}__attribute__((packed)) datoAF; //esto es para Master y Worker
+
+typedef struct{
+	char* buffer;
+	char* ruta;
+}__attribute__((packed)) nodoAF; //Esto es para FS
+
+typedef struct{
 	etapa header; //No se si es necesaria, ahora lo chequeo.
 	datosWorker worker;
 	char* archTempRL;

@@ -273,12 +273,6 @@ solicitudRG* deserializacionRG(void* payload){
 	return datosRG;
 }
 
-
-typedef struct{
-	char* rutaArchivoF;
-	char* resultRG;
-} datoAF; //mover a sockets y poner packed
-
 datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
 	// tamString - ResultRG - tamString - rutaArchivoF
 	int mov = 0;
@@ -299,22 +293,22 @@ datoAF* deserializacionAF(void* payload){ //TODO terminar camino de AF
 }
 
 
-void serializacionAFyEnvioFS(char* buffer, char* rutaArchivoF,int socketFS){//bufferTexto,datosAF.rutaArchivoF,socketFS
+void serializacionAFyEnvioFS(nodoAF* nodo,int socketFS){//bufferTexto,datosAF.rutaArchivoF,socketFS
 	// tamStr + buffer + tamStr + rutaARchivoF
 	int mov = 0;
 	int sizeAux;
-	int size = sizeof(int)+strlen(buffer)+1+sizeof(int)+strlen(rutaArchivoF)+1;
+	int size = sizeof(int)+strlen(nodo->buffer)+1+sizeof(int)+strlen(nodo->ruta)+1;
 	void* datos = malloc(size);
 
-	sizeAux = strlen(buffer)+1;
+	sizeAux = strlen(nodo->buffer)+1;
 	memcpy(datos+mov,&sizeAux,sizeof(int));
 	mov += sizeof(int);
-	memcpy(datos+mov,buffer,strlen(buffer)+1);
-	mov += strlen(buffer)+1;
-	sizeAux = strlen(rutaArchivoF)+1;
+	memcpy(datos+mov,nodo->buffer,strlen(nodo->buffer)+1);
+	mov += strlen(nodo->buffer)+1;
+	sizeAux = strlen(nodo->ruta)+1;
 	memcpy(datos,&sizeAux,sizeof(int));
 	mov += sizeof(int);
-	memcpy(datos,rutaArchivoF,strlen(rutaArchivoF)+1);
+	memcpy(datos,nodo->ruta,strlen(nodo->ruta)+1);
 
 	if(!(EnviarDatosTipo(socketFS,WORKER,datos,size,1))) perror("Error al datos al FS para almacenado final");
 
@@ -473,11 +467,14 @@ void accionHijo(void* socketM){
 
 				int socketWorkerEncargado = ConectarAServidor(workerEncargado->worker.puerto, workerEncargado->worker.ip, WORKER,WORKER, RecibirHandshake);
 				FILE* archTemp = fopen(workerActual->archTempRL,"r");
-				char str[BUFFERSIZE];
 
-				while( fgets(str, BUFFERSIZE, archTemp)!=NULL ) {
-					if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,str, strlen(str)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
-				}
+				struct stat st;
+				stat(workerActual->archTempRL,&st);
+				char* bufferTexto = malloc((st.st_size)+1);
+				fread(bufferTexto,st.st_size,1,archTemp);
+
+				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,bufferTexto, strlen(bufferTexto)+1, ARCHIVOTEMPRL))) perror("Error al enviar archRLTemp al worker encargado");
+
 				bool ok = true;
 				if(!(EnviarDatosTipo(socketWorkerEncargado, WORKER ,&ok,sizeof(bool), FINARCHIVOTEMPRL))) perror("Error al enviar confirmacion al worker encargado");
 
@@ -489,15 +486,18 @@ void accionHijo(void* socketM){
 		case 2:{ //FINALIZAR TODO terminar camino de AF
 			//Deserializo lo que me mando Master
 			datoAF* datosAF = deserializacionAF(paquete->Payload);
+			nodoAF* nodoAF = malloc(sizeof(nodoAF));
 			// Abro el archivo de Reduc Global y copio su contenido a buffer
 			FILE* fdRedGlobal = fopen(datosAF->resultRG,"r");
 			struct stat st;
 			stat(datosAF->resultRG,&st);
-			char* bufferTexto = malloc((st.st_size)+1);
-			fread(bufferTexto,st.st_size,1,fdRedGlobal);
-			// Le mando a FS el buffer con el path
+			nodoAF->buffer = malloc((st.st_size)+1);
+			nodoAF->ruta = malloc(strlen(datosAF->rutaArchivoF)+1);
+			strcpy(nodoAF->ruta,datosAF->rutaArchivoF);
+			fread(nodoAF->buffer,st.st_size,1,fdRedGlobal);
+			//Le mando a FS el buffer con el path
 			//Semaforo por socketFS?
-			serializacionAFyEnvioFS(bufferTexto,datosAF->rutaArchivoF,socketFS);
+			serializacionAFyEnvioFS(nodoAF,socketFS);
 			//ESpero conf de FS
 			// Mando conf a Master
 			break;

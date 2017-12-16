@@ -617,7 +617,6 @@ void realizarReduccionLocal(Paquete* paquete, char* programaR){
 }
 
 void realizarReduccionGlobal(Paquete* paquete, char* programaR){
-	int cantNodos;
 	void* datos = paquete->Payload;
 	solicitudRG* datosParaRG = malloc(sizeof(solicitudRG));
 	char* nodoEncargado = malloc(strlen(datos)+1);
@@ -740,16 +739,14 @@ int main(int argc, char* argv[]){
 				realizarReduccionLocal(paquete, programaReduc);
 				break;
 			}
-			case REDGLOBALWORKER:{
+			case SOLICITUDREDUCCIONGLOBAL:{
 				realizarReduccionGlobal(paquete, programaReduc);
 				break;
 			}
-
-			//case FINALIZAR:
-
-			realizarAlmacenamientoFinal(paquete,archivoFinal);
-
-
+			case SOLICITUDALMACENADOFINAL:{
+				realizarAlmacenamientoFinal(paquete,archivoFinal);
+				break;
+			}
 
 			//Aca deberia haber pthread join del AF
 

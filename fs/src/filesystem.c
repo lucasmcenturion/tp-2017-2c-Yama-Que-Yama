@@ -368,7 +368,7 @@ void obtenerValoresArchivoConfiguracion() {
 }
 
 void imprimirArchivoConfiguracion() {
-	printf("Configuración:\n"
+	printf("Configuraci��n:\n"
 			"IP=%s\n"
 			"PUERTO=%d\n"
 			"PUNTO_MONTAJE=%s\n", IP, PUERTO, PUNTO_MONTAJE);
@@ -777,18 +777,20 @@ void escribir_archivo_cpto(int tamanio_archivo, int bloque_archivo,int index_dir
 	int archivo = open(path, O_RDWR);
 	struct stat mystat;
 	void *bmap;
+	void*aux;
 	if (fstat(archivo, &mystat) < 0) {
 		printf("Error al establecer fstat\n");
 		close(archivo);
 	} else {
 		bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED,archivo, 0);
+		aux=bmap;
 		bmap+=anterior_cpto;
 		if (bmap == MAP_FAILED) {
 			printf("Error al mapear a memoria: %s\n", strerror(errno));
 			close(archivo);
 		} else {
 			memmove(bmap, bloque, tamanio_bloque);
-			munmap(bmap, mystat.st_size);
+			munmap(aux, mystat.st_size);
 			close(archivo);
 			anterior_cpto += tamanio_bloque;
 			free(path);
@@ -929,6 +931,8 @@ void accion(void* socket) {
 					anterior_md5=0;
 					pthread_mutex_unlock(&mutex_orden_md5);
 				}
+				free(nombre_archivo);
+				free(bloque);
 				pthread_mutex_unlock(&mutex_respuesta_solicitud);
 			}
 				break;
@@ -976,6 +980,7 @@ void accion(void* socket) {
 				}
 				free(nombre_archivo);
 				free(ruta_a_guardar);
+				free(bloque);
 				pthread_mutex_unlock(&mutex_respuesta_solicitud_cpto);
 			}
 			break;
@@ -1027,6 +1032,7 @@ void accion(void* socket) {
 					fclose(f);
 					int size_bitarray =(int) (size_databin / TAMBLOQUE) % 8 > 0 ?((int) ((int) (size_databin / TAMBLOQUE) / 8))+ 1 :(int) (size_databin / TAMBLOQUE);
 					truncate(path, size_bitarray);
+
 					int bitmap = open(path, O_RDWR);
 					struct stat mystat;
 					void *bmap;
@@ -1076,6 +1082,7 @@ void accion(void* socket) {
 							}
 							data->bloques_totales = (int) (size_databin/ TAMBLOQUE);
 							data->bloques_libres = data->bloques_totales- bloques_ocupados;
+							bitarray_destroy(bitarray);
 							munmap(bmap, mystat.st_size);
 							close(bitmap);
 						}
@@ -1167,14 +1174,14 @@ void accion(void* socket) {
 				}
 				if(!list_is_empty(datanodes_anteriores)){
 					if(formateado && (list_find(datanodes_anteriores,(void*) tiene_nombre)==NULL)){
-						printf("Se rechazo la conexion de %s, el filesystem ya está formateado \n",(char*)datos);
+						printf("Se rechazo la conexion de %s, el filesystem ya est�� formateado \n",(char*)datos);
 						fflush(stdout);
 						rechazado=true;
 						close(socketFD);
 						break;
 					}
 					if(!estable && (list_find(datanodes_anteriores,(void*) tiene_nombre)==NULL)){
-						printf("Se rechazo la conexion de %s, el sistema no esta estable y nunca se conectó este nodo \n",(char*)datos);
+						printf("Se rechazo la conexion de %s, el sistema no esta estable y nunca se conect�� este nodo \n",(char*)datos);
 						fflush(stdout);
 						rechazado=true;
 						close(socketFD);
@@ -1283,6 +1290,7 @@ void accion(void* socket) {
 						datos -= tamanioAEnviar;
 						EnviarDatosTipo(socketYAMA,FILESYSTEM,datos,tamanioAEnviar+sizeof(uint32_t),SOLICITUDBLOQUESYAMA);
 						free(string_index);
+						free(datos);
 					}
 					break;
 				}
@@ -1533,6 +1541,124 @@ void rmtree(const char path[]) {
 		rmdir(path);
 	}
 	closedir(dir);
+}
+void limpiar_directorio_original(t_config*archivo_original){
+	t_dictionary*nodos=dictionary_create();
+	void crear_listas(char*key,char*value){
+		if(strlen(key)>12){
+			char**separado_por_comas=string_split(value,",");
+			char*nodo=string_substring(separado_por_comas[0],1,strlen(separado_por_comas[0]));
+			char*bloque=string_substring(separado_por_comas[1],0,strlen(separado_por_comas[1])-1);
+
+			if(dictionary_has_key(nodos,nodo)){
+				list_add(((t_list*)dictionary_get(nodos,nodo)),atoi(bloque));
+			}else{
+				t_list*lista=list_create();
+				list_add(lista,atoi(bloque));
+				dictionary_put(nodos,nodo,lista);
+			}
+			free(nodo);
+			free(bloque);
+			free(separado_por_comas[0]);
+			free(separado_por_comas[1]);
+			free(separado_por_comas);
+		}
+	}
+	dictionary_iterator(archivo_original->properties,(void*) crear_listas);
+	void limpiar(char*key,t_list*elementos){
+		char*ruta=malloc(50);
+		strcpy(ruta,RUTA_BITMAPS);
+		strcat(ruta,"/");
+		strcat(ruta,key);
+		strcat(ruta,".dat");
+		int fd=open(ruta,O_RDWR);
+		struct stat mystat;
+		void*bmap;
+		if(fstat(fd, &mystat) < 0){
+			printf("Error al establecer fstat\n");
+			close(fd);
+		}else{
+			bmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED,fd, 0);
+			if (bmap == MAP_FAILED) {
+				printf("Error al mapear a memoria: %s\n", strerror(errno));
+			}else{
+				t_bitarray *bitarray=bitarray_create_with_mode(bmap,mystat.st_size,MSB_FIRST);
+				int var;
+				for (var = 0; var < list_size(elementos); ++var) {
+					bitarray_clean_bit(bitarray,(int)list_get(elementos,var));
+				}
+				bitarray_destroy(bitarray);
+				munmap(bmap,mystat.st_size);
+				close(fd);
+			}
+		}
+		free(ruta);
+		list_destroy(elementos);
+	}
+	dictionary_iterator(nodos,(void*) limpiar);
+	dictionary_destroy(nodos);
+	bool primera_vez=true;
+	void actualizar(info_datanode*elemento){
+		char*ruta=malloc(50);
+		strcpy(ruta,RUTA_BITMAPS);
+		strcat(ruta,"/");
+		strcat(ruta,elemento->nodo);
+		strcat(ruta,".dat");
+		int bitmap = open(ruta, O_RDWR);
+		struct stat mystat;
+		void *bmap;
+		if (fstat(bitmap, &mystat) < 0) {
+			printf("Error al establecer fstat\n");
+			close(bitmap);
+		} else {
+			bmap = mmap(NULL, mystat.st_size,PROT_WRITE | PROT_READ, MAP_SHARED, bitmap, 0);
+			if (bmap == MAP_FAILED) {
+				printf("Error al mapear a memoria: %s\n",
+						strerror(errno));
+			} else {
+				t_bitarray *bitarray = bitarray_create_with_mode(bmap, mystat.st_size, MSB_FIRST);
+				int i;
+				elemento->bloques_libres=0;
+				for (i = 0; i < elemento->bloques_totales;++i) {
+					if (bitarray_test_bit(bitarray, i) == 0) {
+						elemento->bloques_libres++;
+					}
+				}
+				bitarray_destroy(bitarray);
+				munmap(bmap, mystat.st_size);
+				close(bitmap);
+			}
+		}
+		free(ruta);
+		t_config*archivo=config_create(RUTA_NODOS);
+		char*libre=malloc(50);
+		strcpy(libre,elemento->nodo);
+		strcat(libre,"Libre");
+		libre=realloc(libre,strlen(libre)+1);
+		char*string_libre=integer_to_string(string_libre,(int)elemento->bloques_libres);
+		config_set_value(archivo,libre,string_libre);
+		char*string_libre_2= malloc(100);
+		if(primera_vez){
+			config_set_value(archivo,"LIBRE",string_libre);
+			primera_vez=false;
+		}else{
+			int libre;
+			libre = config_get_int_value(archivo, "LIBRE");
+			sprintf(string_libre_2, "%i", libre+elemento->bloques_libres);
+			string_libre_2 = realloc(string_libre_2, strlen(string_libre_2) + 1);
+			config_set_value(archivo, "LIBRE", string_libre_2);
+			config_save(archivo);
+		}
+		config_save_in_file(archivo,RUTA_NODOS);
+		config_destroy(archivo);
+		free(string_libre);
+		free(libre);
+		free(string_libre_2);
+	}
+	pthread_mutex_lock(&mutex_datanodes);
+	list_iterate(datanodes, (void*) actualizar);
+	pthread_mutex_unlock(&mutex_datanodes);
+
 }
 int obtener_socket(char*nombre) {
 	bool nombre_igual(info_datanode*datanode) {
@@ -1910,7 +2036,7 @@ void formatear_bitarray(char*nombre_archivo,bool primera_vez){
 }
 void igualar(info_datanode*elemento){
 	//printf(elemento->bloques_libres);
-	memmove(elemento->bloques_libres,elemento->bloques_totales,sizeof(int));
+	elemento->bloques_libres=elemento->bloques_totales;
 }
 void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guardar){
 	char*ruta = malloc(100);
@@ -2152,9 +2278,9 @@ void solicitar_bloques_cpto(char*nombre_archivo,int index_padre,char*ruta_a_guar
 		free(primer_bloque);
 		free(segundo_bloque);
 		free(tercer_bloque);
-		free(string_index_padre);
+		//free(string_index_padre);
 		free(string_i);
-		free(string_cantidad);
+		//free(string_cantidad);
 		i++;
 		aux--;
 		cantidad--;
@@ -2241,7 +2367,7 @@ void consola() {
 				linea -= 3;
 				char **array_input=string_split(linea," ");
 				if(!array_input[0] || !array_input[1] || !array_input[2]){
-					printf("Error,verifique los parámetros \n");
+					printf("Error,verifique los par��metros \n");
 				}else{
 					int index=index_ultimo_directorio(array_input[2],"d");
 					DIR*d;
@@ -2268,7 +2394,7 @@ void consola() {
 						flag_closedir=true;
 					}
 					if(i!=0){
-						printf("Error, el directorio no está vacío \n");
+						printf("Error, el directorio no est�� vac��o \n");
 					}else{
 						t_directory**directorios=obtener_directorios();
 						t_directory *aux=(*directorios);
@@ -2297,7 +2423,7 @@ void consola() {
 				linea -= 3;
 				char **array_input=string_split(linea," ");
 				if(!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3] || !array_input[4]){
-					printf("Error,verifique los parámetros \n");
+					printf("Error,verifique los par��metros \n");
 				}else{
 					char *ruta_archivo=malloc(100);
 					strcpy(ruta_archivo,RUTA_ARCHIVOS);
@@ -2378,7 +2504,7 @@ void consola() {
 				linea -= 3;
 				char **array_input=string_split(linea," ");
 				if(!array_input[0] || !array_input[1] ){
-					printf("Error,verifique los parámetros \n");
+					printf("Error,verifique los par��metros \n");
 				}else{
 					char *nombre_archivo=malloc(100);
 					strcpy(nombre_archivo,obtener_nombre_archivo(array_input[1]));
@@ -2393,6 +2519,9 @@ void consola() {
 					strcat(ruta_archivo_yamafs,"/");
 					strcat(ruta_archivo_yamafs,nombre_archivo);
 					ruta_archivo_yamafs=realloc(ruta_archivo_yamafs,strlen(ruta_archivo_yamafs)+1);
+					t_config*archivo=config_create(ruta_archivo_yamafs);
+					limpiar_directorio_original(archivo);
+					config_destroy(archivo);
 					remove(ruta_archivo_yamafs);
 					char *directorio=malloc(100);
 					strcpy(directorio,RUTA_ARCHIVOS);
@@ -2508,7 +2637,7 @@ void consola() {
 		} else if (!strncmp(linea, "mv ", 3)){
 			char**array_input=string_split(linea," ");
 			if(!array_input[0] || !array_input[1] || !array_input[2] || !array_input[3]){
-				printf("Error, verificar parámetros \n");
+				printf("Error, verificar par��metros \n");
 			}else{
 				int tipo=atoi(array_input[3]);
 				char*ruta_original=malloc(100);
@@ -2649,7 +2778,7 @@ void consola() {
 				printf("El directorio ya existe!\n");
 				fflush(stdout);
 			} else {
-				printf("El directorio no existe, se creará\n");
+				printf("El directorio no existe, se crear��\n");
 				fflush(stdout);
 				crear_y_actualizar_ocupados(array_input[1]);
 				printf("Directorio creado correctamente\n");
@@ -2658,7 +2787,7 @@ void consola() {
 		} else if (!strncmp(linea, "cpfrom ", 7)) {
 			/*
 			 * cpfrom	[path_archivo_origen]	[directorio_yamafs]	 [tipo_archivo]	-	Copiar	un	archivo	local	al	yamafs,
-			 siguiendo	los	lineamientos	en	la	operaciòn	Almacenar	Archivo,	de	la	Interfaz	del
+			 siguiendo	los	lineamientos	en	la	operaci��n	Almacenar	Archivo,	de	la	Interfaz	del
 			 FileSystem.
 			 * */
 			char **array_input = string_split(linea, " ");
@@ -2671,7 +2800,7 @@ void consola() {
 				}
 			}
 			if (!array_input[1] || !array_input[2] || cantidad > 4) {
-				printf("Error, verifique parámetros\n");
+				printf("Error, verifique par��metros\n");
 				fflush(stdout);
 			}
 			char *path_archivo = malloc(strlen(array_input[1]) + 1);
@@ -2681,7 +2810,7 @@ void consola() {
 			char *directorio_yama = malloc(strlen(array_input[2]) + 1);
 			strcpy(directorio_yama, array_input[2]);
 			if (!existe_ruta(directorio_yama)) {
-				printf("El directorio no existe, se creará\n");
+				printf("El directorio no existe, se crear��\n");
 				fflush(stdout);
 				crear_y_actualizar_ocupados(directorio_yama);
 			}
@@ -2727,7 +2856,7 @@ void consola() {
 			} else {
 				//archivo binario
 				if (size_aux > TAMBLOQUE) {
-					//tamaño archivo mayor al de un bloque
+					//tama��o archivo mayor al de un bloque
 					while (size_aux > TAMBLOQUE) {
 						void *datos_bloque = calloc(1, TAMBLOQUE);
 						memcpy(datos_bloque, data, TAMBLOQUE);
@@ -2747,7 +2876,7 @@ void consola() {
 						list_add(bloques_a_enviar, bloque_add);
 					}
 				} else {
-					//tamaño archivo menor a un bloque
+					//tama��o archivo menor a un bloque
 					void *datos_bloque = calloc(1, size_aux);
 					memcpy(datos_bloque, data, size_aux);
 					bloque *bloque_add = calloc(1, sizeof(bloque));
@@ -2994,7 +3123,7 @@ void consola() {
 									}
 								}
 								if(rv==-1){
-									printf("Error, ese nodo no tiene más lugar\n");
+									printf("Error, ese nodo no tiene m��s lugar\n");
 								}else{
 									bool mismo_nombre(info_datanode*elemento){
 										return !strcmp(elemento->nodo,cpblock->nombre_nodo);
@@ -3079,7 +3208,7 @@ void consola() {
 			} else {
 				if (!existe_ruta(array_input[1])) {
 					printf(
-							"El directorio no existe,por favor ingrese un directorio válido \n");
+							"El directorio no existe,por favor ingrese un directorio v��lido \n");
 				} else {
 					t_directory **directorios = obtener_directorios();
 					t_directory *aux = (*directorios);
@@ -3469,7 +3598,7 @@ t_resultado_envio* enviar_bloque(t_list*bloques_a_enviar,
 			strcpy(primer_bloque->nombre_archivo, nombre_archivo);
 			primer_bloque->nombre_archivo = realloc(primer_bloque->nombre_archivo,strlen(primer_bloque->nombre_archivo) + 1);
 
-			//enviamos al datanode el bloque y el tamaño de bloque
+			//enviamos al datanode el bloque y el tama��o de bloque
 			int tamanio = sizeof(uint32_t) * 4 + primer_bloque->tamanio+ sizeof(char) * strlen(primer_bloque->nombre_archivo) + 1;
 			void *datos = malloc(tamanio);
 			*((uint32_t*) datos) = primer_bloque->numero;
@@ -3563,22 +3692,31 @@ void actualizar_luego_de_cpfrom(){
 		strcpy(ruta_nodos, RUTA_NODOS);
 		ruta_nodos = realloc(ruta_nodos, strlen(ruta_nodos) + 1);
 		t_config *nodos = config_create(ruta_nodos);
-		int tamanio_actual;
-		tamanio_actual = config_get_int_value(nodos, "TAMANIO");
-		tamanio_actual =tamanio_actual == 0 ? elemento->bloques_totales :tamanio_actual + elemento->bloques_totales;
-		char *string_tamanio_actual = malloc(100);
-		sprintf(string_tamanio_actual, "%i", tamanio_actual);
-		string_tamanio_actual = realloc(string_tamanio_actual,strlen(string_tamanio_actual) + 1);
-		config_set_value(nodos, "TAMANIO", string_tamanio_actual);
-		config_save(nodos);
-		int libre;
-		libre = config_get_int_value(nodos, "LIBRE");
-		libre = libre == 0 ? elemento->bloques_libres : libre + elemento->bloques_libres;
-		char *string_libre = malloc(100);
-		sprintf(string_libre, "%i", libre);
-		string_libre = realloc(string_libre, strlen(string_libre) + 1);
-		config_set_value(nodos, "LIBRE", string_libre);
-		config_save(nodos);
+		char*string_tamanio_actual;
+		char*string_libre;
+		if(var==0){
+			string_tamanio_actual=integer_to_string(string_tamanio_actual,elemento->bloques_totales);
+			config_set_value(nodos,"TAMANIO",string_tamanio_actual);
+			string_libre=integer_to_string(string_libre,elemento->bloques_libres);
+			config_set_value(nodos,"LIBRE",string_libre);
+		}else{
+			int tamanio_actual;
+			tamanio_actual = config_get_int_value(nodos, "TAMANIO");
+			tamanio_actual =tamanio_actual == 0 ? elemento->bloques_totales :tamanio_actual + elemento->bloques_totales;
+			string_tamanio_actual = malloc(100);
+			sprintf(string_tamanio_actual, "%i", tamanio_actual);
+			string_tamanio_actual = realloc(string_tamanio_actual,strlen(string_tamanio_actual) + 1);
+			config_set_value(nodos, "TAMANIO", string_tamanio_actual);
+			config_save(nodos);
+			int libre;
+			libre = config_get_int_value(nodos, "LIBRE");
+			libre = libre == 0 ? elemento->bloques_libres : libre + elemento->bloques_libres;
+			string_libre = malloc(100);
+			sprintf(string_libre, "%i", libre);
+			string_libre = realloc(string_libre, strlen(string_libre) + 1);
+			config_set_value(nodos, "LIBRE", string_libre);
+			config_save(nodos);
+		}
 		char *nodo_actual_total = calloc(1, 100);
 		strcpy(nodo_actual_total, elemento->nodo);
 		strcat(nodo_actual_total, "Total");
