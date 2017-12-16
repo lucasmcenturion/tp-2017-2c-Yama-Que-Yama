@@ -30,7 +30,7 @@ void obtenerValoresArchivoConfiguracion(char* valor) {
 void realizarReduccionGlobal(solicitudRG* data, nodoRG* encargado){
 	//char* strArchivosTemporales = listaAstringRG(data->nodos);
 	chmod(data->programaR, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
-	char* strToSys = string_from_format("cat %s | %s > %s",encargado->archTempRL, data->programaR, data->archRG);
+	char* strToSys = string_from_format("cat %s | /home/utnso/Escritorio%s > %s",encargado->archTempRL, data->programaR, data->archRG);
 	system(strToSys);
 	return;
 }

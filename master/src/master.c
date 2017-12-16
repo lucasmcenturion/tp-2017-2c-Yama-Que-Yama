@@ -731,10 +731,15 @@ int main(int argc, char* argv[]){
 	char* archivoParaYAMA = argv[3];
 	char* archivoFinal = argv[4];
 
-
 	socketYAMA = ConectarAServidor(YAMA_PUERTO, YAMA_IP, YAMA, MASTER, RecibirHandshake);
 
-	if(!(EnviarDatosTipo(socketYAMA, MASTER ,archivoParaYAMA, strlen(archivoParaYAMA)+1, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
+	void* datos = malloc(strlen(archivoParaYAMA)+strlen(archivoFinal)+2);
+	strcpy(datos,archivoParaYAMA);
+	datos += strlen(archivoParaYAMA)+1;
+	strcpy(datos,archivoFinal);
+	datos += strlen(archivoFinal)+1;
+
+	if(!(EnviarDatosTipo(socketYAMA, MASTER ,datos, strlen(archivoParaYAMA)+strlen(archivoFinal)+2, SOLICITUDTRANSFORMACION))) perror("Error al enviar el archivoParaYAMA a YAMA");
 
 	while(finalizado!=true){
 		Paquete* paquete = malloc(sizeof(Paquete));
