@@ -402,8 +402,8 @@ void planificacionT(t_list* bloques, master* elmaster){
 			}
 		}while(!salio);
 	}
-	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
 	escribir_log("YAMA", "yama", "Se ha planificado", "info");
+	EnviarBloquesAMaster(listaDeBloquesAEnviar, elmaster);
 	list_destroy(lista);
 	free(ALGORITMO_BALANCEO_ACTUAL);
 	usleep(RETARDO_PLANIFICACION_ACTUAL*1000000);
@@ -759,7 +759,7 @@ void accion(void* socket){
 					registroEstado* rRL = list_find(tablaDeEstados,LAMBDA(bool _(void* item1) { return !strcmp(((registroEstado*)item1)->nodo,nodoRL) && ((registroEstado*)item1)->etapa == REDUCCIONLOCAL && ((registroEstado*)item1)->job == idJobRL;}));
 					if (exitoRL)
 					{
-						char* msg = string_from_format("La reducción del job %i del master %i para el %s ha terminado", idJobRL, rRL->master, nodoRL);
+						char* msg = string_from_format("La reducción local del job %i del master %i para el %s ha terminado exitosamente", idJobRL, rRL->master, nodoRL);
 						escribir_log("YAMA", "yama", msg, "info");
 						free(msg);
 						rRL->estado = FINALIZADOOK;
@@ -777,7 +777,7 @@ void accion(void* socket){
 					}
 					else
 					{
-						char* msg = string_from_format("La reducción del job %i del master %i para el %s no ha podido terminar.", idJobRL, rRL->master, nodoRL);
+						char* msg = string_from_format("La reducción local del job %i del master %i para el %s no ha podido terminar.", idJobRL, rRL->master, nodoRL);
 						escribir_log("YAMA", "yama", msg, "error");
 						free(msg);
 						printf("Falló la reducción local. Se abortará el job.");
