@@ -377,6 +377,7 @@ void accionHilo(void* solicitud){
 			else {
 				perror("Error en el header, se esperaba VALIDACIONWORKER");//Error nuestro, no contemplado para informar a YAMA
 			}
+			free(resultado);
 			free(datosT);
 		}
 		break;
@@ -448,6 +449,7 @@ void accionHilo(void* solicitud){
 			else{
 				perror("Error en el header, se esperaba VALIDACIONWORKER"); //Este caso ocurriria por error de programacion, no se contempla para notificar a YAMA
 			}
+			free(resultado);
 			free(datosRL);
 		}
 		break;
@@ -513,6 +515,7 @@ void accionHilo(void* solicitud){
 			}else{
 				perror("Error en el header, se esperaba VALIDACIONWORKER");
 			}
+			free(resultado);
 			free(datosRG);
 		}
 		break;
