@@ -832,6 +832,7 @@ void accion(void* socket){
 						fflush(stdout);
 						rRL->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rRL);
+						close(socketFD);
 					}
 					free(nodoRL);
 				}
@@ -870,6 +871,7 @@ void accion(void* socket){
 						fflush(stdout);
 						rRG->estado = ERROR;
 						MostrarRegistroTablaDeEstados(rRG);
+						close(socketFD);
 					}
 					free(nodoRG);
 				}
