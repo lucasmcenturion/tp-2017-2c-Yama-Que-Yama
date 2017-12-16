@@ -1,1 +1,18 @@
 [INFO] 00:45:32:620 filesystem/(10256:10256): Iniciando
+[INFO] 02:01:47:417 fs/(11926:11931): Iniciando formateo
+[INFO] 02:01:47:432 fs/(11926:11931): Directorios creados
+[INFO] 02:01:47:432 fs/(11926:11931): Root seteado
+[INFO] 02:01:47:435 fs/(11926:11931): Archivos eliminados y bitarray limpiados
+[INFO] 02:02:29:776 fs/(11926:11931): Dividiendo el archivo en bloques
+[INFO] 02:02:29:901 fs/(11926:11931): Enviando bloques..
+[INFO] 02:02:30:366 fs/(11926:11931): Bloques enviados
+[INFO] 02:03:20:567 fs/(11926:11931): solicitando bloques
+[INFO] 02:03:21:551 fs/(11926:11931): Bloques solicitados
+[INFO] 02:03:50:383 fs/(11926:11931): Solicitando bloques..
+[INFO] 02:03:50:421 fs/(11926:11931): bloques_solicitados
+[INFO] 02:03:50:503 fs/(11926:11931): Eliminando archivo
+[ERROR] 02:49:32:753 fs/(12519:12520): El nodo solicitado no esta conectado
+[ERROR] 02:50:58:87 fs/(12519:12520): Ya existe una copia en ese nodo por favor elija otro
+[ERROR] 02:51:15:574 fs/(12519:12520): El nodo solicitado no esta conectado
+[INFO] 02:51:23:48 fs/(12519:12520): Enviando solicitud al dt para obtener bloque
+[INFO] 02:51:23:159 fs/(12519:12520): Enviando bloque al nodo correspondiente

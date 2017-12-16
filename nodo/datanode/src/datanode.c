@@ -162,11 +162,13 @@ void enviarHandshakeDatanode(int socketFD,char emisor[11]){
 	free(paquete);
 }
 int main(int argc, char* argv[]){
+
 	obtenerValoresArchivoConfiguracion();
 	imprimirArchivoConfiguracion();
 	fflush( stdout );
 	obtenerStatusDataBin();
 	fflush( stdout );
+	escribir_log("datanode","dt","Iniciando..","info");
 	socketFS = ConectarAServidorDatanode(PUERTO_FILESYSTEM, IP_FILESYSTEM, FILESYSTEM, DATANODE, RecibirHandshake,enviarHandshakeDatanode);
 	fflush( stdout );
 
@@ -184,6 +186,8 @@ int main(int argc, char* argv[]){
 	datos -= tamanio;
 
 	EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, IDENTIFICACIONDATANODE);
+
+	escribir_log("datanode","dt","Identificacion enviada a fs","info");
 	free(datos);
 	Paquete paquete;
 	void *datos_solicitud;
@@ -192,6 +196,7 @@ int main(int argc, char* argv[]){
 		switch(paquete.header.tipoMensaje){
 		case SOLICITUDBLOQUE:
 		{
+			escribir_log("datanode","dt","Se solicito un bloque ","info");
 			datos_solicitud=paquete.Payload;
 			bloque_archivo = *((uint32_t*)datos_solicitud);
 			datos_solicitud+=sizeof(uint32_t);
@@ -214,6 +219,7 @@ int main(int argc, char* argv[]){
 			//bloque=getBloque(bloque_nodo,tamanio_bloque);
 			//memmove(bloque,getBloque(bloque_nodo,tamanio_bloque),tamanio_bloque);
 			//printf((char*)bloque);
+			escribir_log("datanode","dt","Bloque obtenido","info");
 			int tamanio_a_enviar = sizeof(uint32_t) * 5  + sizeof(char)*strlen(nombre_archivo)+1+tamanio_bloque;
 
 			datos_solicitud = calloc(1,tamanio_a_enviar);
@@ -235,12 +241,14 @@ int main(int argc, char* argv[]){
 			datos_solicitud -= tamanio_a_enviar;
 
 			EnviarDatosTipo(socketFS,DATANODE,datos_solicitud,tamanio_a_enviar,RESPUESTASOLICITUD);
-
+			escribir_log("datanode","dt","Bloque enviado","info");
 			free(bloque);
 
 		}
 		break;
 		case SOLICITUDBLOQUECPTO:{
+
+			escribir_log("datanode","dt","Solicitaron bloque cpto","info");
 			datos_solicitud=paquete.Payload;
 			bloque_archivo = *((uint32_t*)datos_solicitud);
 			datos_solicitud+=sizeof(uint32_t);
@@ -263,6 +271,7 @@ int main(int argc, char* argv[]){
 			ruta_a_guardar=realloc(ruta_a_guardar,strlen(ruta_a_guardar)+1);
 			datos_solicitud+=strlen(ruta_a_guardar)+1;
 			void *bloque=getBloque(bloque_nodo,tamanio_bloque);
+			escribir_log("datanode","dt","Bloque obtenido","info");
 			int tamanio_a_enviar = sizeof(uint32_t) * 5  + sizeof(char)*strlen(nombre_archivo)+1
 					+sizeof(char)*strlen(ruta_a_guardar)+1+tamanio_bloque;
 
@@ -287,7 +296,7 @@ int main(int argc, char* argv[]){
 			datos_solicitud -= tamanio_a_enviar;
 
 			EnviarDatosTipo(socketFS,DATANODE,datos_solicitud,tamanio_a_enviar,RESPUESTASOLICITUDCPTO);
-
+			escribir_log("datanode","dt","IBloque enviado","info");
 			free(bloque);
 
 		}
@@ -295,6 +304,7 @@ int main(int argc, char* argv[]){
 		case GETBLOQUE:
 		{
 			datos_solicitud=paquete.Payload;
+			escribir_log("datanode","dt","Get bloque","info");
 			int tamanio_bloque= *((uint32_t*)datos_solicitud);
 			datos_solicitud+=sizeof(uint32_t);
 			int numero_bloque=*((uint32_t*)datos_solicitud);
@@ -304,7 +314,7 @@ int main(int argc, char* argv[]){
 			datos_solicitud+=strlen(nombre_nodo_a_setear)+1;
 			void*bloque=malloc(tamanio_bloque);
 			bloque=getBloque(numero_bloque,tamanio_bloque);
-
+			escribir_log("datanode","dt","Bloque obtenido","info");
 			int tamanio_a_enviar=sizeof(uint32_t)+strlen(nombre_nodo_a_setear)+1+tamanio_bloque;
 			void* datos2=malloc(tamanio_a_enviar);
 			*((uint32_t*)datos2)=tamanio_bloque;
@@ -316,6 +326,7 @@ int main(int argc, char* argv[]){
 			datos2-=tamanio_a_enviar;
 
 			EnviarDatosTipo(socketFS,DATANODE,datos2,tamanio_a_enviar,RESPUESTAGETBLOQUE);
+			escribir_log("datanode","dt","Bloque enviado","info");
 			free(bloque);
 			//free(datos2);
 		}
@@ -326,7 +337,7 @@ int main(int argc, char* argv[]){
 
 			//recibimos los datos
 
-
+			escribir_log("datanode","dt","Set bloque","info");
 			void *datos;
 			datos=paquete.Payload;
 			int numero = *((uint32_t*)datos);
@@ -346,7 +357,7 @@ int main(int argc, char* argv[]){
 			datos+=strlen(nombre_archivo);
 			datos-=tamanio;
 			int resultado=setBloque(numero,bloque,tamano);
-
+			escribir_log("datanode","dt","Bloque seteado","info");
 			//enviamos respuesta a FS
 
 			int tamanio = sizeof(uint32_t) * 5  + sizeof(char)*strlen(NOMBRE_NODO) +1+ sizeof(char)*strlen(nombre_archivo)+1;
@@ -368,12 +379,15 @@ int main(int argc, char* argv[]){
 			datos -= tamanio;
 
 			EnviarDatosTipo(socketFS, DATANODE, datos, tamanio, RESULOPERACION);
+			escribir_log("datanode","dt","Resultado de bloque seteado enviado","info");
 			free(datos);
 			free(bloque);
 		}
 		break;
 		case SETBLOQUECPTO:{
 			datos_solicitud=paquete.Payload;
+
+			escribir_log("datanode","dt","Set bloque extra","info");
 			bloque_archivo=*((uint32_t*)datos_solicitud);
 			datos_solicitud+=sizeof(uint32_t);
 			int bloque_a_setear=*((uint32_t*)datos_solicitud);
@@ -390,7 +404,7 @@ int main(int argc, char* argv[]){
 			memmove(bloque,datos_solicitud,tamanio_bloque);
 			datos_solicitud+=tamanio_bloque;
 			int resultado=setBloque(bloque_a_setear,bloque,tamanio_bloque);
-
+			escribir_log("datanode","dt","Bloque extra seteado","info");
 			int tamanio_a_enviar=4*sizeof(uint32_t)+strlen(nombre_archivo)+1+strlen(NOMBRE_NODO)+1;
 			void*datos_a_enviar=malloc(tamanio_a_enviar);
 			*((uint32_t*)datos_a_enviar) = bloque_archivo;
@@ -406,8 +420,8 @@ int main(int argc, char* argv[]){
 			strcpy(datos_a_enviar,NOMBRE_NODO);
 			datos_a_enviar+=strlen(NOMBRE_NODO)+1;
 			datos_a_enviar-=tamanio_a_enviar;
-
 			EnviarDatosTipo(socketFS,DATANODE,datos_a_enviar,tamanio_a_enviar,RESPUESTASETBLOQUECPTO);
+			escribir_log("datanode","dt","Resultado bloque extra enviado","info");
 			free(datos_a_enviar);
 			free(bloque);
 		}
